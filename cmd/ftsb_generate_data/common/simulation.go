@@ -9,7 +9,7 @@ import (
 
 // SimulatorConfig is an interface to create a Simulator from a time.Duration
 type SimulatorConfig interface {
-	NewSimulator( uint64, string, string ) Simulator
+	NewSimulator(uint64, string, string) Simulator
 }
 
 // Simulator simulates a use case.

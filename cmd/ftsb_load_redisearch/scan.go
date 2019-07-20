@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -27,16 +28,34 @@ func (d *decoder) Decode(_ *bufio.Reader) *load.Point {
 	return load.NewPoint(d.scanner.Text())
 }
 
-func sendRedisCommand(line string, conn redis.Conn) {
-	t := strings.Split(line, " ")
-	s := redis.Args{}.AddFlat(t[1:])
-	//fmt.Println(line)
-	//fmt.Println(s)
-	//err := conn.Do(t[0],s...)
-	_, err := conn.Do(t[0],s...)
-	//err := conn.Send(t[0], s...)
+func sendRedisCommand(row string, conn redis.Conn) {
+	nFieldsStr := strings.SplitN(row, ",", 2)
+	if len(nFieldsStr) != 2 {
+		log.Fatalf("row does not have the correct format( len %d ) %s failed\n", len(nFieldsStr), row)
+	}
+	nFields, _ := strconv.Atoi(nFieldsStr[0])
+
+	fieldSizesStr := strings.SplitN(nFieldsStr[1], ",", nFields+1)
+	ftsRow := fieldSizesStr[nFields]
+	var cmdArgs []string
+
+	previousPos := 0
+	fieldLen := 0
+	for i := 0; i < nFields; i++ {
+		fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
+		cmdArgs = append(cmdArgs, ftsRow[previousPos:(previousPos + fieldLen)])
+		previousPos = previousPos + fieldLen
+
+	}
+
+	s := redis.Args{}.AddFlat(cmdArgs)
+	//metricValue := uint64(1)
+
+	err := conn.Send("FT.ADD", s...)
+	////err := conn.Send(t[0], s...)
 	if err != nil {
-		log.Fatalf("sendRedisCommand %s failed: %s\n", t[0], err)
+		log.Fatalf("FT.ADD %s failed: %s\n", s, err)
+		//	metricValue = uint64(0)
 	}
 }
 
@@ -44,16 +63,13 @@ func sendRedisFlush(count uint64, conn redis.Conn) (metrics uint64, err error) {
 	metrics = uint64(0)
 	err = conn.Flush()
 	if err != nil {
-		return
+		log.Fatalf("Error on flush \n", err)
 	}
+
 	for i := uint64(0); i < count; i++ {
-		rep, err := conn.Receive()
-		if err != nil {
-			return 0, err
-		}
-		arr, err := redis.Values(rep, nil)
-		if err != nil {
-			metrics += uint64(len(arr))
+		_, err := conn.Receive()
+		if err == nil {
+			metrics += 1
 		}
 	}
 	return metrics, nil

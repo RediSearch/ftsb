@@ -494,7 +494,7 @@ func TestReport(t *testing.T) {
 	m.Lock()
 	end := strings.TrimSpace(string(b.Bytes()))
 	m.Unlock()
-	if end[len(end)-1:len(end)] != "-" {
+	if end[len(end)-1:] != "-" {
 		t.Errorf("TestReport: non-row report does not end in -")
 	}
 
@@ -507,7 +507,7 @@ func TestReport(t *testing.T) {
 	m.Lock()
 	end = strings.TrimSpace(string(b.Bytes()))
 	m.Unlock()
-	if end[len(end)-1:len(end)] == "-" {
+	if end[len(end)-1:] == "-" {
 		t.Errorf("TestReport: row report ends in -")
 	}
 }

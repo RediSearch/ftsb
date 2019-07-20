@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/common"
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/wiki"
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/serialize"
+	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/wiki"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	formatRediSearch = "redisearch"
 
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
-	useCaseEnWikiAbstract   = "enwiki-abstract"
+	useCaseEnWikiAbstract = "enwiki-abstract"
 
 	errTotalGroupsZero  = "incorrect interleaved groups configuration: total groups = 0"
 	errInvalidGroupsFmt = "incorrect interleaved groups configuration: id %d >= total groups %d"
@@ -67,7 +67,7 @@ var (
 	format      string
 	useCase     string
 	profileFile string
-	IdxName string
+	IdxName     string
 
 	initialScale uint64
 	scale        uint64
@@ -202,7 +202,7 @@ func main() {
 	}()
 
 	cfg := getConfig(useCase)
-	sim := cfg.NewSimulator(maxDataPoints, inputfileName, IdxName )
+	sim := cfg.NewSimulator(maxDataPoints, inputfileName, IdxName)
 	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }
@@ -237,7 +237,7 @@ func getConfig(useCase string) common.SimulatorConfig {
 	switch useCase {
 	case useCaseEnWikiAbstract:
 		return &wiki.FTSSimulatorConfig{
-			 fileName,
+			fileName,
 		}
 	default:
 		fatal("unknown use case: '%s'", useCase)

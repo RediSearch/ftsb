@@ -6,8 +6,6 @@ import (
 	"github.com/filipecosta90/ftsb/load"
 	"github.com/gomodule/redigo/redis"
 	"log"
-	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -79,49 +77,28 @@ type processor struct {
 }
 
 func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, conn redis.Conn, id uint64) {
-	//curPipe := uint64(0)
+	curPipe := uint64(0)
 	for row := range rows {
 
-		nFieldsStr := strings.SplitN( row, ",", 2 )
-		if len(nFieldsStr)!=2{
-			log.Fatalf("row does not have the correct format( len %d ) %s failed\n",  len(nFieldsStr) , row )
-		}
-		nFields, _ := strconv.Atoi(nFieldsStr[0])
-
-		fieldSizesStr := strings.SplitN(nFieldsStr[1],",", nFields+1)
-		ftsRow := fieldSizesStr[nFields]
-		var cmdArgs []string
-
-		previousPos := 0
-		fieldLen := 0
-		for i := 0; i < nFields; i++ {
-			fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
-			cmdArgs = append(cmdArgs, ftsRow[previousPos:(previousPos + fieldLen)])
-			previousPos = previousPos + fieldLen
-
+		if curPipe == pipeline {
+			cnt, err := sendRedisFlush(curPipe, conn)
+			if err != nil {
+				log.Fatalf("Flush failed with %v", err)
+			}
+			metrics <- cnt
+			curPipe = 0
 		}
 
-		s := redis.Args{}.AddFlat(cmdArgs)
-		metricValue := uint64(1)
-
-		_, err := conn.Do("FT.ADD", s...)
-		////err := conn.Send(t[0], s...)
-		if err != nil {
-			log.Fatalf("FT.ADD %s failed: %s\n", s, err)
-			metricValue = uint64(0)
-		}
-
-		//sendRedisCommand(row, conn)
-		metrics <- metricValue
-		//curPipe++
+		sendRedisCommand(row, conn)
+		curPipe++
 	}
-	//if curPipe > 0 {
-	//	cnt, err := sendRedisFlush(curPipe, conn)
-	//	if err != nil {
-	//		log.Fatalf("Flush failed with %v", err)
-	//	}
-	//	metrics <- cnt
-	//}
+	if curPipe > 0 {
+		cnt, err := sendRedisFlush(curPipe, conn)
+		if err != nil {
+			log.Fatalf("Flush failed with %v", err)
+		}
+		metrics <- cnt
+	}
 	wg.Done()
 }
 
@@ -145,7 +122,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 			p.wg.Add(1)
 			go connectionProcessor(p.wg, p.rows[i], p.metrics, conn, i)
 		}
-		pos :=uint64(0)
+		pos := uint64(0)
 		for _, row := range events.rows {
 			i := pos % connections
 			p.rows[i] <- row
@@ -169,7 +146,6 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 
 func (p *processor) Close(_ bool) {
 }
-
 
 func main() {
 	workQueues := uint(load.WorkerPerQueue)

@@ -12,16 +12,15 @@ import (
 // overhead.
 type Document struct {
 	Id, Title, Url, Abstract []byte
-
 }
 
 // NewDocument returns a new empty Document
 func NewDocument() *Document {
 	return &Document{
-		Id: make([]byte, 0),
-		Title:         make([]byte, 0),
-		Url:         make([]byte, 0),
-		Abstract:         make([]byte, 0),
+		Id:       make([]byte, 0),
+		Title:    make([]byte, 0),
+		Url:      make([]byte, 0),
+		Abstract: make([]byte, 0),
 	}
 }
 

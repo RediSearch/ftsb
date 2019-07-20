@@ -59,7 +59,7 @@ func NewPoint(data interface{}) *Point {
 // that a particular point belongs to
 type PointIndexer interface {
 	// GetIndex returns a partition for the given Point
-	GetIndex(uint64,*Point) int
+	GetIndex(uint64, *Point) int
 }
 
 // ConstantIndexer always puts the item on a single channel. This is the typical

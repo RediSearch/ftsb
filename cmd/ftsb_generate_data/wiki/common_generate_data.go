@@ -10,12 +10,10 @@ type commonFTSSimulatorConfig struct {
 }
 
 type commonFTSSimulator struct {
-	madePoints uint64
-	maxPoints  uint64
+	madePoints  uint64
+	maxPoints   uint64
 	recordIndex uint64
 	records     []serialize.Document
-
-
 }
 
 // Finished tells whether we have simulated all the necessary points

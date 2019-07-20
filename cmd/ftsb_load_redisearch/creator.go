@@ -4,13 +4,11 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"log"
 	"time"
-
 )
 
 type dbCreator struct {
 	pool *redis.Pool
 	conn *redis.Conn
-
 }
 
 func (d *dbCreator) Init() {
@@ -20,7 +18,7 @@ func (d *dbCreator) Init() {
 		MaxIdle:     50,
 		IdleTimeout: 60 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp",host )
+			c, err := redis.Dial("tcp", host)
 			if err != nil {
 				return nil, err
 			}
