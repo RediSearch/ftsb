@@ -19,13 +19,6 @@ bin/
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-**ftsb_load_redisearch
-**ftsb_generate_data
-*ftsb_load_redisearch
-*ftsb_generate_data
-ftsb_load_redisearch
-ftsb_generate_data
-
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
