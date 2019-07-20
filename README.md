@@ -79,7 +79,7 @@ Variables needed:
 Given the above steps you can now generate a dataset (or multiple
 datasets, if you chose to generate for multiple databases) that can
 be used to benchmark data loading of the database(s) chosen using
-the `tsbs_generate_data` tool:
+the `ftsb_generate_data` tool:
 ```bash
 $ curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
 $ gunzip enwiki-latest-abstract1.xml.gz
