@@ -175,13 +175,12 @@ of insertion.
 TBD
 
 
-
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
 
-### Devops / cpu-only
-|Query type|Description|
-|:---|:---|
-|simple-1word-query| Simple 1 Word Query
-|simple-2word-query| Simple 2 Word Query
-|exact-3word-match| Exact 3 Word Match
-|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes
+### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
+|Query type|Description|Status|
+|:---|:---|:---|
+|simple-1word-query| Simple 1 Word Query | not ready
+|simple-2word-query| Simple 2 Word Query| not ready (WIP)
+|exact-3word-match| Exact 3 Word Match| not ready
+|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes| not ready
