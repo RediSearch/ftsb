@@ -8,7 +8,6 @@ import (
 
 type dbCreator struct {
 	pool *redis.Pool
-	conn *redis.Conn
 }
 
 func (d *dbCreator) Init() {

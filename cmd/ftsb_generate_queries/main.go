@@ -1,0 +1,194 @@
+// tsbs_generate_queries generates queries for various use cases. Its output will
+// be consumed by the corresponding tsbs_run_queries_ program.
+package main
+
+import (
+	"bufio"
+	"encoding/gob"
+	"flag"
+	"fmt"
+	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/databases/redisearch"
+	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/uses/wiki"
+	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
+	"log"
+	"math/rand"
+	"os"
+	"sort"
+	"time"
+)
+
+var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
+	"enwiki-abstract": {
+		wiki.LabelSimple2WordQuery:  wiki.NewSimple2WordQuery(1, 1, 1),
+	},
+}
+
+const defaultWriteSize = 4 << 20 // 4 MB
+
+// Program option vars:
+var (
+	fatal = log.Fatalf
+
+	generator utils.EnWikiAbstractGenerator
+	filler    utils.QueryFiller
+
+	queryCount int
+	fileName   string
+
+	seed  int64
+	debug int
+	inputfileName string
+	interleavedGenerationGroupID uint
+	interleavedGenerationGroups  uint
+)
+
+func getGenerator(format string, inputfile string ) utils.EnWikiAbstractGenerator {
+	if format == "redisearch" {
+		return redisearch.NewEnWikiAbstract( inputfile )
+	}
+
+	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
+}
+
+// GetBufferedWriter returns the buffered Writer that should be used for generated output
+func GetBufferedWriter(fileName string) *bufio.Writer {
+	// Prepare output file/STDOUT
+	if len(fileName) > 0 {
+		// Write output to file
+		file, err := os.Create(fileName)
+		if err != nil {
+			fatal("cannot open file for write %s: %v", fileName, err)
+		}
+		return bufio.NewWriterSize(file, defaultWriteSize)
+	}
+
+	// Write output to STDOUT
+	return bufio.NewWriterSize(os.Stdout, defaultWriteSize)
+}
+
+// Parse args:
+func init() {
+	// Change the Usage function to print the use case matrix of choices:
+	oldUsage := flag.Usage
+	flag.Usage = func() {
+		oldUsage()
+
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "The use case matrix of choices is:\n")
+		for uc, queryTypes := range useCaseMatrix {
+			for qt := range queryTypes {
+				fmt.Fprintf(os.Stderr, "  use case: %s, query type: %s\n", uc, qt)
+			}
+		}
+	}
+
+	var format string
+	var useCase string
+	var queryType string
+
+	flag.StringVar(&format, "format", "redisearch", "Format to emit. (Choices are in the use case matrix.)")
+	flag.StringVar(&useCase, "use-case", "enwiki-abstract", "Use case to model. (Choices are in the use case matrix.)")
+	flag.StringVar(&queryType, "query-type", "", "Query type. (Choices are in the use case matrix.)")
+
+	flag.IntVar(&queryCount, "queries", 1000, "Number of queries to generate.")
+	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1) (default 0).")
+
+	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0, "Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
+	flag.UintVar(&interleavedGenerationGroups, "interleaved-generation-groups", 1, "The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
+	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
+
+	flag.StringVar(&fileName, "output-file", "", "File name to write generated queries to")
+
+	flag.Parse()
+
+	if !(interleavedGenerationGroupID < interleavedGenerationGroups) {
+		fatal("incorrect interleaved groups configuration")
+	}
+
+	if _, ok := useCaseMatrix[useCase]; !ok {
+		fatal("invalid use case specifier: '%s'", useCase)
+	}
+
+	if _, ok := useCaseMatrix[useCase][queryType]; !ok {
+		fatal("invalid query type specifier: '%s'", queryType)
+	}
+
+	// the default seed is the current timestamp:
+	if seed == 0 {
+		seed = int64(time.Now().Nanosecond())
+	}
+	fmt.Fprintf(os.Stderr, "using random seed %d\n", seed)
+
+	// Make the query generator:
+	generator = getGenerator(format,inputfileName)
+	filler = useCaseMatrix[useCase][queryType](generator)
+}
+
+func main() {
+	rand.Seed(seed)
+	// Set up bookkeeping:
+	stats := make(map[string]int64)
+
+	// Get output writer
+	out := GetBufferedWriter(fileName)
+	defer func() {
+		err := out.Flush()
+		if err != nil {
+			fatal(err.Error())
+		}
+	}()
+
+	// Create request instances, serializing them to stdout and collecting
+	// counts for each kind. If applicable, only prints queries that
+	// belong to this interleaved group id:
+	currentInterleavedGroup := uint(0)
+
+	enc := gob.NewEncoder(out)
+	for i := 0; i < queryCount; i++ {
+		q := generator.GenerateEmptyQuery()
+		q = filler.Fill(q)
+		if currentInterleavedGroup == interleavedGenerationGroupID {
+			err := enc.Encode(q)
+			if err != nil {
+				fatal("encoder %v", err)
+			}
+			stats[string(q.HumanLabelName())]++
+
+			if debug == 1 {
+				_, err := fmt.Fprintf(os.Stderr, "%s\n", q.HumanLabelName())
+				if err != nil {
+					fatal(err.Error())
+				}
+			} else if debug == 2 {
+				_, err := fmt.Fprintf(os.Stderr, "%s\n", q.HumanDescriptionName())
+				if err != nil {
+					fatal(err.Error())
+				}
+			} else if debug >= 3 {
+				_, err := fmt.Fprintf(os.Stderr, "%s\n", q.String())
+				if err != nil {
+					fatal(err.Error())
+				}
+			}
+		}
+		q.Release()
+
+		currentInterleavedGroup++
+		if currentInterleavedGroup == interleavedGenerationGroups {
+			currentInterleavedGroup = 0
+		}
+	}
+
+	// Print stats:
+	keys := []string{}
+	for k := range stats {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		_, err := fmt.Fprintf(os.Stderr, "%s: %d points\n", k, stats[k])
+		if err != nil {
+			fatal(err.Error())
+		}
+	}
+}

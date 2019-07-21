@@ -68,19 +68,10 @@ var (
 	useCase     string
 	profileFile string
 	IdxName     string
-
-	initialScale uint64
-	scale        uint64
 	seed         int64
 	debug        int
-
-	timestampStart time.Time
-	timestampEnd   time.Time
-
 	interleavedGenerationGroupID   uint
 	interleavedGenerationGroupsNum uint
-
-	logInterval   time.Duration
 	maxDataPoints uint64
 	fileName      string
 	inputfileName string
