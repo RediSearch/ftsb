@@ -16,7 +16,9 @@ func (d *dbCreator) Init() {
 	d.pool = &redis.Pool{
 		MaxIdle:     5,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", host)
+			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
+				redis.DialReadTimeout(100*time.Millisecond),
+				redis.DialWriteTimeout(100*time.Millisecond),)
 			if err != nil {
 				return nil, err
 			}
