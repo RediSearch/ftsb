@@ -63,10 +63,12 @@ func init() {
 		},
 		Wait: true, // pool.Get() will block waiting for a free connection
 	}
+
 }
 
 func main() {
 	runner.Run(&query.RediSearchPool, newProcessor)
+	pool.Close()
 }
 
 type queryExecutorOptions struct {
@@ -99,6 +101,8 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 	qry := string(tq.RedisQuery)
 	conn := pool.Get()
+	defer conn.Close()
+
 	t := strings.Split(qry, ",")
 	commandArgs := make([]interface{}, len(t)-1)
 	for i := 1; i < len(t); i++ {

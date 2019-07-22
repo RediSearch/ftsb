@@ -170,9 +170,30 @@ All but the last two lines contain the data in CSV format, with column names in 
 The last line is a summary of how many documents were inserted, the wall time it took, and the average rate
 of insertion.
 
+
 ### Benchmarking query execution performance
 
-TBD
+To measure query execution performance in FTSB, you first need to load
+the data using the previous section and generate the queries as
+described earlier. Once the data is loaded and the queries are generated,
+just use the corresponding `ftsb_run_queries_` binary for the database
+being tested:
+```bash
+$ ftsb_run_queries_redisearch -file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query \
+       -max-queries 10000 -workers 4 -print-interval 0 
+```
+
+You can change the value of the `--workers` flag to
+control the level of parallel queries run at the same time. The
+resulting output will look similar to this:
+```text
+run complete after 10000 queries with 4 workers:
+RediSearch FT.SEARCH idx1 "barack obama":
+min:     0.04ms, med:     0.08ms, mean:     0.08ms, max:    1.07ms, stddev:     0.03ms, sum:   0.8sec, count: 10000
+all queries                             :
+min:     0.04ms, med:     0.08ms, mean:     0.08ms, max:    1.07ms, stddev:     0.03ms, sum:   0.8sec, count: 10000
+wall clock time: 0.374549sec
+```
 
 
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
