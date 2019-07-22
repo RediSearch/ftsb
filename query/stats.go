@@ -13,6 +13,7 @@ import (
 type Stat struct {
 	label     []byte
 	value     float64
+	totlResults int64
 	isWarm    bool
 	isPartial bool
 }
@@ -39,10 +40,11 @@ func GetPartialStat() *Stat {
 }
 
 // Init safely initializes a Stat while minimizing heap allocations.
-func (s *Stat) Init(label []byte, value float64) *Stat {
+func (s *Stat) Init(label []byte, value float64, totalResults int64 ) *Stat {
 	s.label = s.label[:0] // clear
 	s.label = append(s.label, label...)
 	s.value = value
+	s.totlResults = totalResults
 	s.isWarm = false
 	return s
 }
@@ -50,6 +52,7 @@ func (s *Stat) Init(label []byte, value float64) *Stat {
 func (s *Stat) reset() *Stat {
 	s.label = s.label[:0]
 	s.value = 0.0
+	s.totlResults = 0
 	s.isWarm = false
 	s.isPartial = false
 	return s

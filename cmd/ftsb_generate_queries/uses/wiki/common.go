@@ -1,10 +1,15 @@
 package wiki
 
 import (
+	"encoding/xml"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
+	"os"
 	"reflect"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
@@ -35,116 +40,112 @@ var fatal = log.Fatalf
 
 // Core is the common component of all generators for all systems
 type Core struct {
-
-
-	// Scale is the cardinality of the dataset in terms of devices/hosts
-	Scale int
+	QueryIndexPosition uint64
+	QueryIndex uint64
+	Queries     []string
 }
 
 // NewCore returns a new Core for the given time range and cardinality
-func NewCore( filename string ) *Core {
+func NewCore( filename string, seed int64, maxQueries int ) *Core {
+	//https://github.com/RediSearch/RediSearch/issues/307
+	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
+	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
 
+	// Make a Regex to say we only want letters and numbers
+	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rand.Seed(seed)
+	var two_word_query []string
+	fmt.Println("Reading " + filename )
+	xmlFile, err := os.Open(filename)
+	if err != nil {
+		log.Fatal( "Error while opening input file ", err)
+	}
+	dec := xml.NewDecoder(xmlFile)
+
+	tok, err := dec.RawToken()
+
+	props := map[string]string{}
+	var currentText string
+	queryCount := 0
+	for err != io.EOF && maxQueries > queryCount {
+		used_field := rand.Intn(2)
+
+		switch t := tok.(type) {
+
+		case xml.CharData:
+			if len(t) > 1 {
+				currentText += string(t)
+			}
+
+		case xml.EndElement:
+			name := t.Name.Local
+			if name == "title" || name == "url" || name == "abstract" {
+				props[name] = currentText
+			} else if name == "doc" {
+				props["title"] = strings.TrimPrefix(strings.TrimSpace(props["title"]), "Wikipedia: ")
+				props["abstract"] = strings.TrimSpace(props["abstract"])
+				props["url"] = strings.TrimSpace(props["url"])
+				props["title"] = strings.ReplaceAll(props["title"], "\"", "\\\"")
+				props["abstract"] = strings.ReplaceAll(props["abstract"], "\"", "\\\"")
+				props["url"] = strings.ReplaceAll(props["url"], "\"", "\\\"")
+				props["title"] = strings.TrimSpace(props["title"])
+				props["abstract"] = strings.TrimSpace(props["abstract"])
+				props["url"] = strings.TrimSpace(props["url"])
+				var source []string
+				first_word := ""
+				second_word := ""
+				switch used_field {
+				case 0:
+					source = strings.Split(props["title"]," ")
+				case 1:
+					source = strings.Split(props["abstract"]," ")
+				}
+				if len(source)-1 >= 1{
+					second_word_pos := rand.Intn(len(source)-1)+1
+					second_word = strings.TrimSpace(source[second_word_pos])
+					first_word_pos := rand.Intn(second_word_pos)
+					first_word = strings.TrimSpace(source[first_word_pos])
+
+					first_word := reg.ReplaceAllString(first_word, "")
+					second_word := reg.ReplaceAllString(second_word, "")
+					//
+					//
+					//for _, char := range specialCharacters{
+					//	second_word = strings.ReplaceAll(second_word,string(char), "")
+					//	first_word = strings.ReplaceAll(first_word,string(char), "")
+					//}
+
+					if len(first_word) > 0 && len(second_word)>0{
+						two_word_query = append( two_word_query, ""+ first_word + " " + second_word +"")
+						//two_word_query = append( two_word_query, "\"barach obama\"")
+
+						queryCount++
+					}
+				}
+				//fmt.Println(two_word_query)
+				props = map[string]string{}
+			}
+			currentText = ""
+		}
+
+		tok, err = dec.RawToken()
+
+	}
 	return &Core{
-		1,
+		0,
+		uint64(len(two_word_query)),
+		two_word_query,
 	}
 }
 
-// GetRandomHosts returns a random set of nHosts from a given Core
-func (d *Core) GetRandomHosts(nHosts int) []string {
-	return getRandomHosts(nHosts, d.Scale)
-}
-
-// cpuMetrics is the list of metric names for CPU
-var cpuMetrics = []string{
-	"usage_user",
-	"usage_system",
-	"usage_idle",
-	"usage_nice",
-	"usage_iowait",
-	"usage_irq",
-	"usage_softirq",
-	"usage_steal",
-	"usage_guest",
-	"usage_guest_nice",
-}
-
-// GetCPUMetricsSlice returns a subset of metrics for the CPU
-func GetCPUMetricsSlice(numMetrics int) []string {
-	if numMetrics <= 0 {
-		fatal(errNoMetrics)
-		return nil
-	}
-	if numMetrics > len(cpuMetrics) {
-		fatal(errTooManyMetrics)
-		return nil
-	}
-	return cpuMetrics[:numMetrics]
-}
-
-// GetAllCPUMetrics returns all the metrics for CPU
-func GetAllCPUMetrics() []string {
-	return cpuMetrics
-}
-
-// GetCPUMetricsLen returns the number of metrics in CPU
-func GetCPUMetricsLen() int {
-	return len(cpuMetrics)
-}
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query
 type Simple2WordQueryFiller interface {
 	Simple2WordQuery(query.Query, int, int, time.Duration)
-}
-
-// getRandomHosts returns a subset of numHosts hostnames of a permutation of hostnames,
-// numbered from 0 to totalHosts.
-// Ex.: host_12, host_7, host_25 for numHosts=3 and totalHosts=30 (3 out of 30)
-func getRandomHosts(numHosts int, totalHosts int) []string {
-	if numHosts < 1 {
-		fatal("number of hosts cannot be < 1; got %d", numHosts)
-		return nil
-	}
-	if numHosts > totalHosts {
-		fatal("number of hosts (%d) larger than total hosts. See --scale (%d)", numHosts, totalHosts)
-		return nil
-	}
-
-	randomNumbers := getRandomSubsetPerm(numHosts, totalHosts)
-
-	hostnames := []string{}
-	for _, n := range randomNumbers {
-		hostnames = append(hostnames, fmt.Sprintf("host_%d", n))
-	}
-
-	return hostnames
-}
-
-// getRandomSubsetPerm returns a subset of numItems of a permutation of numbers from 0 to totalNumbers,
-// e.g., 5 items out of 30. This is an alternative to rand.Perm and then taking a sub-slice,
-// which used up a lot more memory and slowed down query generation significantly.
-// The subset of the permutation should have no duplicates and thus, can not be longer that original set
-// Ex.: 12, 7, 25 for numItems=3 and totalItems=30 (3 out of 30)
-func getRandomSubsetPerm(numItems int, totalItems int) []int {
-	if numItems > totalItems {
-		// Cannot make a subset longer than the original set
-		fatal(errMoreItemsThanScale)
-		return nil
-	}
-
-	seen := map[int]bool{}
-	res := []int{}
-	for i := 0; i < numItems; i++ {
-		for {
-			n := rand.Intn(totalItems)
-			// Keep iterating until a previously unseen int is found
-			if !seen[n] {
-				seen[n] = true
-				res = append(res, n)
-				break
-			}
-		}
-	}
-	return res
 }
 
 func panicUnimplementedQuery(dg utils.EnWikiAbstractGenerator) {

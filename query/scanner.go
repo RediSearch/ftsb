@@ -30,6 +30,7 @@ func (s *scanner) scan(pool *sync.Pool, c chan Query) {
 	decoder := gob.NewDecoder(s.r)
 
 	n := uint64(0)
+
 	for {
 		if *s.limit > 0 && n >= *s.limit {
 			// request queries limit reached, time to quit

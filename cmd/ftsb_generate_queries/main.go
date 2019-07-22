@@ -42,9 +42,9 @@ var (
 	interleavedGenerationGroups  uint
 )
 
-func getGenerator(format string, inputfile string ) utils.EnWikiAbstractGenerator {
+func getGenerator(format string, inputfile string, seed int64, maxQueries int ) utils.EnWikiAbstractGenerator {
 	if format == "redisearch" {
-		return redisearch.NewEnWikiAbstract( inputfile )
+		return redisearch.NewEnWikiAbstract( inputfile, seed,maxQueries )
 	}
 
 	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
@@ -89,7 +89,7 @@ func init() {
 	flag.StringVar(&format, "format", "redisearch", "Format to emit. (Choices are in the use case matrix.)")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", "Use case to model. (Choices are in the use case matrix.)")
 	flag.StringVar(&queryType, "query-type", "", "Query type. (Choices are in the use case matrix.)")
-
+	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 	flag.IntVar(&queryCount, "queries", 1000, "Number of queries to generate.")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1) (default 0).")
 
@@ -117,10 +117,12 @@ func init() {
 	if seed == 0 {
 		seed = int64(time.Now().Nanosecond())
 	}
+
+
 	fmt.Fprintf(os.Stderr, "using random seed %d\n", seed)
 
 	// Make the query generator:
-	generator = getGenerator(format,inputfileName)
+	generator = getGenerator(format,inputfileName, seed, queryCount )
 	filler = useCaseMatrix[useCase][queryType](generator)
 }
 
@@ -186,7 +188,7 @@ func main() {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		_, err := fmt.Fprintf(os.Stderr, "%s: %d points\n", k, stats[k])
+		_, err := fmt.Fprintf(os.Stderr, "%s: %d queries\n", k, stats[k])
 		if err != nil {
 			fatal(err.Error())
 		}

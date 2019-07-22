@@ -82,10 +82,10 @@ be used to benchmark data loading of the database(s) chosen using
 the `ftsb_generate_data` tool. The following example outputs the generated queries to a file named `enwiki-latest-abstract1.gz` in directory `/tmp`:
 ```bash
 $ curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
-$ gunzip enwiki-latest-abstract1.xml.gz
-$ ./ftsb_generate_data -input-file enwiki-latest-abstract1.xml \
+$ gunzip enwiki-latest-abstract1.xml.gz /tmp/enwiki-latest-abstract1.xml
+$ ./ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
      -format="redisearch" \
-    | gzip > /tmp/enwiki-latest-abstract1.gz 
+    | gzip > /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz 
 
 # Each additional database would be a separate call.
 ```
@@ -104,12 +104,32 @@ listed in [Appendix I](#appendix-i-query-types).
 
 For generating just one set of queries for a given type:
 ```bash
-$ ftsb_generate_queries -use-case="enwiki-abstract" \
-    -input-file enwiki-latest-abstract1.xml \
-    -queries=1000 -query-type="simple-2word-query" -format="redisearch" \
-    | gzip > /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query.gz
+$ ftsb_generate_queries -query-type="simple-2word-query" \
+    -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
+     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0 \
 ```
 
+In debug mode 0, only the summary of query generation will be printed:
+```text
+using random seed 1234
+Reading /tmp/enwiki-latest-abstract1.xml
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
+```
+
+
+In debug mode 2, the full info of the generated queries will will be printed:
+```text
+using random seed 1234
+Reading /tmp/enwiki-latest-abstract1.xml
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words their based
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words reflection of
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words In Thetis
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words Abraham Lincoln
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words deathplaceEuboea Macedonian
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words An American
+(...)
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
+```
 
 ### Benchmarking insert/write performance
 
@@ -137,7 +157,7 @@ $ redis-cli ft.create idx1 SCHEMA \
 # Will insert using 2 clients, batch sizes of 10k, from a file
 # named `enwiki-latest-abstract1.gz` in directory `/tmp`
 # with pipeline of 100 and 32 concurrent connections
-$ cat /tmp/enwiki-latest-abstract1.gz \
+$ cat /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz \
       | gunzip \
       | ./ftsb_load_redisearch -workers 2 -reporting-period 1s \
        -batch-size 10000 -connections 32 -pipeline 100
@@ -179,20 +199,45 @@ described earlier. Once the data is loaded and the queries are generated,
 just use the corresponding `ftsb_run_queries_` binary for the database
 being tested:
 ```bash
-$ ftsb_run_queries_redisearch -file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query \
-       -max-queries 10000 -workers 4 -print-interval 0 
+$ ftsb_run_queries_redisearch \
+       -file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0 \
+       -max-queries 100000 -workers 16 -print-interval 20000 
 ```
 
 You can change the value of the `--workers` flag to
 control the level of parallel queries run at the same time. The
 resulting output will look similar to this:
 ```text
-run complete after 10000 queries with 4 workers:
-RediSearch FT.SEARCH idx1 "barack obama":
-min:     0.04ms, med:     0.08ms, mean:     0.08ms, max:    1.07ms, stddev:     0.03ms, sum:   0.8sec, count: 10000
-all queries                             :
-min:     0.04ms, med:     0.08ms, mean:     0.08ms, max:    1.07ms, stddev:     0.03ms, sum:   0.8sec, count: 10000
-wall clock time: 0.374549sec
+after 20000 queries with 16 workers:
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
+min:     0.20ms, med:     2.55ms, mean:     3.96ms, max:   37.85ms, stddev:     3.86ms, sum:  79.2sec, count: 20000
+all queries                                                                                       :
+min:     0.20ms, med:     2.55ms, mean:     3.96ms, max:   37.85ms, stddev:     3.86ms, sum:  79.2sec, count: 20000
+
+after 40000 queries with 16 workers:
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
+min:     0.12ms, med:     2.11ms, mean:     3.47ms, max:   37.85ms, stddev:     3.79ms, sum: 138.8sec, count: 40000
+all queries                                                                                       :
+min:     0.12ms, med:     2.11ms, mean:     3.47ms, max:   37.85ms, stddev:     3.79ms, sum: 138.8sec, count: 40000
+
+after 60000 queries with 16 workers:
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
+min:     0.11ms, med:     1.90ms, mean:     3.22ms, max:   37.85ms, stddev:     3.63ms, sum: 193.1sec, count: 60000
+all queries                                                                                       :
+min:     0.11ms, med:     1.90ms, mean:     3.22ms, max:   37.85ms, stddev:     3.63ms, sum: 193.1sec, count: 60000
+
+after 80000 queries with 16 workers:
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
+min:     0.11ms, med:     2.02ms, mean:     3.37ms, max:   37.85ms, stddev:     3.70ms, sum: 269.9sec, count: 80000
+all queries                                                                                       :
+min:     0.11ms, med:     2.02ms, mean:     3.37ms, max:   37.85ms, stddev:     3.70ms, sum: 269.9sec, count: 80000
+
+run complete after 100000 queries with 16 workers:
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
+min:     0.11ms, med:     2.06ms, mean:     3.47ms, max:   39.74ms, stddev:     3.81ms, sum: 347.3sec, count: 100000
+all queries                                                                                       :
+min:     0.11ms, med:     2.06ms, mean:     3.47ms, max:   39.74ms, stddev:     3.81ms, sum: 347.3sec, count: 100000
+wall clock time: 40.529041sec
 ```
 
 

@@ -9,12 +9,12 @@ import (
 
 // EnWikiAbstract produces RediSearch-specific queries for all the devops query types.
 type EnWikiAbstract struct {
-	*wiki.Core
+	Core *wiki.Core
 }
 
 // NewEnWikiAbstract makes an EnWikiAbstract object ready to generate Queries.
-func NewEnWikiAbstract( filename string ) *EnWikiAbstract {
-	return &EnWikiAbstract{wiki.NewCore( filename )}
+func NewEnWikiAbstract( filename string, seed int64, maxQueries int ) *EnWikiAbstract {
+	return &EnWikiAbstract{wiki.NewCore( filename, seed, maxQueries )}
 }
 
 // GenerateEmptyQuery returns an empty query.RediSearch
@@ -25,16 +25,17 @@ func (d *EnWikiAbstract) GenerateEmptyQuery() query.Query {
 // Simple2WordQuery fetches the MAX for numMetrics metrics under 'cpu', per minute for nhosts hosts,
 // every 1 mins for 1 hour
 func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query, nHosts, numMetrics int, timeRange time.Duration) {
+	if d.Core.QueryIndexPosition >= d.Core.QueryIndex{
+		d.Core.QueryIndexPosition = 0
+	}
 
-	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,\"%s %s\"'`,
-		"idx1",
-		"barack",
-		"obama")
-	humanLabel := fmt.Sprintf("RediSearch FT.SEARCH %s \"%s %s\"", "idx1",
-		"barack",
-		"obama")
-	humanDesc := fmt.Sprintf("%s", humanLabel)
+	twoWords := d.Core.Queries[d.Core.QueryIndexPosition]
+	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,%s`, "idx1", twoWords)
+
+	humanLabel := "RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words)"
+	humanDesc := fmt.Sprintf("%s. words %s", humanLabel,twoWords)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
+	d.Core.QueryIndexPosition++
 
 }
 

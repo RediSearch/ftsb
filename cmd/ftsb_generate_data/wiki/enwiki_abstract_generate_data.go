@@ -59,6 +59,9 @@ type FTSSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
 func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, IdxName string) common.Simulator {
+	//https://github.com/RediSearch/RediSearch/issues/307
+	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
+	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
 	var documents []serialize.Document
 	xmlFile, _ := os.Open(inputFilename)
 	dec := xml.NewDecoder(xmlFile)
@@ -90,6 +93,13 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, Id
 				props["title"] = strings.ReplaceAll(props["title"], "\"", "\\\"")
 				props["abstract"] = strings.ReplaceAll(props["abstract"], "\"", "\\\"")
 				props["url"] = strings.ReplaceAll(props["url"], "\"", "\\\"")
+
+				for _, char := range field_tokenization{
+					props["abstract"] = strings.ReplaceAll(props["abstract"],string(char), string("\\"+string(char)) )
+					props["url"] = strings.ReplaceAll(props["url"],string(char), string("\\"+string(char)) )
+					props["title"] = strings.ReplaceAll(props["title"],string(char), string("\\"+string(char)) )
+				}
+
 				documents = append(documents, serialize.Document{[]byte(id), []byte( "\"" + props["title"] + "\"" ), []byte( "\"" + props["url"] + "\""), []byte( "\"" + props["abstract"] + "\"" )})
 				props = map[string]string{}
 			}

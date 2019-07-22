@@ -41,9 +41,11 @@ func init() {
 
 	flag.Parse()
 
+
 	pool = &redis.Pool{
 		MaxIdle:     50,
 		IdleTimeout: 60 * time.Second,
+		MaxActive: 500,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host)
 			if err != nil {
@@ -51,7 +53,6 @@ func init() {
 			}
 			return c, err
 		},
-		MaxActive: 1000,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 
 			_, err := c.Do("PING")
@@ -68,7 +69,6 @@ func init() {
 
 func main() {
 	runner.Run(&query.RediSearchPool, newProcessor)
-	pool.Close()
 }
 
 type queryExecutorOptions struct {
@@ -108,23 +108,32 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	for i := 1; i < len(t); i++ {
 		commandArgs[i-1] = t[i]
 	}
+	totalResults := 0
+
 	start := time.Now()
-	res, err := conn.Do(t[0], commandArgs...)
-	if err != nil {
-		log.Fatalf("Command failed:%v %v\n", res, err)
-	}
+	res, err := redis.Values(conn.Do("FT.SEARCH", commandArgs...))
+	//redis.Values(res,err)
+	took := float64(time.Since(start).Nanoseconds()) / 1e6
 
 	if p.opts.debug {
-		fmt.Println(qry)
+		fmt.Println(strings.Join(t, " "))
+	}
+	//err := nil
+	if err != nil {
+		log.Fatalf("Command failed:%v|\t%v\n", res, err)
+	} else {
+		if totalResults, err = redis.Int(res[0], nil); err != nil {
+			log.Fatalf("Error retrieving total:%v|\t%v\n", res, err)
+		}
+
+		if p.opts.printResponse {
+			fmt.Println("\nRESPONSE:", totalResults)
+		}
 	}
 
-	if p.opts.printResponse {
-		fmt.Println("\n", res)
-	}
 
-	took := float64(time.Since(start).Nanoseconds()) / 1e6
 	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took)
+	stat.Init(q.HumanLabelName(), took, int64(totalResults))
 
-	return []*query.Stat{stat}, err
+	return []*query.Stat{stat}, nil
 }
