@@ -42,12 +42,16 @@ func init() {
 	flag.Parse()
 
 
+
+
 	pool = &redis.Pool{
-		MaxIdle:     50,
+		MaxIdle:     1000,
+		MaxActive:   5000,
 		IdleTimeout: 60 * time.Second,
-		MaxActive: 500,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", host)
+			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
+				redis.DialReadTimeout(100*time.Millisecond),
+				redis.DialWriteTimeout(100*time.Millisecond),)
 			if err != nil {
 				return nil, err
 			}
