@@ -76,7 +76,9 @@ type processor struct {
 	wg      *sync.WaitGroup
 }
 
-func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, conn redis.Conn, id uint64) {
+func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, pool* redis.Pool, id uint64) {
+	conn := pool.Get()
+	defer conn.Close()
 	curPipe := uint64(0)
 	for row := range rows {
 
@@ -100,6 +102,7 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 		metrics <- cnt
 	}
 	wg.Done()
+	conn.Close()
 }
 
 func (p *processor) Init(_ int, _ bool) {}
@@ -116,11 +119,9 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 		p.metrics = make(chan uint64, buflen)
 		p.wg = &sync.WaitGroup{}
 		for i := uint64(0); i < connections; i++ {
-			conn := p.dbc.pool.Get()
-			defer conn.Close()
 			p.rows[i] = make(chan string, buflen)
 			p.wg.Add(1)
-			go connectionProcessor(p.wg, p.rows[i], p.metrics, conn, i)
+			go connectionProcessor(p.wg, p.rows[i], p.metrics, p.dbc.pool, i)
 		}
 		pos := uint64(0)
 		for _, row := range events.rows {

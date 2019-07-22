@@ -14,8 +14,7 @@ func (d *dbCreator) Init() {
 	//d.pool.writeBytes([]byte(""))
 
 	d.pool = &redis.Pool{
-		MaxIdle:     50,
-		IdleTimeout: 60 * time.Second,
+		MaxIdle:     5,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host)
 			if err != nil {
@@ -23,7 +22,7 @@ func (d *dbCreator) Init() {
 			}
 			return c, err
 		},
-		MaxActive: 1000,
+		MaxActive: 100,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 
 			_, err := c.Do("PING")
