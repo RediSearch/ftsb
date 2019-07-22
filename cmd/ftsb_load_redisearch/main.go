@@ -89,7 +89,7 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 
 func (p *processor) Init(_ int, _ bool) {}
 
-// ProcessBatch reads eventsBatches which contain rows of data for TS.ADD redis command string
+// ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
 func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))

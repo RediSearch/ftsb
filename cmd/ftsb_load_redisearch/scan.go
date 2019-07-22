@@ -51,7 +51,7 @@ func sendRedisCommand(row string, conn redis.Conn) {
 	s := redis.Args{}.AddFlat(cmdArgs)
 	//metricValue := uint64(1)
 	_, err := conn.Do("FT.ADD", s...)
-	////err := conn.Send(t[0], s...)
+	//////err := conn.Send(t[0], s...)
 	if err != nil {
 		log.Fatalf("FT.ADD %s failed: %s\n", s, err)
 		//	metricValue = uint64(0)
