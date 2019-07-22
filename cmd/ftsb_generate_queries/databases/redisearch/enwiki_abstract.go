@@ -32,8 +32,8 @@ func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query, nHosts, numMetrics int
 	twoWords := d.Core.Queries[d.Core.QueryIndexPosition]
 	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,%s`, "idx1", twoWords)
 
-	humanLabel := "RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words)"
-	humanDesc := fmt.Sprintf("%s. words %s", humanLabel,twoWords)
+	humanLabel := "RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words)."
+	humanDesc := fmt.Sprintf("%s Used words \"%s\"", humanLabel,twoWords)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
 	d.Core.QueryIndexPosition++
 

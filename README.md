@@ -121,12 +121,12 @@ In debug mode 2, the full info of the generated queries will will be printed:
 ```text
 using random seed 1234
 Reading /tmp/enwiki-latest-abstract1.xml
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words their based
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words reflection of
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words In Thetis
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words Abraham Lincoln
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words deathplaceEuboea Macedonian
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words). words An American
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "their based"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "reflection of"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "In Thetis"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "Abraham Lincoln"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "deathplaceEuboea Macedonian"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "An American"
 (...)
 RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
 ```
