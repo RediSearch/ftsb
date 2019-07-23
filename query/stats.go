@@ -82,7 +82,7 @@ func newStatGroup(size uint64) *statGroup {
 	return &statGroup{
 		values: make([]float64, size),
 		count:  0,
-		histogram:  gohistogram.NewHistogram(80),
+		histogram:  gohistogram.NewHistogram(10),
 
 	}
 }
