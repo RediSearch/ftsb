@@ -1,5 +1,5 @@
 // tsbs_generate_queries generates queries for various use cases. Its output will
-// be consumed by the corresponding tsbs_run_queries_ program.
+// be consumed by the corresponding ftsb_run_queries_ program.
 package main
 
 import (
@@ -19,8 +19,8 @@ import (
 
 var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
-		wiki.LabelSimple2WordQuery:  wiki.NewSimple2WordQuery(1, 1, 1),
-		wiki.LabelSimple2WordBarackObama:  wiki.NewSimple2WordBarackObama(1,1,1),
+		wiki.LabelSimple2WordQuery:  wiki.NewSimple2WordQuery(),
+		wiki.LabelSimple2WordBarackObama:  wiki.NewSimple2WordBarackObama(),
 	},
 }
 

@@ -2,12 +2,11 @@ package redisearch
 
 import (
 	"fmt"
-	"github.com/filipecosta90/ftsb/query"
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/uses/wiki"
-	"time"
+	"github.com/filipecosta90/ftsb/query"
 )
 
-// EnWikiAbstract produces RediSearch-specific queries for all the devops query types.
+// EnWikiAbstract produces RediSearch-specific queries for all the en wiki query types.
 type EnWikiAbstract struct {
 	Core *wiki.Core
 }
@@ -22,15 +21,15 @@ func (d *EnWikiAbstract) GenerateEmptyQuery() query.Query {
 	return query.NewRediSearch()
 }
 
-// Simple2WordQuery fetches the MAX for numMetrics metrics under 'cpu', per minute for nhosts hosts,
+// Simple2WordQuery does a search with 2 random words that existe on the set of documents
 // every 1 mins for 1 hour
-func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query, nHosts, numMetrics int, timeRange time.Duration) {
+func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query) {
 	if d.Core.QueryIndexPosition >= d.Core.QueryIndex{
 		d.Core.QueryIndexPosition = 0
 	}
 
 	twoWords := d.Core.Queries[d.Core.QueryIndexPosition]
-	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,%s`, "idx1", twoWords)
+	redisQuery := fmt.Sprintf(`FT.SEARCH,%s`, twoWords)
 
 	humanLabel := "RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words)."
 	humanDesc := fmt.Sprintf("%s Used words \"%s\"", humanLabel,twoWords)
@@ -40,10 +39,9 @@ func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query, nHosts, numMetrics int
 }
 
 
-// Simple2WordQuery fetches the MAX for numMetrics metrics under 'cpu', per minute for nhosts hosts,
-// every 1 mins for 1 hour
-func (d *EnWikiAbstract) Simple2WordBarackObama(qi query.Query, nHosts, numMetrics int, timeRange time.Duration) {
-	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,barack obama`, "idx1")
+// Simple2WordBarackObama does a search with the 2 fixed words barack obama
+func (d *EnWikiAbstract) Simple2WordBarackObama(qi query.Query) {
+	redisQuery := fmt.Sprintf(`FT.SEARCH,barack obama` )
 
 	humanLabel := "RediSearch Simple 2 Word Query - Barack Obama."
 	humanDesc := fmt.Sprintf("%s Used words \"barack obama\"", humanLabel)

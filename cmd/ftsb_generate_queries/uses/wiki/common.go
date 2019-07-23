@@ -3,6 +3,8 @@ package wiki
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
+	"github.com/filipecosta90/ftsb/query"
 	"io"
 	"log"
 	"math/rand"
@@ -10,10 +12,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"time"
-
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
-	"github.com/filipecosta90/ftsb/query"
 )
 
 const (
@@ -47,7 +45,7 @@ type Core struct {
 	Queries     []string
 }
 
-// NewCore returns a new Core for the given time range and cardinality
+// NewCore returns a new Core for the given input filename, seed, and maxQueries
 func NewCore( filename string, seed int64, maxQueries int ) *Core {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
@@ -130,7 +128,6 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 
 			tok, err = dec.RawToken()
 	}
-
 	}
 	return &Core{
 		0,
@@ -142,13 +139,12 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query
 type Simple2WordQueryFiller interface {
-	Simple2WordQuery(query.Query, int, int, time.Duration)
+	Simple2WordQuery(query.Query)
 }
-
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query
 type Simple2WordBarackObamaFiller interface {
-	Simple2WordBarackObama(query.Query, int, int, time.Duration)
+	Simple2WordBarackObama(query.Query)
 }
 
 func panicUnimplementedQuery(dg utils.EnWikiAbstractGenerator) {

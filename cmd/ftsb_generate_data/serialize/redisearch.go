@@ -12,22 +12,15 @@ type RediSearchSerializer struct{}
 func (s *RediSearchSerializer) Serialize(p *Document, Idx string, w io.Writer) (err error) {
 	// To do this
 	// FT.ADD myIdx doc1 1.0 FIELDS title "hello world" body "lorem ipsum" url "http://redis.io"
-	// #fields,lenField1,lenField2,(...)myIdx doc1 1.0 FIELDS title "hello world" body "lorem ipsum" url "http://redis.io"
+	// #fields,lenField1,lenField2,(...) myIdx(implicit since the tool will use the index it wants) doc1 1.0 FIELDS(implicit) title "hello world" body "lorem ipsum" url "http://redis.io"
 	var buf []byte
 	var fieldStartAndSize []int
 	fieldStartAndSizeStr := ""
 	priorBufPos := 0
-	//fieldStartAndSize = append(fieldStartAndSize, 0 )
-	buf = append(buf, []byte(Idx)...)
-	fieldStartAndSize = append(fieldStartAndSize, len(buf)-priorBufPos)
-	priorBufPos = len(buf)
 	buf = append(buf, p.Id...)
 	fieldStartAndSize = append(fieldStartAndSize, len(buf)-priorBufPos)
 	priorBufPos = len(buf)
 	buf = append(buf, []byte("1.0")...)
-	fieldStartAndSize = append(fieldStartAndSize, len(buf)-priorBufPos)
-	priorBufPos = len(buf)
-	buf = append(buf, []byte("FIELDS")...)
 	fieldStartAndSize = append(fieldStartAndSize, len(buf)-priorBufPos)
 	priorBufPos = len(buf)
 	buf = append(buf, []byte("TITLE" )...)

@@ -160,7 +160,6 @@ func init() {
 	flag.Uint64Var(&maxDataPoints, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
-	flag.StringVar(&IdxName, "index-name", "idx1", "Index to be used for FT.ADD commands")
 
 	flag.Parse()
 
@@ -200,7 +199,6 @@ func main() {
 
 func runSimulator(sim common.Simulator, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
 	currGroupID := uint(0)
-	//sim.CreateIdx("idx1",out)
 	point := serialize.NewDocument()
 	for !sim.Finished() {
 

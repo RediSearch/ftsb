@@ -83,7 +83,7 @@ the `ftsb_generate_data` tool. The following example outputs the generated queri
 ```bash
 $ curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
 $ gunzip enwiki-latest-abstract1.xml.gz /tmp/enwiki-latest-abstract1.xml
-$ ./ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
+$ ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
      -format="redisearch" \
     | gzip > /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz 
 
@@ -106,7 +106,7 @@ For generating just one set of queries for a given type:
 ```bash
 $ ftsb_generate_queries -query-type="simple-2word-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
-     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0 \
+     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0
 ```
 
 In debug mode 0, only the summary of query generation will be printed:
@@ -156,11 +156,11 @@ $ redis-cli ft.create idx1 SCHEMA \
 
 # Will insert using 2 clients, batch sizes of 10k, from a file
 # named `enwiki-latest-abstract1.gz` in directory `/tmp`
-# with pipeline of 100 and 32 concurrent connections
+# with pipeline of 100
 $ cat /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz \
       | gunzip \
       | ./ftsb_load_redisearch -workers 2 -reporting-period 1s \
-       -batch-size 10000 -connections 32 -pipeline 100
+       -batch-size 1000 -pipeline 10
 ```
 
 ---

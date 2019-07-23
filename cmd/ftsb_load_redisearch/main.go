@@ -4,19 +4,18 @@ import (
 	"bufio"
 	"flag"
 	"github.com/filipecosta90/ftsb/load"
-	"github.com/gomodule/redigo/redis"
+	"github.com/RediSearch/redisearch-go/redisearch"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 )
 
 // Program option vars:
 var (
 	host        string
-	connections uint64
+	index string
 	pipeline    uint64
-	checkChunks uint64
-	singleQueue bool
-	dataModel   string
 )
 
 // Global vars
@@ -32,8 +31,8 @@ var fatal = log.Fatal
 func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
-	flag.Uint64Var(&connections, "connections", 10, "The number of connections per worker")
-	flag.Uint64Var(&pipeline, "pipeline", 50, "The pipeline's size")
+	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
+	flag.StringVar(&index, "index", "idx1", "RediSearch index")
 	flag.Parse()
 }
 
@@ -62,7 +61,7 @@ func (b *benchmark) GetPointIndexer(maxPartitions uint) load.PointIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{b.dbc, nil, nil, nil}
+	return &processor{b.dbc, nil, nil, nil, nil}
 }
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
@@ -74,19 +73,73 @@ type processor struct {
 	rows    chan string
 	metrics chan uint64
 	wg      *sync.WaitGroup
+	client *redisearch.Client
 }
 
-func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, pool *redis.Pool) {
-	conn := pool.Get()
-	defer conn.Close()
-	for row := range rows {
-		metrics <- sendRedisCommand(row, conn)
+//, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
+func rowToRSDocument(row string ) (document redisearch.Document){
+	nFieldsStr := strings.SplitN(row, ",", 2)
+	if len(nFieldsStr) != 2 {
+		log.Fatalf("row does not have the correct format( len %d ) %s failed\n", len(nFieldsStr), row)
 	}
-	conn.Close()
+	nFields, _ := strconv.Atoi(nFieldsStr[0])
+
+	fieldSizesStr := strings.SplitN(nFieldsStr[1], ",", nFields+1)
+	ftsRow := fieldSizesStr[nFields]
+	previousPos := 0
+	fieldLen := 0
+	fieldLen, _ = strconv.Atoi(fieldSizesStr[0])
+	documentId := ftsRow[previousPos:(previousPos + fieldLen)]
+	previousPos = previousPos + fieldLen
+	fieldLen, _ = strconv.Atoi(fieldSizesStr[1])
+	documentScore, _ := strconv.ParseFloat(ftsRow[previousPos:(previousPos + fieldLen)],64)
+	previousPos = previousPos + fieldLen
+	doc := redisearch.NewDocument(documentId, float32(documentScore))
+
+	for i := 2; i < nFields; i=i+2 {
+		fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
+		fieldName := ftsRow[previousPos:(previousPos + fieldLen)]
+		previousPos = previousPos + fieldLen
+		fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
+		fieldValue := ftsRow[previousPos:(previousPos + fieldLen)]
+		previousPos = previousPos + fieldLen
+		doc.Set(fieldName, fieldValue)
+	}
+
+	return doc
+}
+
+func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, client *redisearch.Client, pipeline uint64) {
+	var documents []redisearch.Document
+	pipelinePos := uint64(0)
+	for row := range rows {
+		doc := rowToRSDocument(row)
+		documents = append(documents, doc )
+		pipelinePos++
+		if pipelinePos % pipeline == 0 {
+				// Index the document. The API accepts multiple documents at a time
+				if err := client.Index(documents...); err != nil {
+					log.Fatalf("failed: %s\n", err)
+				}
+			metrics <- pipelinePos
+			pipelinePos = 0
+		}
+
+	}
+	if pipelinePos !=  0 {
+		// Index the document. The API accepts multiple documents at a time
+		if err := client.Index(documents...); err != nil {
+			log.Fatalf("failed: %s\n",err)
+		}
+		metrics <- pipelinePos
+		pipelinePos = 0
+	}
 	wg.Done()
 }
 
-func (p *processor) Init(_ int, _ bool) {}
+func (p *processor) Init(_ int, _ bool) {
+	p.client = redisearch.NewClient(host,index)
+}
 
 // ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
 func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
@@ -99,7 +152,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p.wg, p.rows, p.metrics, p.dbc.pool)
+		go connectionProcessor(p.wg, p.rows, p.metrics, p.client, pipeline )
 		for _, row := range events.rows {
 			p.rows <- row
 		}
@@ -120,6 +173,6 @@ func (p *processor) Close(_ bool) {
 }
 
 func main() {
-	workQueues := uint(load.WorkerPerQueue)
-	loader.RunBenchmark(&benchmark{dbc: &dbCreator{}}, workQueues)
+	//workQueues := uint(load.WorkerPerQueue)
+	loader.RunBenchmark(&benchmark{dbc: &dbCreator{}}, load.SingleQueue)
 }

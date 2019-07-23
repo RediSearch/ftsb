@@ -86,7 +86,7 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, Id
 				props[name] = currentText
 			} else if name == "doc" {
 				u2, _ := uuid.NewRandom()
-				id := IdxName + "-" + u2.String() + "-" + path.Base(props["url"])
+				id := u2.String() + "-" + path.Base(props["url"])
 				props["title"] = strings.TrimPrefix(strings.TrimSpace(props["title"]), "Wikipedia: ")
 				props["abstract"] = strings.TrimSpace(props["abstract"])
 				props["url"] = strings.TrimSpace(props["url"])

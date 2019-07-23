@@ -12,13 +12,15 @@ import (
 	"time"
 
 	"github.com/filipecosta90/ftsb/query"
-	"github.com/gomodule/redigo/redis"
+	"github.com/RediSearch/redisearch-go/redisearch"
 	_ "github.com/lib/pq"
 )
 
 // Program option vars:
 var (
 	host        string
+	index        string
+
 	showExplain bool
 	//	scale        uint64
 )
@@ -29,7 +31,8 @@ var (
 )
 
 var (
-	pool *redis.Pool
+	client *redisearch.Client
+
 )
 
 // Parse args:
@@ -37,33 +40,9 @@ func init() {
 	runner = query.NewBenchmarkRunner()
 
 	flag.StringVar(&host, "host", "localhost:6379", "Redis host address and port")
-	//flag.Uint64Var(&scale, "scale", 8, "Scaling variable (Must be the equal to the scalevar used for data generation).")
-
+	flag.StringVar(&index, "index", "idx1", "RediSearch index")
 	flag.Parse()
-
-	pool = &redis.Pool{
-		MaxIdle:     50,
-		IdleTimeout: 60 * time.Second,
-		MaxActive: 500,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", host)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-
-			_, err := c.Do("PING")
-			if err != nil {
-				log.Printf("[ERROR]: TestOnBorrow failed healthcheck to redisUrl=%q err=%v",
-					host, err)
-			}
-			return err
-		},
-		Wait: true, // pool.Get() will block waiting for a free connection
-	}
-
+	client = redisearch.NewClient(host,index)
 }
 
 func main() {
@@ -99,19 +78,18 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	tq := q.(*query.RediSearch)
 
 	qry := string(tq.RedisQuery)
-	conn := pool.Get()
-	defer conn.Close()
 
 	t := strings.Split(qry, ",")
-	commandArgs := make([]interface{}, len(t)-1)
-	for i := 1; i < len(t); i++ {
-		commandArgs[i-1] = t[i]
+	if len(t) < 2 {
+		log.Fatalf("The query has not the correct format ", qry )
 	}
-	totalResults := 0
-
+	command := t[0]
+	if command != "FT.SEARCH" {
+		log.Fatalf("Command not supported yet. Only FT.SEARCH. ", command )
+	}
+	rediSearchQuery := redisearch.NewQuery(t[1])
 	start := time.Now()
-	res, err := redis.Values(conn.Do("FT.SEARCH", commandArgs...))
-	//redis.Values(res,err)
+	docs, total, err := client.Search(rediSearchQuery)
 	took := float64(time.Since(start).Nanoseconds()) / 1e6
 
 	if p.opts.debug {
@@ -119,19 +97,15 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	}
 	//err := nil
 	if err != nil {
-		log.Fatalf("Command failed:%v|\t%v\n", res, err)
+		log.Fatalf("Command failed:%v|\t%v\n", docs, err)
 	} else {
-		if totalResults, err = redis.Int(res[0], nil); err != nil {
-			log.Fatalf("Error retrieving total:%v|\t%v\n", res, err)
-		}
-
 		if p.opts.printResponse {
-			fmt.Println("\nRESPONSE:", totalResults)
+			fmt.Println("\nRESPONSE: ", total)
 		}
 	}
 
 	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took, int64(totalResults))
+	stat.Init(q.HumanLabelName(), took, int64(total))
 
 	return []*query.Stat{stat}, nil
 }
