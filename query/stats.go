@@ -149,7 +149,7 @@ func (s *statGroup) push(n float64) {
 
 // string makes a simple description of a statGroup.
 func (s *statGroup) string() string {
-	return fmt.Sprintf("queries/sec: %.2f\nmin: %8.2fms,  mean: %8.2fms, q25: %8.2fms, med(q50): %8.2fms, q75: %8.2fms, q99: %8.2fms, max: %7.2fms, stddev: %8.2fms, sum: %5.3fsec, count: %d\n%s", 1.0/((s.sum/1e3)/(float64(s.count))) , s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75),  s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.histogram.String())
+	return fmt.Sprintf("min: %8.2fms,  mean: %8.2fms, q25: %8.2fms, med(q50): %8.2fms, q75: %8.2fms, q99: %8.2fms, max: %7.2fms, stddev: %8.2fms, sum: %5.3fsec, count: %d\n%s", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75),  s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.histogram.String())
 }
 
 func (s *statGroup) write(w io.Writer) error {

@@ -26,7 +26,7 @@ func (s *scanner) setReader(r io.Reader) *scanner {
 }
 
 // scan reads encoded Queries and places them into a channel
-func (s *scanner) scan(pool *sync.Pool, c chan Query) {
+func (s *scanner) scan(pool *sync.Pool, c chan Query) (uint64) {
 	decoder := gob.NewDecoder(s.r)
 
 	n := uint64(0)
@@ -63,4 +63,5 @@ func (s *scanner) scan(pool *sync.Pool, c chan Query) {
 		// Queries counter
 		n++
 	}
+	return n
 }
