@@ -41,21 +41,17 @@ func init() {
 
 	flag.Parse()
 
-
-
-
 	pool = &redis.Pool{
-		MaxIdle:     5,
+		MaxIdle:     50,
+		IdleTimeout: 60 * time.Second,
+		MaxActive: 500,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
-				redis.DialReadTimeout(3000*time.Millisecond),
-				redis.DialWriteTimeout(3000*time.Millisecond),)
+			c, err := redis.Dial("tcp", host)
 			if err != nil {
 				return nil, err
 			}
 			return c, err
 		},
-		MaxActive: 256,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 
 			_, err := c.Do("PING")
@@ -133,7 +129,6 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			fmt.Println("\nRESPONSE:", totalResults)
 		}
 	}
-
 
 	stat := query.GetStat()
 	stat.Init(q.HumanLabelName(), took, int64(totalResults))
