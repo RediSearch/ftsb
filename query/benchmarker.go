@@ -135,7 +135,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Wall clock start time
 	wallStart := time.Now()
 	br := b.scanner.setReader(b.GetBufferedReader())
-	sentQueries := br.scan(queryPool, b.ch)
+	_ = br.scan(queryPool, b.ch)
 	close(b.ch)
 
 	// Block for workers to finish sending requests, closing the stats channel when done:
@@ -145,7 +145,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Wall clock end time
 	wallEnd := time.Now()
 	wallTook := wallEnd.Sub(wallStart)
-	_, err := fmt.Printf("Took: %8.3fmssec\nOverall queries/sec:   %8.3fms sec", float64(wallTook.Nanoseconds())/1e9, 1.0/(float64(wallTook.Nanoseconds())/1e9/float64(sentQueries)) )
+	_, err := fmt.Printf("Took: %8.3fmssec\n", float64(wallTook.Nanoseconds())/1e9 )
 	if err != nil {
 		log.Fatal(err)
 	}

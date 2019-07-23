@@ -40,6 +40,18 @@ func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query, nHosts, numMetrics int
 }
 
 
+// Simple2WordQuery fetches the MAX for numMetrics metrics under 'cpu', per minute for nhosts hosts,
+// every 1 mins for 1 hour
+func (d *EnWikiAbstract) Simple2WordBarackObama(qi query.Query, nHosts, numMetrics int, timeRange time.Duration) {
+	redisQuery := fmt.Sprintf(`FT.SEARCH,%s,barack obama`, "idx1")
+
+	humanLabel := "RediSearch Simple 2 Word Query - Barack Obama."
+	humanDesc := fmt.Sprintf("%s Used words \"barack obama\"", humanLabel)
+	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
+
+}
+
+
 // fill Query fills the query struct with data
 func (d *EnWikiAbstract) fillInQuery(qi query.Query, humanLabel, humanDesc, redisQuery string) {
 	q := qi.(*query.RediSearch)
