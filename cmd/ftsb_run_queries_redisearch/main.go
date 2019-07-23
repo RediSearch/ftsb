@@ -45,18 +45,17 @@ func init() {
 
 
 	pool = &redis.Pool{
-		MaxIdle:     1000,
-		MaxActive:   5000,
-		IdleTimeout: 60 * time.Second,
+		MaxIdle:     5,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
-				redis.DialReadTimeout(100*time.Millisecond),
-				redis.DialWriteTimeout(100*time.Millisecond),)
+				redis.DialReadTimeout(3000*time.Millisecond),
+				redis.DialWriteTimeout(3000*time.Millisecond),)
 			if err != nil {
 				return nil, err
 			}
 			return c, err
 		},
+		MaxActive: 256,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 
 			_, err := c.Do("PING")
