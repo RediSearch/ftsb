@@ -28,7 +28,7 @@ func (d *decoder) Decode(_ *bufio.Reader) *load.Point {
 	return load.NewPoint(d.scanner.Text())
 }
 
-func sendRedisCommand(row string, conn redis.Conn) {
+func sendRedisCommand(row string, conn redis.Conn) (value uint64){
 	nFieldsStr := strings.SplitN(row, ",", 2)
 	if len(nFieldsStr) != 2 {
 		log.Fatalf("row does not have the correct format( len %d ) %s failed\n", len(nFieldsStr), row)
@@ -49,13 +49,13 @@ func sendRedisCommand(row string, conn redis.Conn) {
 	}
 
 	s := redis.Args{}.AddFlat(cmdArgs)
-	//metricValue := uint64(1)
+	metricValue := uint64(1)
 	_, err := conn.Do("FT.ADD", s...)
-	//////err := conn.Send(t[0], s...)
 	if err != nil {
 		log.Fatalf("FT.ADD %s failed: %s\n", s, err)
-		//	metricValue = uint64(0)
+		metricValue = 0
 	}
+	return metricValue
 }
 
 func sendRedisFlush(count uint64, conn redis.Conn) (metrics uint64, err error) {

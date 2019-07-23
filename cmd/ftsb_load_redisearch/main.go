@@ -71,20 +71,19 @@ func (b *benchmark) GetDBCreator() load.DBCreator {
 
 type processor struct {
 	dbc     *dbCreator
-	rows    []chan string
+	rows    chan string
 	metrics chan uint64
 	wg      *sync.WaitGroup
 }
 
-func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, pool* redis.Pool, id uint64) {
+func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, pool *redis.Pool) {
 	conn := pool.Get()
 	defer conn.Close()
 	for row := range rows {
-		sendRedisCommand(row, conn)
-		metrics <- 1
+		metrics <- sendRedisCommand(row, conn)
 	}
-	wg.Done()
 	conn.Close()
+	wg.Done()
 }
 
 func (p *processor) Init(_ int, _ bool) {}
@@ -94,27 +93,17 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	metricCnt := uint64(0)
-	// indexer := &RedisIndexer{partitions: uint(connections)}
 	if doLoad {
 		buflen := rowCnt + 1
-		p.rows = make([]chan string, connections)
 		p.metrics = make(chan uint64, buflen)
 		p.wg = &sync.WaitGroup{}
-		for i := uint64(0); i < connections; i++ {
-			p.rows[i] = make(chan string, buflen)
-			p.wg.Add(1)
-			go connectionProcessor(p.wg, p.rows[i], p.metrics, p.dbc.pool, i)
-		}
-		pos := uint64(0)
+		p.rows = make(chan string, buflen)
+		p.wg.Add(1)
+		go connectionProcessor(p.wg, p.rows, p.metrics, p.dbc.pool)
 		for _, row := range events.rows {
-			i := pos % connections
-			p.rows[i] <- row
-			pos++
+			p.rows <- row
 		}
-
-		for i := uint64(0); i < connections; i++ {
-			close(p.rows[i])
-		}
+		close(p.rows)
 		p.wg.Wait()
 		close(p.metrics)
 
