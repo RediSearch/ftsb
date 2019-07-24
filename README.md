@@ -246,7 +246,9 @@ wall clock time: 40.529041sec
 ### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
 |Query type|Description|Status|
 |:---|:---|:---|
-|simple-1word-query| Simple 1 Word Query | not ready
-|simple-2word-query| Simple 2 Word Query| not ready (WIP)
-|exact-3word-match| Exact 3 Word Match| not ready
-|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes| not ready
+|simple-1word-query| Simple 1 Word Query | :heavy_multiplication_x:
+|2word-union-query| 2 Word Union Query | :heavy_multiplication_x:
+|simple-2word-query| Simple 2 Word Query| :heavy_check_mark:
+|exact-3word-match| Exact 3 Word Match| :heavy_multiplication_x:
+|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | :heavy_multiplication_x:
+|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes| :heavy_multiplication_x:
