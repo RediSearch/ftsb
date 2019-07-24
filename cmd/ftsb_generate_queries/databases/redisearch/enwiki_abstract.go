@@ -27,7 +27,6 @@ func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query) {
 	if d.Core.QueryIndexPosition >= d.Core.QueryIndex{
 		d.Core.QueryIndexPosition = 0
 	}
-
 	twoWords := d.Core.Queries[d.Core.QueryIndexPosition]
 	redisQuery := fmt.Sprintf(`FT.SEARCH,%s`, twoWords)
 

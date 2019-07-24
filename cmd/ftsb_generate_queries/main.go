@@ -19,8 +19,8 @@ import (
 
 var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
-		wiki.LabelSimple2WordQuery:  wiki.NewSimple2WordQuery(),
-		wiki.LabelSimple2WordBarackObama:  wiki.NewSimple2WordBarackObama(),
+		wiki.LabelSimple2WordQuery:       wiki.NewSimple2WordQuery(),
+		wiki.LabelSimple2WordBarackObama: wiki.NewSimple2WordBarackObama(),
 	},
 }
 
@@ -36,16 +36,16 @@ var (
 	queryCount int
 	fileName   string
 
-	seed  int64
-	debug int
-	inputfileName string
+	seed                         int64
+	debug                        int
+	inputfileName                string
 	interleavedGenerationGroupID uint
 	interleavedGenerationGroups  uint
 )
 
-func getGenerator(format string, inputfile string, seed int64, maxQueries int ) utils.EnWikiAbstractGenerator {
+func getGenerator(format string, inputfile string, seed int64, maxQueries int) utils.EnWikiAbstractGenerator {
 	if format == "redisearch" {
-		return redisearch.NewEnWikiAbstract( inputfile, seed,maxQueries )
+		return redisearch.NewEnWikiAbstract(inputfile, seed, maxQueries)
 	}
 
 	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
@@ -119,11 +119,10 @@ func init() {
 		seed = int64(time.Now().Nanosecond())
 	}
 
-
 	fmt.Fprintf(os.Stderr, "using random seed %d\n", seed)
 
 	// Make the query generator:
-	generator = getGenerator(format,inputfileName, seed, queryCount )
+	generator = getGenerator(format, inputfileName, seed, queryCount)
 	filler = useCaseMatrix[useCase][queryType](generator)
 }
 

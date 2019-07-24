@@ -41,12 +41,12 @@ var fatal = log.Fatalf
 // Core is the common component of all generators for all systems
 type Core struct {
 	QueryIndexPosition uint64
-	QueryIndex uint64
-	Queries     []string
+	QueryIndex         uint64
+	Queries            []string
 }
 
 // NewCore returns a new Core for the given input filename, seed, and maxQueries
-func NewCore( filename string, seed int64, maxQueries int ) *Core {
+func NewCore(filename string, seed int64, maxQueries int) *Core {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -60,12 +60,12 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 	rand.Seed(seed)
 	var two_word_query []string
 	if filename == "" {
-		fmt.Println("No input file provided. skipping input reading " )
+		fmt.Println("No input file provided. skipping input reading ")
 	} else {
-		fmt.Println("Reading " + filename )
+		fmt.Println("Reading " + filename)
 		xmlFile, err := os.Open(filename)
 		if err != nil {
-			log.Fatal( "Error while opening input file ", err)
+			log.Fatal("Error while opening input file ", err)
 		}
 		dec := xml.NewDecoder(xmlFile)
 
@@ -103,21 +103,33 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 					second_word := ""
 					switch used_field {
 					case 0:
-						source = strings.Split(props["title"]," ")
+						source = strings.Split(props["title"], " ")
 					case 1:
-						source = strings.Split(props["abstract"]," ")
+						source = strings.Split(props["abstract"], " ")
 					}
-					if len(source)-1 >= 1{
-						second_word_pos := rand.Intn(len(source)-1)+1
+					if len(source)-1 >= 1 {
+						second_word_pos := rand.Intn(len(source)-1) + 1
 						second_word = strings.TrimSpace(source[second_word_pos])
-						first_word_pos := second_word_pos - 1
-						first_word = strings.TrimSpace(source[first_word_pos])
+						second_word = reg.ReplaceAllString(second_word, "")
 
-						first_word := reg.ReplaceAllString(first_word, "")
-						second_word := reg.ReplaceAllString(second_word, "")
+						suffixPrefixDiff := false
+						// try out 10 times prior to passing up to next two word combination
+						for stemRetry := 0; stemRetry < 10 && suffixPrefixDiff == false; stemRetry++ {
+							first_word_pos := rand.Intn(second_word_pos)
+							first_word = strings.TrimSpace(source[first_word_pos])
+							first_word = reg.ReplaceAllString(first_word, "")
 
-						if len(first_word) > 0 && len(second_word)>0{
-							two_word_query = append( two_word_query, first_word + " " + second_word)
+							if len(first_word) > 0 && len(second_word) > 0 {
+								// avoid having two equal words to be used on the same 2 word combination
+								// avoid words with equal sufixes and prefixes ( prevent two equal words after stemming )
+								if first_word != second_word && first_word[0] != second_word[0] && first_word[len(first_word)-1] != second_word[len(second_word)-1] {
+									suffixPrefixDiff = true
+								}
+							}
+						}
+
+						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
+							two_word_query = append(two_word_query, first_word+" "+second_word)
 							queryCount++
 						}
 					}
@@ -127,7 +139,8 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 			}
 
 			tok, err = dec.RawToken()
-	}
+		}
+		fmt.Println(queryCount)
 	}
 	return &Core{
 		0,
@@ -135,7 +148,6 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 		two_word_query,
 	}
 }
-
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query
 type Simple2WordQueryFiller interface {
