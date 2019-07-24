@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	labelAllQueries  = "all queries"
-	labelColdQueries = "cold queries"
-	labelWarmQueries = "warm queries"
+	labelAllQueries  = "All queries"
+	labelColdQueries = "Cold queries"
+	labelWarmQueries = "Warm queries"
 
 	defaultReadSize = 4 << 20 // 4 MB
 )
@@ -84,12 +84,17 @@ type ProcessorCreate func() Processor
 
 // Processor is an interface that handles the setup of a query processing worker and executes queries one at a time
 type Processor interface {
+
+
+
 	// Init initializes at global state for the Processor, possibly based on its worker number / ID
-	Init(workerNum int)
+	Init(workerNum int, wg *sync.WaitGroup, m chan uint64, rs chan uint64 )
 
 	// ProcessQuery handles a given query and reports its stats
 	ProcessQuery(q Query, isWarm bool) ([]*Stat, error)
 }
+
+
 
 // GetBufferedReader returns the buffered Reader that should be used by the loader
 func (b *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
@@ -162,9 +167,16 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 }
 
 func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.Pool, processor Processor, workerNum int) {
-	processor.Init(workerNum)
+	buflen := uint64(len(b.ch))
+	metricsChan := make(chan uint64, buflen)
+	pwg := &sync.WaitGroup{}
+	responseSizesChan := make(chan uint64, buflen)
+	pwg.Add(1)
+
+	processor.Init(workerNum, pwg, metricsChan, responseSizesChan )
+
+
 	for query := range b.ch {
-		//processor.ProcessQuery(b.sp, query)
 		stats, err := processor.ProcessQuery(query, false)
 		if err != nil {
 			panic(err)
@@ -184,5 +196,10 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 		}
 		queryPool.Put(query)
 	}
+
+	//pwg.Wait()
+	close(metricsChan)
+	close(responseSizesChan)
+
 	wg.Done()
 }

@@ -110,7 +110,7 @@ func NewCore( filename string, seed int64, maxQueries int ) *Core {
 					if len(source)-1 >= 1{
 						second_word_pos := rand.Intn(len(source)-1)+1
 						second_word = strings.TrimSpace(source[second_word_pos])
-						first_word_pos := rand.Intn(second_word_pos)
+						first_word_pos := second_word_pos - 1
 						first_word = strings.TrimSpace(source[first_word_pos])
 
 						first_word := reg.ReplaceAllString(first_word, "")

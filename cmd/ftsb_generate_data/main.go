@@ -75,6 +75,7 @@ var (
 	maxDataPoints uint64
 	fileName      string
 	inputfileName string
+	stopWords string
 )
 
 // parseTimeFromString parses string-represented time of the format 2006-01-02T15:04:05Z07:00
@@ -160,6 +161,7 @@ func init() {
 	flag.Uint64Var(&maxDataPoints, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
+	flag.StringVar(&stopWords, "stop-words", "a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with", "When indexing, stop-words are discarded and not indexed. When searching, they are also ignored and treated as if they were not sent to the query processor. This list of stop-words should match the one used for the index creation.")
 
 	flag.Parse()
 

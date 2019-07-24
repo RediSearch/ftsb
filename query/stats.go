@@ -14,7 +14,7 @@ import (
 type Stat struct {
 	label     []byte
 	value     float64
-	totlResults int64
+	totalResults uint64
 	isWarm    bool
 	isPartial bool
 }
@@ -41,11 +41,11 @@ func GetPartialStat() *Stat {
 }
 
 // Init safely initializes a Stat while minimizing heap allocations.
-func (s *Stat) Init(label []byte, value float64, totalResults int64 ) *Stat {
+func (s *Stat) Init(label []byte, value float64, totalResults uint64 ) *Stat {
 	s.label = s.label[:0] // clear
 	s.label = append(s.label, label...)
 	s.value = value
-	s.totlResults = totalResults
+	s.totalResults = totalResults
 	s.isWarm = false
 	return s
 }
@@ -53,7 +53,7 @@ func (s *Stat) Init(label []byte, value float64, totalResults int64 ) *Stat {
 func (s *Stat) reset() *Stat {
 	s.label = s.label[:0]
 	s.value = 0.0
-	s.totlResults = 0
+	s.totalResults = 0
 	s.isWarm = false
 	s.isPartial = false
 	return s
@@ -65,6 +65,7 @@ type statGroup struct {
 	max    float64
 	mean   float64
 	sum    float64
+	sumTotalResults    uint64
 	values []float64
 
 	// used for stddev calculations
@@ -74,6 +75,7 @@ type statGroup struct {
 
 	count int64
 	histogram gohistogram.Histogram
+	totalResultsHistogram gohistogram.Histogram
 
 }
 
@@ -82,8 +84,9 @@ func newStatGroup(size uint64) *statGroup {
 	return &statGroup{
 		values: make([]float64, size),
 		count:  0,
-		histogram:  gohistogram.NewHistogram(10),
-
+		sumTotalResults   : 0,
+		histogram:  gohistogram.NewHistogram(5),
+		totalResultsHistogram:  gohistogram.NewHistogram(5),
 	}
 }
 
@@ -101,8 +104,10 @@ func (s *statGroup) median() float64 {
 }
 
 // push updates a StatGroup with a new value.
-func (s *statGroup) push(n float64) {
+func (s *statGroup) push(n float64, totalResults uint64) {
 	s.histogram.Add(n)
+	s.totalResultsHistogram.Add(float64(totalResults))
+	s.sumTotalResults +=totalResults
 	if s.count == 0 {
 		s.min = n
 		s.max = n
@@ -148,12 +153,18 @@ func (s *statGroup) push(n float64) {
 }
 
 // string makes a simple description of a statGroup.
-func (s *statGroup) string() string {
-	return fmt.Sprintf("min: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d\n%s", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75),  s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.histogram.String())
+func (s *statGroup) stringQueryLatency() string {
+	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75),  s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count)
+}
+
+// string makes a simple description of a statGroup.
+func (s *statGroup) stringQueryResponseSize() string {
+	return fmt.Sprintf("+ Query response size(number docs) statistics:\n\tmin(q0): %8.2f docs, q25: %8.2f docs, med(q50): %8.2f docs, q75: %8.2f docs, q99: %8.2f docs, max(q100): %8.2f docs, sum: %d docs\n", s.totalResultsHistogram.Quantile(0), s.totalResultsHistogram.Quantile(0.25), s.totalResultsHistogram.Quantile(0.50), s.totalResultsHistogram.Quantile(0.75),  s.totalResultsHistogram.Quantile(0.99),  s.totalResultsHistogram.Quantile(1), s.sumTotalResults)
 }
 
 func (s *statGroup) write(w io.Writer) error {
-	_, err := fmt.Fprintln(w, s.string())
+	_, err := fmt.Fprintln(w, s.stringQueryLatency())
+	_, err = fmt.Fprintln(w, s.stringQueryResponseSize())
 	return err
 }
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/filipecosta90/ftsb/query"
@@ -55,13 +56,20 @@ type queryExecutorOptions struct {
 	printResponse bool
 }
 
-type processor struct {
+type Processor struct {
 	opts *queryExecutorOptions
+	Metrics chan uint64
+	ResponseSizes chan uint64
+	Wg      *sync.WaitGroup
 }
 
-func newProcessor() query.Processor { return &processor{} }
+func newProcessor() query.Processor { return &Processor{} }
 
-func (p *processor) Init(numWorker int) {
+func (p *Processor) Init(numWorker int, wg *sync.WaitGroup, m chan uint64, rs chan uint64 ) {
+	p.Wg = wg
+	p.Metrics = m
+	p.ResponseSizes = rs
+
 	p.opts = &queryExecutorOptions{
 		showExplain:   showExplain,
 		debug:         runner.DebugLevel() > 0,
@@ -69,7 +77,7 @@ func (p *processor) Init(numWorker int) {
 	}
 }
 
-func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, error) {
+func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, error) {
 
 	// No need to run again for EXPLAIN
 	if isWarm && p.opts.showExplain {
@@ -104,8 +112,10 @@ func (p *processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		}
 	}
 
+	//p.ResponseSizes <- uint64(total)
+	//p.Metrics <- 1
 	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took, int64(total))
+	stat.Init(q.HumanLabelName(), took, uint64(total))
 
 	return []*query.Stat{stat}, nil
 }

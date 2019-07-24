@@ -26,20 +26,6 @@ func (d *FTSSimulator) Next(p *serialize.Document) bool {
 	return d.populateDocument(p)
 }
 
-// Next advances a Document to the next state in the generator.
-func (d *FTSSimulator) CreateIdx(Idx string, w io.Writer) {
-	var buf []byte
-
-	// FT.CREATE {index}
-	//    [MAXTEXTFIELDS] [TEMPORARY {seconds}] [NOOFFSETS] [NOHL] [NOFIELDS] [NOFREQS]
-	//    [STOPWORDS {num} {stopword} ...]
-	//    SCHEMA {field} [TEXT [NOSTEM] [WEIGHT {weight}] [PHONETIC {matcher}] | NUMERIC | GEO | TAG [SEPARATOR {sep}] ] [SORTABLE][NOINDEX] ...
-	buf = append(buf, []byte("FT.CREATE "+Idx+" SCHEMA TITLE TEXT WEIGHT 5 URL TEXT WEIGHT 5 ABSTRACT TEXT WEIGHT 1")...)
-	buf = append(buf, []byte("\n")...)
-	_, _ = w.Write(buf)
-
-}
-
 func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
 	record := &s.records[s.recordIndex]
 

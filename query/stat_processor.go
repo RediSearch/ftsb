@@ -69,17 +69,17 @@ func (sp *statProcessor) process(workers uint) {
 			statMapping[string(stat.label)] = newStatGroup(*sp.limit)
 		}
 
-		statMapping[string(stat.label)].push(stat.value)
+		statMapping[string(stat.label)].push(stat.value, stat.totalResults)
 
 		if !stat.isPartial {
-			statMapping[allQueriesLabel].push(stat.value)
+			statMapping[allQueriesLabel].push(stat.value, stat.totalResults)
 
 			// Only needed when differentiating between cold & warm
 			if sp.prewarmQueries {
 				if stat.isWarm {
-					statMapping[labelWarmQueries].push(stat.value)
+					statMapping[labelWarmQueries].push(stat.value, stat.totalResults)
 				} else {
-					statMapping[labelColdQueries].push(stat.value)
+					statMapping[labelColdQueries].push(stat.value, stat.totalResults)
 				}
 			}
 
@@ -111,7 +111,7 @@ func (sp *statProcessor) process(workers uint) {
 	}
 
 	// the final stats output goes to stdout:
-	_, err := fmt.Printf("run complete after %d queries with %d workers:\n", i-sp.burnIn, workers)
+	_, err := fmt.Printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nRun complete after %d queries with %d workers:\n", i-sp.burnIn, workers)
 	if err != nil {
 		log.Fatal(err)
 	}
