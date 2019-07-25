@@ -121,12 +121,15 @@ In debug mode 2, the full info of the generated queries will will be printed:
 ```text
 using random seed 1234
 Reading /tmp/enwiki-latest-abstract1.xml
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "their based"
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "reflection of"
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "In Thetis"
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "Abraham Lincoln"
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "deathplaceEuboea Macedonian"
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words "An American"
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: institutions free
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: duration Longterm
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Trojan character
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Abraham Lincoln
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: deathplaceEuboea Empire
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: piece American
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Award Design
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: tenth edition
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: 1975 passage
 (...)
 RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
 ```
@@ -246,7 +249,7 @@ wall clock time: 40.529041sec
 ### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
 |Query type|Description|Status|
 |:---|:---|:---|
-|simple-1word-query| Simple 1 Word Query | :heavy_multiplication_x:
+|simple-1word-query| Simple 1 Word Query | :heavy_check_mark:
 |2word-union-query| 2 Word Union Query | :heavy_multiplication_x:
 |simple-2word-query| Simple 2 Word Query| :heavy_check_mark:
 |exact-3word-match| Exact 3 Word Match| :heavy_multiplication_x:
