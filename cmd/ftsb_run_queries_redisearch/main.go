@@ -102,9 +102,16 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	if p.opts.debug {
 		fmt.Println(strings.Join(t, " "))
 	}
+	timedOut := false
 	//err := nil
 	if err != nil {
-		log.Fatalf("Command failed:%v|\t%v\n", docs, err)
+		if err.Error() == "Command timed out"{
+			timedOut = true
+			log.Fatalf("Command failed:%v|\t%v\n", docs, err)
+		} else {
+			log.Fatalf("Command failed:%v|\t%v\n", docs, err)
+		}
+
 	} else {
 		if p.opts.printResponse {
 			fmt.Println("\nRESPONSE: ", total)
@@ -114,7 +121,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	//p.ResponseSizes <- uint64(total)
 	//p.Metrics <- 1
 	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took, uint64(total))
+	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut )
 
 	return []*query.Stat{stat}, nil
 }

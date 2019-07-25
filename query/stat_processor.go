@@ -69,17 +69,17 @@ func (sp *statProcessor) process(workers uint) {
 			statMapping[string(stat.label)] = newStatGroup(*sp.limit)
 		}
 
-		statMapping[string(stat.label)].push(stat.value, stat.totalResults)
+		statMapping[string(stat.label)].push(stat.value, stat.totalResults, stat.timedOut )
 
 		if !stat.isPartial {
-			statMapping[allQueriesLabel].push(stat.value, stat.totalResults)
+			statMapping[allQueriesLabel].push(stat.value, stat.totalResults, stat.timedOut )
 
 			// Only needed when differentiating between cold & warm
 			if sp.prewarmQueries {
 				if stat.isWarm {
-					statMapping[labelWarmQueries].push(stat.value, stat.totalResults)
+					statMapping[labelWarmQueries].push(stat.value, stat.totalResults, stat.timedOut )
 				} else {
-					statMapping[labelColdQueries].push(stat.value, stat.totalResults)
+					statMapping[labelColdQueries].push(stat.value, stat.totalResults, stat.timedOut )
 				}
 			}
 

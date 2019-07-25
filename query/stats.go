@@ -17,6 +17,7 @@ type Stat struct {
 	totalResults uint64
 	isWarm       bool
 	isPartial    bool
+	timedOut	bool
 }
 
 var statPool = &sync.Pool{
@@ -24,6 +25,7 @@ var statPool = &sync.Pool{
 		return &Stat{
 			label: make([]byte, 0, 1024),
 			value: 0.0,
+			timedOut: false,
 		}
 	},
 }
@@ -41,12 +43,13 @@ func GetPartialStat() *Stat {
 }
 
 // Init safely initializes a Stat while minimizing heap allocations.
-func (s *Stat) Init(label []byte, value float64, totalResults uint64) *Stat {
+func (s *Stat) Init(label []byte, value float64, totalResults uint64, timedOut bool) *Stat {
 	s.label = s.label[:0] // clear
 	s.label = append(s.label, label...)
 	s.value = value
 	s.totalResults = totalResults
 	s.isWarm = false
+	s.timedOut =  timedOut
 	return s
 }
 
@@ -74,6 +77,7 @@ type statGroup struct {
 	stdDev float64
 
 	count                 int64
+	timedOutCount int64
 	histogram             gohistogram.Histogram
 	totalResultsHistogram gohistogram.Histogram
 }
@@ -83,9 +87,10 @@ func newStatGroup(size uint64) *statGroup {
 	return &statGroup{
 		values:                make([]float64, size),
 		count:                 0,
+		timedOutCount: 0,
 		sumTotalResults:       0,
-		histogram:             gohistogram.NewHistogram(80),
-		totalResultsHistogram: gohistogram.NewHistogram(80),
+		histogram:             gohistogram.NewHistogram(1000),
+		totalResultsHistogram: gohistogram.NewHistogram(1000),
 	}
 }
 
@@ -103,10 +108,13 @@ func (s *statGroup) median() float64 {
 }
 
 // push updates a StatGroup with a new value.
-func (s *statGroup) push(n float64, totalResults uint64) {
+func (s *statGroup) push(n float64, totalResults uint64, timedOut bool ) {
 	s.histogram.Add(n)
 	s.totalResultsHistogram.Add(float64(totalResults))
 	s.sumTotalResults += totalResults
+	if timedOut == true {
+		s.timedOutCount++
+	}
 	if s.count == 0 {
 		s.min = n
 		s.max = n
@@ -153,7 +161,7 @@ func (s *statGroup) push(n float64, totalResults uint64) {
 
 // string makes a simple description of a statGroup.
 func (s *statGroup) stringQueryLatency() string {
-	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75), s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count)
+	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d, timedOut count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75), s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.timedOutCount )
 }
 
 // string makes a simple description of a statGroup.
