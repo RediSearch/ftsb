@@ -7,14 +7,14 @@ import (
 
 // Simple2WordQuery contains info for filling in simple 2 word queries
 type Simple2WordQuery struct {
-	core    utils.EnWikiAbstractGenerator
+	core utils.EnWikiAbstractGenerator
 }
 
 // NewSimple2WordQuery produces a new function that produces a new Simple2WordQuery
 func NewSimple2WordQuery() utils.QueryFillerMaker {
 	return func(core utils.EnWikiAbstractGenerator) utils.QueryFiller {
 		return &Simple2WordQuery{
-			core:    core,
+			core: core,
 		}
 	}
 }

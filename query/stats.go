@@ -2,21 +2,21 @@ package query
 
 import (
 	"fmt"
+	"github.com/VividCortex/gohistogram"
 	"io"
 	"math"
 	"sort"
 	"sync"
-"github.com/VividCortex/gohistogram"
 )
 
 // Stat represents one statistical measurement, typically used to store the
 // latency of a query (or part of query).
 type Stat struct {
-	label     []byte
-	value     float64
+	label        []byte
+	value        float64
 	totalResults uint64
-	isWarm    bool
-	isPartial bool
+	isWarm       bool
+	isPartial    bool
 }
 
 var statPool = &sync.Pool{
@@ -41,7 +41,7 @@ func GetPartialStat() *Stat {
 }
 
 // Init safely initializes a Stat while minimizing heap allocations.
-func (s *Stat) Init(label []byte, value float64, totalResults uint64 ) *Stat {
+func (s *Stat) Init(label []byte, value float64, totalResults uint64) *Stat {
 	s.label = s.label[:0] // clear
 	s.label = append(s.label, label...)
 	s.value = value
@@ -61,32 +61,31 @@ func (s *Stat) reset() *Stat {
 
 // statGroup collects simple streaming statistics.
 type statGroup struct {
-	min    float64
-	max    float64
-	mean   float64
-	sum    float64
-	sumTotalResults    uint64
-	values []float64
+	min             float64
+	max             float64
+	mean            float64
+	sum             float64
+	sumTotalResults uint64
+	values          []float64
 
 	// used for stddev calculations
 	m      float64
 	s      float64
 	stdDev float64
 
-	count int64
-	histogram gohistogram.Histogram
+	count                 int64
+	histogram             gohistogram.Histogram
 	totalResultsHistogram gohistogram.Histogram
-
 }
 
 // newStatGroup returns a new StatGroup with an initial size
 func newStatGroup(size uint64) *statGroup {
 	return &statGroup{
-		values: make([]float64, size),
-		count:  0,
-		sumTotalResults   : 0,
-		histogram:  gohistogram.NewHistogram(5),
-		totalResultsHistogram:  gohistogram.NewHistogram(5),
+		values:                make([]float64, size),
+		count:                 0,
+		sumTotalResults:       0,
+		histogram:             gohistogram.NewHistogram(5),
+		totalResultsHistogram: gohistogram.NewHistogram(5),
 	}
 }
 
@@ -107,7 +106,7 @@ func (s *statGroup) median() float64 {
 func (s *statGroup) push(n float64, totalResults uint64) {
 	s.histogram.Add(n)
 	s.totalResultsHistogram.Add(float64(totalResults))
-	s.sumTotalResults +=totalResults
+	s.sumTotalResults += totalResults
 	if s.count == 0 {
 		s.min = n
 		s.max = n
@@ -154,12 +153,12 @@ func (s *statGroup) push(n float64, totalResults uint64) {
 
 // string makes a simple description of a statGroup.
 func (s *statGroup) stringQueryLatency() string {
-	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75),  s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count)
+	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75), s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count)
 }
 
 // string makes a simple description of a statGroup.
 func (s *statGroup) stringQueryResponseSize() string {
-	return fmt.Sprintf("+ Query response size(number docs) statistics:\n\tmin(q0): %8.2f docs, q25: %8.2f docs, med(q50): %8.2f docs, q75: %8.2f docs, q99: %8.2f docs, max(q100): %8.2f docs, sum: %d docs\n", s.totalResultsHistogram.Quantile(0), s.totalResultsHistogram.Quantile(0.25), s.totalResultsHistogram.Quantile(0.50), s.totalResultsHistogram.Quantile(0.75),  s.totalResultsHistogram.Quantile(0.99),  s.totalResultsHistogram.Quantile(1), s.sumTotalResults)
+	return fmt.Sprintf("+ Query response size(number docs) statistics:\n\tmin(q0): %8.2f docs, q25: %8.2f docs, med(q50): %8.2f docs, q75: %8.2f docs, q99: %8.2f docs, max(q100): %8.2f docs, sum: %d docs\n", s.totalResultsHistogram.Quantile(0), s.totalResultsHistogram.Quantile(0.25), s.totalResultsHistogram.Quantile(0.50), s.totalResultsHistogram.Quantile(0.75), s.totalResultsHistogram.Quantile(0.99), s.totalResultsHistogram.Quantile(1), s.sumTotalResults)
 }
 
 func (s *statGroup) write(w io.Writer) error {

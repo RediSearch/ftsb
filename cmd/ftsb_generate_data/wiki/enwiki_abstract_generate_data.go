@@ -36,7 +36,7 @@ func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
 
 	ret := s.recordIndex < uint64(len(s.records))
 	s.recordIndex = s.recordIndex + 1
-	s.madePoints = s.madePoints + 1
+	s.madeDocuments = s.madeDocuments + 1
 	return ret
 }
 
@@ -44,7 +44,7 @@ func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
 type FTSSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, IdxName string) common.Simulator {
+func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string) common.Simulator {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -80,13 +80,13 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, Id
 				props["abstract"] = strings.ReplaceAll(props["abstract"], "\"", "\\\"")
 				props["url"] = strings.ReplaceAll(props["url"], "\"", "\\\"")
 
-				for _, char := range field_tokenization{
-					props["abstract"] = strings.ReplaceAll(props["abstract"],string(char), string("\\"+string(char)) )
-					props["url"] = strings.ReplaceAll(props["url"],string(char), string("\\"+string(char)) )
-					props["title"] = strings.ReplaceAll(props["title"],string(char), string("\\"+string(char)) )
+				for _, char := range field_tokenization {
+					props["abstract"] = strings.ReplaceAll(props["abstract"], string(char), string("\\"+string(char)))
+					props["url"] = strings.ReplaceAll(props["url"], string(char), string("\\"+string(char)))
+					props["title"] = strings.ReplaceAll(props["title"], string(char), string("\\"+string(char)))
 				}
 
-				documents = append(documents, serialize.Document{[]byte(id), []byte( "\"" + props["title"] + "\"" ), []byte( "\"" + props["url"] + "\""), []byte( "\"" + props["abstract"] + "\"" )})
+				documents = append(documents, serialize.Document{[]byte(id), []byte("\"" + props["title"] + "\""), []byte("\"" + props["url"] + "\""), []byte("\"" + props["abstract"] + "\"")})
 				props = map[string]string{}
 			}
 			currentText = ""
@@ -102,8 +102,8 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, Id
 		maxPoints = limit
 	}
 	sim := &FTSSimulator{&commonFTSSimulator{
-		madePoints: 0,
-		maxPoints:  maxPoints,
+		madeDocuments: 0,
+		maxDocuments:  maxPoints,
 
 		recordIndex: 0,
 		records:     documents,

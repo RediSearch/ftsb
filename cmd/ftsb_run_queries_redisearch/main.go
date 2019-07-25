@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filipecosta90/ftsb/query"
 	"github.com/RediSearch/redisearch-go/redisearch"
+	"github.com/filipecosta90/ftsb/query"
 	_ "github.com/lib/pq"
 )
 
 // Program option vars:
 var (
-	host        string
-	index        string
+	host  string
+	index string
 
 	showExplain bool
 	//	scale        uint64
@@ -33,7 +33,6 @@ var (
 
 var (
 	client *redisearch.Client
-
 )
 
 // Parse args:
@@ -43,7 +42,7 @@ func init() {
 	flag.StringVar(&host, "host", "localhost:6379", "Redis host address and port")
 	flag.StringVar(&index, "index", "idx1", "RediSearch index")
 	flag.Parse()
-	client = redisearch.NewClient(host,index)
+	client = redisearch.NewClient(host, index)
 }
 
 func main() {
@@ -57,15 +56,15 @@ type queryExecutorOptions struct {
 }
 
 type Processor struct {
-	opts *queryExecutorOptions
-	Metrics chan uint64
+	opts          *queryExecutorOptions
+	Metrics       chan uint64
 	ResponseSizes chan uint64
-	Wg      *sync.WaitGroup
+	Wg            *sync.WaitGroup
 }
 
 func newProcessor() query.Processor { return &Processor{} }
 
-func (p *Processor) Init(numWorker int, wg *sync.WaitGroup, m chan uint64, rs chan uint64 ) {
+func (p *Processor) Init(numWorker int, wg *sync.WaitGroup, m chan uint64, rs chan uint64) {
 	p.Wg = wg
 	p.Metrics = m
 	p.ResponseSizes = rs
@@ -89,11 +88,11 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 	t := strings.Split(qry, ",")
 	if len(t) < 2 {
-		log.Fatalf("The query has not the correct format ", qry )
+		log.Fatalf("The query has not the correct format ", qry)
 	}
 	command := t[0]
 	if command != "FT.SEARCH" {
-		log.Fatalf("Command not supported yet. Only FT.SEARCH. ", command )
+		log.Fatalf("Command not supported yet. Only FT.SEARCH. ", command)
 	}
 	rediSearchQuery := redisearch.NewQuery(t[1])
 	start := time.Now()

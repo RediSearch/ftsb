@@ -14,11 +14,13 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"strings"
 	"time"
 )
 
 var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
+		wiki.LabelSimple1WordQuery:       wiki.NewSimple1WordQuery(),
 		wiki.LabelSimple2WordQuery:       wiki.NewSimple2WordQuery(),
 		wiki.LabelSimple2WordBarackObama: wiki.NewSimple2WordBarackObama(),
 	},
@@ -33,8 +35,10 @@ var (
 	generator utils.EnWikiAbstractGenerator
 	filler    utils.QueryFiller
 
-	queryCount int
-	fileName   string
+	queryCount     int
+	fileName       string
+	stopWordsInput string
+	stopWords      []string
 
 	seed                         int64
 	debug                        int
@@ -43,9 +47,9 @@ var (
 	interleavedGenerationGroups  uint
 )
 
-func getGenerator(format string, inputfile string, seed int64, maxQueries int) utils.EnWikiAbstractGenerator {
+func getGenerator(format string, inputfile string, stopwordsbl []string, seed int64, maxQueries int) utils.EnWikiAbstractGenerator {
 	if format == "redisearch" {
-		return redisearch.NewEnWikiAbstract(inputfile, seed, maxQueries)
+		return redisearch.NewEnWikiAbstract(inputfile, stopwordsbl, seed, maxQueries)
 	}
 
 	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
@@ -97,8 +101,8 @@ func init() {
 	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0, "Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
 	flag.UintVar(&interleavedGenerationGroups, "interleaved-generation-groups", 1, "The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
-
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated queries to")
+	flag.StringVar(&stopWordsInput, "stop-words", "a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with", "When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query. This list of stop-words should match the one used for the index creation.")
 
 	flag.Parse()
 
@@ -120,9 +124,11 @@ func init() {
 	}
 
 	fmt.Fprintf(os.Stderr, "using random seed %d\n", seed)
-
+	stopWords = strings.Split(stopWordsInput, ",")
+	// sort the stopwords for faster search
+	sort.Strings(stopWords)
 	// Make the query generator:
-	generator = getGenerator(format, inputfileName, seed, queryCount)
+	generator = getGenerator(format, inputfileName, stopWords, seed, queryCount)
 	filler = useCaseMatrix[useCase][queryType](generator)
 }
 

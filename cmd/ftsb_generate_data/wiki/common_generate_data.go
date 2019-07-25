@@ -10,13 +10,13 @@ type commonFTSSimulatorConfig struct {
 }
 
 type commonFTSSimulator struct {
-	madePoints  uint64
-	maxPoints   uint64
-	recordIndex uint64
-	records     []serialize.Document
+	madeDocuments uint64
+	maxDocuments  uint64
+	recordIndex   uint64
+	records       []serialize.Document
 }
 
-// Finished tells whether we have simulated all the necessary points
+// Finished tells whether we have simulated all the necessary documents
 func (s *commonFTSSimulator) Finished() bool {
-	return s.madePoints >= s.maxPoints
+	return s.madeDocuments >= s.maxDocuments
 }

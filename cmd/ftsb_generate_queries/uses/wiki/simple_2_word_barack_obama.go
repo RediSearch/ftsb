@@ -7,14 +7,14 @@ import (
 
 // Simple2WordQuery contains info for filling simple 2 word queries with the barack obama words
 type Simple2WordBarackObama struct {
-	core    utils.EnWikiAbstractGenerator
+	core utils.EnWikiAbstractGenerator
 }
 
 // NewSimple2WordQuery produces a new function that produces a new Simple2WordQuery
 func NewSimple2WordBarackObama() utils.QueryFillerMaker {
 	return func(core utils.EnWikiAbstractGenerator) utils.QueryFiller {
 		return &Simple2WordBarackObama{
-			core:    core,
+			core: core,
 		}
 	}
 }

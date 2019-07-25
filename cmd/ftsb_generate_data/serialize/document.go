@@ -1,12 +1,12 @@
 package serialize
 
-// Document wraps a single data point. It stores database-agnostic data
+// Document wraps a single document. It stores database-agnostic data
 import (
 	"io"
 )
 
-// Document wraps a single data point. It stores database-agnostic data
-// representing one point in time of one measurement.
+// Document wraps a single document. It stores database-agnostic data
+// representing one Document
 //
 // Internally, Document uses byte slices instead of strings to try to minimize
 // overhead.
@@ -35,5 +35,5 @@ func (p *Document) Reset() {
 
 // DocumentSerializer serializes a Document for writing
 type DocumentSerializer interface {
-	Serialize(p *Document, Idx string, w io.Writer) error
+	Serialize(p *Document, w io.Writer) error
 }

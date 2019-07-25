@@ -14,11 +14,11 @@ func (d *dbCreator) Init() {
 	//d.pool.writeBytes([]byte(""))
 
 	d.pool = &redis.Pool{
-		MaxIdle:     5,
+		MaxIdle: 5,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
 				redis.DialReadTimeout(3000*time.Millisecond),
-				redis.DialWriteTimeout(3000*time.Millisecond),)
+				redis.DialWriteTimeout(3000*time.Millisecond))
 			if err != nil {
 				return nil, err
 			}

@@ -85,16 +85,12 @@ type ProcessorCreate func() Processor
 // Processor is an interface that handles the setup of a query processing worker and executes queries one at a time
 type Processor interface {
 
-
-
 	// Init initializes at global state for the Processor, possibly based on its worker number / ID
-	Init(workerNum int, wg *sync.WaitGroup, m chan uint64, rs chan uint64 )
+	Init(workerNum int, wg *sync.WaitGroup, m chan uint64, rs chan uint64)
 
 	// ProcessQuery handles a given query and reports its stats
 	ProcessQuery(q Query, isWarm bool) ([]*Stat, error)
 }
-
-
 
 // GetBufferedReader returns the buffered Reader that should be used by the loader
 func (b *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
@@ -150,7 +146,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Wall clock end time
 	wallEnd := time.Now()
 	wallTook := wallEnd.Sub(wallStart)
-	_, err := fmt.Printf("Took: %8.3fmssec\n", float64(wallTook.Nanoseconds())/1e9 )
+	_, err := fmt.Printf("Took: %8.3fmssec\n", float64(wallTook.Nanoseconds())/1e9)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -173,8 +169,7 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 	responseSizesChan := make(chan uint64, buflen)
 	pwg.Add(1)
 
-	processor.Init(workerNum, pwg, metricsChan, responseSizesChan )
-
+	processor.Init(workerNum, pwg, metricsChan, responseSizesChan)
 
 	for query := range b.ch {
 		stats, err := processor.ProcessQuery(query, false)

@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -40,13 +41,16 @@ var fatal = log.Fatalf
 
 // Core is the common component of all generators for all systems
 type Core struct {
-	QueryIndexPosition uint64
-	QueryIndex         uint64
-	Queries            []string
+	TwoWordQueryIndexPosition uint64
+	TwoWordQueryIndex         uint64
+	TwoWordQueries            []string
+	OneWordQueryIndexPosition uint64
+	OneWordQueryIndex         uint64
+	OneWordQueries            []string
 }
 
 // NewCore returns a new Core for the given input filename, seed, and maxQueries
-func NewCore(filename string, seed int64, maxQueries int) *Core {
+func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) *Core {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -59,6 +63,7 @@ func NewCore(filename string, seed int64, maxQueries int) *Core {
 
 	rand.Seed(seed)
 	var two_word_query []string
+	var oneWordQuery []string
 	if filename == "" {
 		fmt.Println("No input file provided. skipping input reading ")
 	} else {
@@ -74,6 +79,7 @@ func NewCore(filename string, seed int64, maxQueries int) *Core {
 		props := map[string]string{}
 		var currentText string
 		queryCount := 0
+		oneWordQueryCount := 0
 		for err != io.EOF && maxQueries > queryCount {
 			used_field := rand.Intn(2)
 
@@ -108,24 +114,47 @@ func NewCore(filename string, seed int64, maxQueries int) *Core {
 						source = strings.Split(props["abstract"], " ")
 					}
 					if len(source)-1 >= 1 {
-						second_word_pos := rand.Intn(len(source)-1) + 1
-						second_word = strings.TrimSpace(source[second_word_pos])
-						second_word = reg.ReplaceAllString(second_word, "")
-
 						suffixPrefixDiff := false
 						// try out 10 times prior to passing up to next two word combination
 						for stemRetry := 0; stemRetry < 10 && suffixPrefixDiff == false; stemRetry++ {
+
+							second_word_pos := rand.Intn(len(source)-1) + 1
+							second_word = strings.TrimSpace(source[second_word_pos])
+							second_word = reg.ReplaceAllString(second_word, "")
+
 							first_word_pos := rand.Intn(second_word_pos)
 							first_word = strings.TrimSpace(source[first_word_pos])
 							first_word = reg.ReplaceAllString(first_word, "")
 
 							if len(first_word) > 0 && len(second_word) > 0 {
+
+								containsStopWord := false
+								i := sort.SearchStrings(stopwordsbl, strings.ToLower(first_word))
+								j := sort.SearchStrings(stopwordsbl, strings.ToLower(second_word))
+								if i < len(stopwordsbl) && stopwordsbl[i] == strings.ToLower(first_word) {
+									containsStopWord = true
+								}
+
+								if j < len(stopwordsbl) && stopwordsbl[j] == strings.ToLower(second_word) {
+									containsStopWord = true
+								}
+								// avoid having stopwords on the query
 								// avoid having two equal words to be used on the same 2 word combination
 								// avoid words with equal sufixes and prefixes ( prevent two equal words after stemming )
-								if first_word != second_word && first_word[0] != second_word[0] && first_word[len(first_word)-1] != second_word[len(second_word)-1] {
+								if containsStopWord == false && first_word != second_word && first_word[0] != second_word[0] && first_word[len(first_word)-1] != second_word[len(second_word)-1] {
 									suffixPrefixDiff = true
 								}
 							}
+						}
+
+						if len(first_word) > 0 {
+							oneWordQuery = append(oneWordQuery, first_word)
+							oneWordQueryCount++
+						}
+
+						if len(second_word) > 0 {
+							oneWordQuery = append(oneWordQuery, second_word)
+							oneWordQueryCount++
 						}
 
 						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
@@ -140,18 +169,25 @@ func NewCore(filename string, seed int64, maxQueries int) *Core {
 
 			tok, err = dec.RawToken()
 		}
-		fmt.Println(queryCount)
 	}
 	return &Core{
 		0,
 		uint64(len(two_word_query)),
 		two_word_query,
+		0,
+		uint64(len(oneWordQuery)),
+		oneWordQuery,
 	}
 }
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query
 type Simple2WordQueryFiller interface {
 	Simple2WordQuery(query.Query)
+}
+
+// Simple2WordQueryFiller is a type that can fill in a single groupby query
+type Simple1WordQueryFiller interface {
+	Simple1WordQuery(query.Query)
 }
 
 // Simple2WordQueryFiller is a type that can fill in a single groupby query

@@ -56,26 +56,20 @@ var (
 // being set, e.g., to convert from string to time.Time or re-setting the value
 // based on a special '0' value
 type parseableFlagVars struct {
-	timestampStartStr string
-	timestampEndStr   string
-	seed              int64
-	initialScale      uint64
 }
 
 // Program option vars:
 var (
-	format      string
-	useCase     string
-	profileFile string
-	IdxName     string
-	seed         int64
-	debug        int
+	format                         string
+	useCase                        string
+	profileFile                    string
+	seed                           int64
+	debug                          int
 	interleavedGenerationGroupID   uint
 	interleavedGenerationGroupsNum uint
-	maxDataPoints uint64
-	fileName      string
-	inputfileName string
-	stopWords string
+	maxDataPoints                  uint64
+	fileName                       string
+	inputfileName                  string
 )
 
 // parseTimeFromString parses string-represented time of the format 2006-01-02T15:04:05Z07:00
@@ -121,11 +115,6 @@ func validateUseCase(useCase string) bool {
 	return false
 }
 
-// postFlagParse assigns parseable flags
-func postFlagParse(flags parseableFlagVars) {
-
-}
-
 // GetBufferedWriter returns the buffered Writer that should be used for generated output
 func GetBufferedWriter(fileName string) *bufio.Writer {
 	// Prepare output file/STDOUT
@@ -157,11 +146,11 @@ func init() {
 		"The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
 
 	flag.StringVar(&profileFile, "profile-file", "", "File to which to write go profiling data")
+	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 
 	flag.Uint64Var(&maxDataPoints, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
-	flag.StringVar(&stopWords, "stop-words", "a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with", "When indexing, stop-words are discarded and not indexed. When searching, they are also ignored and treated as if they were not sent to the query processor. This list of stop-words should match the one used for the index creation.")
 
 	flag.Parse()
 
@@ -194,7 +183,7 @@ func main() {
 	}()
 
 	cfg := getConfig(useCase)
-	sim := cfg.NewSimulator(maxDataPoints, inputfileName, IdxName)
+	sim := cfg.NewSimulator(maxDataPoints, inputfileName)
 	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }
@@ -212,7 +201,7 @@ func runSimulator(sim common.Simulator, serializer serialize.DocumentSerializer,
 
 		// in the default case this is always true
 		if currGroupID == groupID {
-			err := serializer.Serialize(point, IdxName, out)
+			err := serializer.Serialize(point, out)
 			if err != nil {
 				fatal("can not serialize point: %s", err)
 				return

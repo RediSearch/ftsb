@@ -3,8 +3,8 @@ package main
 import (
 	"bufio"
 	"flag"
-	"github.com/filipecosta90/ftsb/load"
 	"github.com/RediSearch/redisearch-go/redisearch"
+	"github.com/filipecosta90/ftsb/load"
 	"log"
 	"strconv"
 	"strings"
@@ -13,9 +13,9 @@ import (
 
 // Program option vars:
 var (
-	host        string
-	index string
-	pipeline    uint64
+	host     string
+	index    string
+	pipeline uint64
 )
 
 // Global vars
@@ -73,11 +73,11 @@ type processor struct {
 	rows    chan string
 	metrics chan uint64
 	wg      *sync.WaitGroup
-	client *redisearch.Client
+	client  *redisearch.Client
 }
 
 //, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
-func rowToRSDocument(row string ) (document redisearch.Document){
+func rowToRSDocument(row string) (document redisearch.Document) {
 	nFieldsStr := strings.SplitN(row, ",", 2)
 	if len(nFieldsStr) != 2 {
 		log.Fatalf("row does not have the correct format( len %d ) %s failed\n", len(nFieldsStr), row)
@@ -92,11 +92,11 @@ func rowToRSDocument(row string ) (document redisearch.Document){
 	documentId := ftsRow[previousPos:(previousPos + fieldLen)]
 	previousPos = previousPos + fieldLen
 	fieldLen, _ = strconv.Atoi(fieldSizesStr[1])
-	documentScore, _ := strconv.ParseFloat(ftsRow[previousPos:(previousPos + fieldLen)],64)
+	documentScore, _ := strconv.ParseFloat(ftsRow[previousPos:(previousPos+fieldLen)], 64)
 	previousPos = previousPos + fieldLen
 	doc := redisearch.NewDocument(documentId, float32(documentScore))
 
-	for i := 2; i < nFields; i=i+2 {
+	for i := 2; i < nFields; i = i + 2 {
 		fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
 		fieldName := ftsRow[previousPos:(previousPos + fieldLen)]
 		previousPos = previousPos + fieldLen
@@ -114,22 +114,22 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 	pipelinePos := uint64(0)
 	for row := range rows {
 		doc := rowToRSDocument(row)
-		documents = append(documents, doc )
+		documents = append(documents, doc)
 		pipelinePos++
-		if pipelinePos % pipeline == 0 {
-				// Index the document. The API accepts multiple documents at a time
-				if err := client.Index(documents...); err != nil {
-					log.Fatalf("failed: %s\n", err)
-				}
+		if pipelinePos%pipeline == 0 {
+			// Index the document. The API accepts multiple documents at a time
+			if err := client.Index(documents...); err != nil {
+				log.Fatalf("failed: %s\n", err)
+			}
 			metrics <- pipelinePos
 			pipelinePos = 0
 		}
 
 	}
-	if pipelinePos !=  0 {
+	if pipelinePos != 0 {
 		// Index the document. The API accepts multiple documents at a time
 		if err := client.Index(documents...); err != nil {
-			log.Fatalf("failed: %s\n",err)
+			log.Fatalf("failed: %s\n", err)
 		}
 		metrics <- pipelinePos
 		pipelinePos = 0
@@ -138,7 +138,7 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 }
 
 func (p *processor) Init(_ int, _ bool) {
-	p.client = redisearch.NewClient(host,index)
+	p.client = redisearch.NewClient(host, index)
 }
 
 // ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
@@ -152,7 +152,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p.wg, p.rows, p.metrics, p.client, pipeline )
+		go connectionProcessor(p.wg, p.rows, p.metrics, p.client, pipeline)
 		for _, row := range events.rows {
 			p.rows <- row
 		}
