@@ -183,7 +183,7 @@ func main() {
 	}()
 
 	cfg := getConfig(useCase)
-	sim := cfg.NewSimulator(maxDataPoints, inputfileName)
+	sim := cfg.NewSimulator(maxDataPoints, inputfileName, debug)
 	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }

@@ -2,12 +2,14 @@ package wiki
 
 import (
 	"encoding/xml"
+	"fmt"
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/common"
 	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/serialize"
 	"github.com/google/uuid"
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -44,7 +46,7 @@ func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
 type FTSSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string) common.Simulator {
+func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -57,6 +59,10 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string) co
 
 	props := map[string]string{}
 	var currentText string
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, "started reading " + inputFilename)
+	}
+	docCount := 0
 	for err != io.EOF {
 
 		switch t := tok.(type) {
@@ -88,6 +94,14 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string) co
 
 				documents = append(documents, serialize.Document{[]byte(id), []byte("\"" + props["title"] + "\""), []byte("\"" + props["url"] + "\""), []byte("\"" + props["abstract"] + "\"")})
 				props = map[string]string{}
+				docCount++
+				if debug > 0 {
+					if docCount % 1000 == 0 {
+						fmt.Fprintln(os.Stderr, "At document " + strconv.Itoa(docCount))
+					}
+				}
+
+
 			}
 			currentText = ""
 		}
@@ -95,6 +109,12 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string) co
 		tok, err = dec.RawToken()
 
 	}
+
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, "finished reading " + inputFilename)
+	}
+
+
 
 	maxPoints = uint64(len(documents))
 	if limit > 0 && limit < uint64(len(documents)) {
