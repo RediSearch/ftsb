@@ -96,8 +96,10 @@ _Note: We pipe the output to gzip to reduce on-disk space._
 
 Variables needed:
 1. the same use case
-1. the number of queries to generate. E.g., `1000`
-1. and the type of query you'd like to generate. E.g., `single-word-query`
+1. the number of queries to generate. E.g., `100000`
+1. the type of query you'd like to generate. E.g., `simple-2word-query`
+1. the seed to pass to the Pseudorandom number generator. By passing the same seed you always generated the same deterministic dataset. E.g., `1234`
+1. and the stop-words to discard on query generation. When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query. This list of stop-words should match the one used for the index creation. We use as default the [RediSearch list of stop-words](https://oss.redislabs.com/redisearch/Stopwords.html), namely `a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with`
 
 For the last step there are numerous queries to choose from, which are
 listed in [Appendix I](#appendix-i-query-types). 
@@ -106,7 +108,8 @@ For generating just one set of queries for a given type:
 ```bash
 $ ftsb_generate_queries -query-type="simple-2word-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
-     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0
+    -seed 1234 \
+    -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0
 ```
 
 In debug mode 0, only the summary of query generation will be printed:
@@ -211,36 +214,56 @@ You can change the value of the `--workers` flag to
 control the level of parallel queries run at the same time. The
 resulting output will look similar to this:
 ```text
-after 20000 queries with 16 workers:
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
-min:     0.20ms, med:     2.55ms, mean:     3.96ms, max:   37.85ms, stddev:     3.86ms, sum:  79.2sec, count: 20000
-all queries                                                                                       :
-min:     0.20ms, med:     2.55ms, mean:     3.96ms, max:   37.85ms, stddev:     3.86ms, sum:  79.2sec, count: 20000
-
-after 40000 queries with 16 workers:
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
-min:     0.12ms, med:     2.11ms, mean:     3.47ms, max:   37.85ms, stddev:     3.79ms, sum: 138.8sec, count: 40000
-all queries                                                                                       :
-min:     0.12ms, med:     2.11ms, mean:     3.47ms, max:   37.85ms, stddev:     3.79ms, sum: 138.8sec, count: 40000
-
-after 60000 queries with 16 workers:
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
-min:     0.11ms, med:     1.90ms, mean:     3.22ms, max:   37.85ms, stddev:     3.63ms, sum: 193.1sec, count: 60000
-all queries                                                                                       :
-min:     0.11ms, med:     1.90ms, mean:     3.22ms, max:   37.85ms, stddev:     3.63ms, sum: 193.1sec, count: 60000
-
+(...)
 after 80000 queries with 16 workers:
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
-min:     0.11ms, med:     2.02ms, mean:     3.37ms, max:   37.85ms, stddev:     3.70ms, sum: 269.9sec, count: 80000
-all queries                                                                                       :
-min:     0.11ms, med:     2.02ms, mean:     3.37ms, max:   37.85ms, stddev:     3.70ms, sum: 269.9sec, count: 80000
+All queries                                                                                               :
++ Query execution latency:
+	min:     0.33 ms,  mean:    34.05 ms, q25:    18.13 ms, med(q50):    18.13 ms, q75:    18.13 ms, q99:   158.38 ms, max:   581.23 ms, stddev:    50.28ms, sum: 2724.082 sec, count: 80000
 
-run complete after 100000 queries with 16 workers:
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words):
-min:     0.11ms, med:     2.06ms, mean:     3.47ms, max:   39.74ms, stddev:     3.81ms, sum: 347.3sec, count: 100000
-all queries                                                                                       :
-min:     0.11ms, med:     2.06ms, mean:     3.47ms, max:   39.74ms, stddev:     3.81ms, sum: 347.3sec, count: 100000
-wall clock time: 40.529041sec
++ Query response size(number docs) statistics:
+	min(q0):   350.81 docs, q25:   350.81 docs, med(q50):   350.81 docs, q75:   350.81 docs, q99: 45839.32 docs, max(q100): 252995.00 docs, sum: 176735188 docs
+
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
++ Query execution latency:
+	min:     0.33 ms,  mean:    34.05 ms, q25:    18.13 ms, med(q50):    18.13 ms, q75:    18.13 ms, q99:   158.38 ms, max:   581.23 ms, stddev:    50.28ms, sum: 2724.082 sec, count: 80000
+
++ Query response size(number docs) statistics:
+	min(q0):   350.81 docs, q25:   350.81 docs, med(q50):   350.81 docs, q75:   350.81 docs, q99: 45839.32 docs, max(q100): 252995.00 docs, sum: 176735188 docs
+
+
+after 90000 queries with 16 workers:
+All queries                                                                                               :
++ Query execution latency:
+	min:     0.33 ms,  mean:    35.32 ms, q25:    18.29 ms, med(q50):    18.29 ms, q75:    18.29 ms, q99:   157.98 ms, max:   581.23 ms, stddev:    51.84ms, sum: 3178.594 sec, count: 90000
+
++ Query response size(number docs) statistics:
+	min(q0):   346.37 docs, q25:   346.37 docs, med(q50):   346.37 docs, q75:   346.37 docs, q99: 45593.99 docs, max(q100): 252995.00 docs, sum: 210779012 docs
+
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
++ Query execution latency:
+	min:     0.33 ms,  mean:    35.32 ms, q25:    18.29 ms, med(q50):    18.29 ms, q75:    18.29 ms, q99:   157.98 ms, max:   581.23 ms, stddev:    51.84ms, sum: 3178.594 sec, count: 90000
+
++ Query response size(number docs) statistics:
+	min(q0):   346.37 docs, q25:   346.37 docs, med(q50):   346.37 docs, q75:   346.37 docs, q99: 45593.99 docs, max(q100): 252995.00 docs, sum: 210779012 docs
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Run complete after 100000 queries with 16 workers:
+All queries                                                                                               :
++ Query execution latency:
+	min:     0.33 ms,  mean:    36.24 ms, q25:    18.43 ms, med(q50):    18.43 ms, q75:    18.43 ms, q99:   158.22 ms, max:   581.23 ms, stddev:    52.98ms, sum: 3624.437 sec, count: 100000
+
++ Query response size(number docs) statistics:
+	min(q0):   341.94 docs, q25:   341.94 docs, med(q50):   341.94 docs, q75:   341.94 docs, q99: 45312.15 docs, max(q100): 252995.00 docs, sum: 242417188 docs
+
+RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
++ Query execution latency:
+	min:     0.33 ms,  mean:    36.24 ms, q25:    18.43 ms, med(q50):    18.43 ms, q75:    18.43 ms, q99:   158.22 ms, max:   581.23 ms, stddev:    52.98ms, sum: 3624.437 sec, count: 100000
+
++ Query response size(number docs) statistics:
+	min(q0):   341.94 docs, q25:   341.94 docs, med(q50):   341.94 docs, q75:   341.94 docs, q99: 45312.15 docs, max(q100): 252995.00 docs, sum: 242417188 docs
+
+Took:  226.577 sec
 ```
 
 

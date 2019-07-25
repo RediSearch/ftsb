@@ -146,7 +146,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Wall clock end time
 	wallEnd := time.Now()
 	wallTook := wallEnd.Sub(wallStart)
-	_, err := fmt.Printf("Took: %8.3fmssec\n", float64(wallTook.Nanoseconds())/1e9)
+	_, err := fmt.Printf("Took: %8.3f sec\n", float64(wallTook.Nanoseconds())/1e9)
 	if err != nil {
 		log.Fatal(err)
 	}
