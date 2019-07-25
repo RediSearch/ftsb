@@ -53,7 +53,7 @@ func (s *Stat) Init(label []byte, value float64, totalResults uint64) *Stat {
 func (s *Stat) reset() *Stat {
 	s.label = s.label[:0]
 	s.value = 0.0
-	s.totalResults = 0
+	s.totalResults = uint64(0)
 	s.isWarm = false
 	s.isPartial = false
 	return s
@@ -84,8 +84,8 @@ func newStatGroup(size uint64) *statGroup {
 		values:                make([]float64, size),
 		count:                 0,
 		sumTotalResults:       0,
-		histogram:             gohistogram.NewHistogram(5),
-		totalResultsHistogram: gohistogram.NewHistogram(5),
+		histogram:             gohistogram.NewHistogram(80),
+		totalResultsHistogram: gohistogram.NewHistogram(80),
 	}
 }
 
