@@ -110,7 +110,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			timedOut = true
 			fmt.Fprintln(os.Stderr, "Command timed out:%v\tError message:%v\n", docs, err )
 		} else {
-			log.Fatalf("Command failed:%v|\t%v\n", docs, err)
+			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", docs, err, err.Error())
 		}
 
 	} else {
