@@ -160,10 +160,19 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt" )
+
+	d0 := []byte(b.sp.StatsMapping[labelAllQueries].StringDocCountDebug())
+	fErr := ioutil.WriteFile("debug-query-doc-count.txt", d0, 0644)
+	if fErr != nil {
+		log.Fatal(err)
+	}
+
 	_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n",b.outputFileStatsResponseLatencyHist )
 
 	d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
-	fErr := ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
+	fErr = ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
 	if fErr != nil {
 		log.Fatal(err)
 	}

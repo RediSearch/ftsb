@@ -70,17 +70,17 @@ func (sp *statProcessor) process(workers uint, fullLatencyHistogramFilename stri
 			sp.StatsMapping[string(stat.label)] = newStatGroup(*sp.limit)
 		}
 
-		sp.StatsMapping[string(stat.label)].push(stat.value, stat.totalResults, stat.timedOut )
+		sp.StatsMapping[string(stat.label)].push(stat.value, stat.totalResults, stat.timedOut, stat.query )
 
 		if !stat.isPartial {
-			sp.StatsMapping[allQueriesLabel].push(stat.value, stat.totalResults, stat.timedOut )
+			sp.StatsMapping[allQueriesLabel].push(stat.value, stat.totalResults, stat.timedOut,stat.query )
 
 			// Only needed when differentiating between cold & warm
 			if sp.prewarmQueries {
 				if stat.isWarm {
-					sp.StatsMapping[labelWarmQueries].push(stat.value, stat.totalResults, stat.timedOut )
+					sp.StatsMapping[labelWarmQueries].push(stat.value, stat.totalResults, stat.timedOut , stat.query)
 				} else {
-					sp.StatsMapping[labelColdQueries].push(stat.value, stat.totalResults, stat.timedOut )
+					sp.StatsMapping[labelColdQueries].push(stat.value, stat.totalResults, stat.timedOut , stat.query)
 				}
 			}
 

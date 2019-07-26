@@ -21,6 +21,7 @@ type Stat struct {
 	isWarm       bool
 	isPartial    bool
 	timedOut	bool
+	query string
 }
 
 var statPool = &sync.Pool{
@@ -46,7 +47,8 @@ func GetPartialStat() *Stat {
 }
 
 // Init safely initializes a Stat while minimizing heap allocations.
-func (s *Stat) Init(label []byte, value float64, totalResults uint64, timedOut bool) *Stat {
+func (s *Stat) Init(label []byte, value float64, totalResults uint64, timedOut bool, query string ) *Stat {
+	s.query = query
 	s.label = s.label[:0] // clear
 	s.label = append(s.label, label...)
 	s.value = value
@@ -73,6 +75,8 @@ type statGroup struct {
 	sum             float64
 	sumTotalResults uint64
 	values          []float64
+	docCountValues []uint64
+	queryDocCountValues []string
 
 	// used for stddev calculations
 	m      float64
@@ -91,7 +95,7 @@ type statGroup struct {
 // newStatGroup returns a new StatGroup with an initial size
 func newStatGroup(size uint64) *statGroup {
 	lH , _ := histogram.NewHistogram(histogram.NaturalRange(0, 3000, 1))
-	rH , _ := histogram.NewHistogram(histogram.NaturalRange(0, 100000, 100))
+	rH , _ := histogram.NewHistogram(histogram.NaturalRange(0, 1000, 100))
 	return &statGroup{
 		values:                make([]float64, size),
 		count:                 0,
@@ -101,6 +105,8 @@ func newStatGroup(size uint64) *statGroup {
 		latencyHistogram:             lH,
 		totalResultsStatisticalHistogram:  gohistogram.NewHistogram(1000),
 		totalResultsHistogram: rH,
+		docCountValues:                make([]uint64, 0),
+		queryDocCountValues:                make([]string, 0),
 	}
 }
 
@@ -118,11 +124,15 @@ func (s *statGroup) median() float64 {
 }
 
 // push updates a StatGroup with a new value.
-func (s *statGroup) push(n float64, totalResults uint64, timedOut bool ) {
+func (s *statGroup) push(n float64, totalResults uint64, timedOut bool, query string ) {
 	_ = s.latencyHistogram.Add(n)
 	s.latencyStatisticalHistogram.Add(n)
 	_ = s.totalResultsHistogram.Add(float64(totalResults))
 	s.totalResultsStatisticalHistogram.Add(float64(totalResults))
+
+
+	s.docCountValues = append(s.docCountValues, totalResults )
+	s.queryDocCountValues = append(s.queryDocCountValues, query )
 
 	s.sumTotalResults += totalResults
 	if timedOut == true {
@@ -192,6 +202,17 @@ func (s *statGroup) stringQueryResponseSizeFullHistogram() string {
 // stringQueryResponseSizeFullHistogram returns a string histogram of Query Response Size (#docs)
 func (s *statGroup) stringQueryLatencyFullHistogram() string {
 	return fmt.Sprintf("%s\n", s.latencyHistogram.String() )
+}
+
+var FormatString1 = "%s,%d\n"
+
+// String uses the variabele FormatString for the data parsing
+func (s* statGroup) StringDocCountDebug() (res string) {
+	for i := 0; i < len(s.queryDocCountValues); i++ {
+		str := fmt.Sprintf(FormatString1, s.queryDocCountValues[i], s.docCountValues[i])
+		res += str
+	}
+	return
 }
 
 func (s *statGroup) write(w io.Writer) error {

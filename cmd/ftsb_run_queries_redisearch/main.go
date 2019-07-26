@@ -122,7 +122,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	//p.ResponseSizes <- uint64(total)
 	//p.Metrics <- 1
 	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut )
+	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1] )
 
 	return []*query.Stat{stat}, nil
 }
