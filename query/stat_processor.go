@@ -15,6 +15,7 @@ type statProcessor struct {
 	burnIn         uint64     // burnIn is the number of statistics to ignore before analyzing
 	printInterval  uint64     // printInterval is how often print intermediate stats (number of queries)
 	wg             sync.WaitGroup
+	StatsMapping  map[string]*statGroup
 }
 
 func (sp *statProcessor) sendStats(stats []*Stat) {
@@ -40,17 +41,17 @@ func (sp *statProcessor) sendStatsWarm(stats []*Stat) {
 
 // process collects latency results, aggregating them into summary
 // statistics. Optionally, they are printed to stderr at regular intervals.
-func (sp *statProcessor) process(workers uint) {
+func (sp *statProcessor) process(workers uint, fullLatencyHistogramFilename string, docCountHistogramFilename string ) {
 	sp.c = make(chan *Stat, workers)
 	sp.wg.Add(1)
 	const allQueriesLabel = labelAllQueries
-	statMapping := map[string]*statGroup{
+	sp.StatsMapping = map[string]*statGroup{
 		allQueriesLabel: newStatGroup(*sp.limit),
 	}
 	// Only needed when differentiating between cold & warm
 	if sp.prewarmQueries {
-		statMapping[labelColdQueries] = newStatGroup(*sp.limit)
-		statMapping[labelWarmQueries] = newStatGroup(*sp.limit)
+		sp.StatsMapping[labelColdQueries] = newStatGroup(*sp.limit)
+		sp.StatsMapping[labelWarmQueries] = newStatGroup(*sp.limit)
 	}
 
 	i := uint64(0)
@@ -65,21 +66,21 @@ func (sp *statProcessor) process(workers uint) {
 				log.Fatal(err)
 			}
 		}
-		if _, ok := statMapping[string(stat.label)]; !ok {
-			statMapping[string(stat.label)] = newStatGroup(*sp.limit)
+		if _, ok := sp.StatsMapping[string(stat.label)]; !ok {
+			sp.StatsMapping[string(stat.label)] = newStatGroup(*sp.limit)
 		}
 
-		statMapping[string(stat.label)].push(stat.value, stat.totalResults, stat.timedOut )
+		sp.StatsMapping[string(stat.label)].push(stat.value, stat.totalResults, stat.timedOut )
 
 		if !stat.isPartial {
-			statMapping[allQueriesLabel].push(stat.value, stat.totalResults, stat.timedOut )
+			sp.StatsMapping[allQueriesLabel].push(stat.value, stat.totalResults, stat.timedOut )
 
 			// Only needed when differentiating between cold & warm
 			if sp.prewarmQueries {
 				if stat.isWarm {
-					statMapping[labelWarmQueries].push(stat.value, stat.totalResults, stat.timedOut )
+					sp.StatsMapping[labelWarmQueries].push(stat.value, stat.totalResults, stat.timedOut )
 				} else {
-					statMapping[labelColdQueries].push(stat.value, stat.totalResults, stat.timedOut )
+					sp.StatsMapping[labelColdQueries].push(stat.value, stat.totalResults, stat.timedOut )
 				}
 			}
 
@@ -99,7 +100,7 @@ func (sp *statProcessor) process(workers uint) {
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = writeStatGroupMap(os.Stderr, statMapping)
+			err = writeStatGroupMap(os.Stderr, sp.StatsMapping)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -115,10 +116,13 @@ func (sp *statProcessor) process(workers uint) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = writeStatGroupMap(os.Stdout, statMapping)
+	err = writeStatGroupMap(os.Stdout, sp.StatsMapping)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+
+
 	sp.wg.Done()
 }
 

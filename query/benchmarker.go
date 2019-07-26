@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"runtime/pprof"
@@ -30,6 +31,10 @@ type BenchmarkRunner struct {
 	printResponses bool
 	debug          int
 	fileName       string
+	outputFileLatencySlowlog string
+	latencySlowlog uint64
+	outputFileStatsResponseLatencyHist string
+	outputFileStatsResponseDocCountHist string
 
 	// non-flag fields
 	br      *bufio.Reader
@@ -55,6 +60,10 @@ func NewBenchmarkRunner() *BenchmarkRunner {
 	flag.BoolVar(&runner.printResponses, "print-responses", false, "Pretty print response bodies for correctness checking (default false).")
 	flag.IntVar(&runner.debug, "debug", 0, "Whether to print debug messages.")
 	flag.StringVar(&runner.fileName, "file", "", "File name to read queries from")
+	flag.StringVar(&runner.outputFileLatencySlowlog, "output-file-latency-slowlog", "", "File name to output slow queries to")
+	flag.Uint64Var(&runner.latencySlowlog, "latency-slowlog", 500, "Consider slow queries the ones with response latency bigger than this defined value")
+	flag.StringVar(&runner.outputFileStatsResponseLatencyHist, "output-file-stats-response-latency-hist", "stats-response-latency-hist.txt", "File name to output the response latency histogram to")
+	flag.StringVar(&runner.outputFileStatsResponseDocCountHist, "output-file-stats-response-doccount-hist", "stats-response-doccount-hist.txt", "File name to output the response document count histogram to")
 
 	return runner
 }
@@ -123,7 +132,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	b.ch = make(chan Query, b.workers)
 
 	// Launch the stats processor:
-	go b.sp.process(b.workers)
+	go b.sp.process(b.workers, b.outputFileStatsResponseLatencyHist, b.outputFileStatsResponseDocCountHist )
 
 	// Launch query processors
 	var wg sync.WaitGroup
@@ -143,11 +152,26 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	wg.Wait()
 	b.sp.CloseAndWait()
 
+
 	// Wall clock end time
 	wallEnd := time.Now()
 	wallTook := wallEnd.Sub(wallStart)
 	_, err := fmt.Printf("Took: %8.3f sec\n", float64(wallTook.Nanoseconds())/1e9)
 	if err != nil {
+		log.Fatal(err)
+	}
+	_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n",b.outputFileStatsResponseLatencyHist )
+
+	d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
+	fErr := ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
+	if fErr != nil {
+		log.Fatal(err)
+	}
+	_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n",b.outputFileStatsResponseDocCountHist )
+
+	d2 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryResponseSizeFullHistogram())
+	fErr = ioutil.WriteFile(b.outputFileStatsResponseDocCountHist, d2, 0644)
+	if fErr != nil {
 		log.Fatal(err)
 	}
 

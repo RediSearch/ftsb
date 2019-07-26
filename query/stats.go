@@ -7,6 +7,9 @@ import (
 	"math"
 	"sort"
 	"sync"
+ "github.com/grd/histogram"
+
+
 )
 
 // Stat represents one statistical measurement, typically used to store the
@@ -78,19 +81,26 @@ type statGroup struct {
 
 	count                 int64
 	timedOutCount int64
-	histogram             gohistogram.Histogram
-	totalResultsHistogram gohistogram.Histogram
+	latencyStatisticalHistogram *gohistogram.NumericHistogram
+	totalResultsStatisticalHistogram  *gohistogram.NumericHistogram
+	latencyHistogram        *histogram.Histogram
+	totalResultsHistogram   *histogram.Histogram
+	//latencyByResultCount    *histogram.Histogram2d
 }
 
 // newStatGroup returns a new StatGroup with an initial size
 func newStatGroup(size uint64) *statGroup {
+	lH , _ := histogram.NewHistogram(histogram.NaturalRange(0, 3000, 1))
+	rH , _ := histogram.NewHistogram(histogram.NaturalRange(0, 100000, 100))
 	return &statGroup{
 		values:                make([]float64, size),
 		count:                 0,
 		timedOutCount: 0,
 		sumTotalResults:       0,
-		histogram:             gohistogram.NewHistogram(1000),
-		totalResultsHistogram: gohistogram.NewHistogram(1000),
+		latencyStatisticalHistogram:  gohistogram.NewHistogram(1000),
+		latencyHistogram:             lH,
+		totalResultsStatisticalHistogram:  gohistogram.NewHistogram(1000),
+		totalResultsHistogram: rH,
 	}
 }
 
@@ -109,8 +119,11 @@ func (s *statGroup) median() float64 {
 
 // push updates a StatGroup with a new value.
 func (s *statGroup) push(n float64, totalResults uint64, timedOut bool ) {
-	s.histogram.Add(n)
-	s.totalResultsHistogram.Add(float64(totalResults))
+	_ = s.latencyHistogram.Add(n)
+	s.latencyStatisticalHistogram.Add(n)
+	_ = s.totalResultsHistogram.Add(float64(totalResults))
+	s.totalResultsStatisticalHistogram.Add(float64(totalResults))
+
 	s.sumTotalResults += totalResults
 	if timedOut == true {
 		s.timedOutCount++
@@ -160,18 +173,30 @@ func (s *statGroup) push(n float64, totalResults uint64, timedOut bool ) {
 }
 
 // string makes a simple description of a statGroup.
-func (s *statGroup) stringQueryLatency() string {
-	return fmt.Sprintf("+ Query execution latency:\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d, timedOut count: %d\n", s.min, s.mean, s.histogram.Quantile(0.25), s.histogram.Quantile(0.50), s.histogram.Quantile(0.75), s.histogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.timedOutCount )
+func (s *statGroup) stringQueryLatencyStatistical() string {
+	return fmt.Sprintf("+ Query execution latency (statistical histogram):\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2fms, sum: %5.3f sec, count: %d, timedOut count: %d\n", s.min, s.mean, s.latencyStatisticalHistogram.Quantile(0.25), s.latencyStatisticalHistogram.Quantile(0.50), s.latencyStatisticalHistogram.Quantile(0.75), s.latencyStatisticalHistogram.Quantile(0.99), s.max, s.stdDev, s.sum/1e3, s.count, s.timedOutCount )
 }
 
-// string makes a simple description of a statGroup.
-func (s *statGroup) stringQueryResponseSize() string {
-	return fmt.Sprintf("+ Query response size(number docs) statistics:\n\tmin(q0): %8.2f docs, q25: %8.2f docs, med(q50): %8.2f docs, q75: %8.2f docs, q99: %8.2f docs, max(q100): %8.2f docs, sum: %d docs\n", s.totalResultsHistogram.Quantile(0), s.totalResultsHistogram.Quantile(0.25), s.totalResultsHistogram.Quantile(0.50), s.totalResultsHistogram.Quantile(0.75), s.totalResultsHistogram.Quantile(0.99), s.totalResultsHistogram.Quantile(1), s.sumTotalResults)
+// string makes a simple description of Query Response Size (#docs) of a statGroup.
+func (s *statGroup) stringQueryResponseSizeStatistical() string {
+	return fmt.Sprintf("+ Query response size(number docs) (statistical histogram):\n\tmin(q0): %8.2f docs, q25: %8.2f docs, med(q50): %8.2f docs, q75: %8.2f docs, q99: %8.2f docs, max(q100): %8.2f docs, sum: %d docs\n", s.totalResultsStatisticalHistogram.Quantile(0), s.totalResultsStatisticalHistogram.Quantile(0.25), s.totalResultsStatisticalHistogram.Quantile(0.50), s.totalResultsStatisticalHistogram.Quantile(0.75), s.totalResultsStatisticalHistogram.Quantile(0.99), s.totalResultsStatisticalHistogram.Quantile(1), s.sumTotalResults)
+}
+
+
+// stringQueryResponseSizeFullHistogram returns a string histogram of Query Response Size (#docs)
+func (s *statGroup) stringQueryResponseSizeFullHistogram() string {
+	return fmt.Sprintf("%s\n", s.totalResultsHistogram.String() )
+}
+
+
+// stringQueryResponseSizeFullHistogram returns a string histogram of Query Response Size (#docs)
+func (s *statGroup) stringQueryLatencyFullHistogram() string {
+	return fmt.Sprintf("%s\n", s.latencyHistogram.String() )
 }
 
 func (s *statGroup) write(w io.Writer) error {
-	_, err := fmt.Fprintln(w, s.stringQueryLatency())
-	_, err = fmt.Fprintln(w, s.stringQueryResponseSize())
+	_, err := fmt.Fprintln(w, s.stringQueryLatencyStatistical())
+	_, err = fmt.Fprintln(w, s.stringQueryResponseSizeStatistical())
 	return err
 }
 
