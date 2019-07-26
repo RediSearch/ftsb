@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -107,7 +108,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	if err != nil {
 		if err.Error() == "Command timed out"{
 			timedOut = true
-			log.Fatalf("Command failed:%v|\t%v\n", docs, err)
+			fmt.Fprintln(os.Stderr, "Command timed out:%v\tError message:%v\n", docs, err )
 		} else {
 			log.Fatalf("Command failed:%v|\t%v\n", docs, err)
 		}

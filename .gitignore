@@ -1,4 +1,5 @@
-# FTSB outputs
+# FTSB outputs #
+################
 
 cmd/ftsb_generate_data/ftsb_generate_data
 cmd/ftsb_generate_queries/ftsb_generate_queries
@@ -8,6 +9,9 @@ cmd/ftsb_run_queries_redisearch/ftsb_run_queries_redisearch
 cmd/ftsb_run_queries_redisearch/stats-response-latency-hist.txt
 cmd/ftsb_run_queries_redisearch/stats-response-doccount-hist.txt
 *.txt
+
+# Idea / others #
+#################
 
 *.out
 *.log
