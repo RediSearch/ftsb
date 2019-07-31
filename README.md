@@ -82,7 +82,7 @@ be used to benchmark data loading of the database(s) chosen using
 the `ftsb_generate_data` tool. The following example outputs the generated queries to a file named `enwiki-latest-abstract1.gz` in directory `/tmp`:
 ```bash
 $ curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
-$ gunzip enwiki-latest-abstract1.xml.gz /tmp/enwiki-latest-abstract1.xml
+$ gunzip -c enwiki-latest-abstract1.xml.gz > /tmp/enwiki-latest-abstract1.xml
 $ ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
      -format="redisearch" \
     | gzip > /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz 
