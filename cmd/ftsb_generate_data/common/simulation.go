@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/serialize"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/serialize"
 )
 
 // SimulatorConfig is an interface to create a Simulator

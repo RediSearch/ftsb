@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/RediSearch/redisearch-go/redisearch"
-	"github.com/filipecosta90/ftsb/query"
+	"github.com/RediSearch/ftsb/query"
 	_ "github.com/lib/pq"
 )
 

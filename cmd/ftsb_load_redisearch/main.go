@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/RediSearch/redisearch-go/redisearch"
-	"github.com/filipecosta90/ftsb/load"
+	"github.com/RediSearch/ftsb/load"
 	"log"
 	"os"
 	"strconv"

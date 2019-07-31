@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"github.com/filipecosta90/ftsb/load"
+	"github.com/RediSearch/ftsb/load"
 	"log"
 	"sync"
 )

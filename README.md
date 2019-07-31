@@ -43,14 +43,14 @@ scripts). The easiest way to get and install the Go programs is to use
 `go get` and then `go install`:
 ```bash
 # Fetch FTSB and its dependencies
-$ go get github.com/filipecosta90/ftsb
-$ cd $GOPATH/src/github.com/filipecosta90/ftsb/cmd
+$ go get github.com/RediSearch/ftsb
+$ cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
 $ go get ./...
 
 # Install desired binaries. At a minimum this includes ftsb_generate_data,
 # ftsb_generate_queries, one ftsb_load_* binary, and one ftsb_run_queries_*
 # binary:
-$ cd $GOPATH/src/github.com/filipecosta90/ftsb/cmd
+$ cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
 $ cd ftsb_generate_data && go install
 $ cd ../ftsb_generate_queries && go install
 $ cd ../ftsb_load_redisearch && go install

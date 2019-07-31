@@ -2,8 +2,8 @@ package redisearch
 
 import (
 	"fmt"
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/uses/wiki"
-	"github.com/filipecosta90/ftsb/query"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/uses/wiki"
+	"github.com/RediSearch/ftsb/query"
 )
 
 // EnWikiAbstract produces RediSearch-specific queries for all the en wiki query types.

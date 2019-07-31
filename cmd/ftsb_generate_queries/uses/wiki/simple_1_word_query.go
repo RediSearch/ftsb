@@ -1,8 +1,8 @@
 package wiki
 
 import (
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
-	"github.com/filipecosta90/ftsb/query"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/utils"
+	"github.com/RediSearch/ftsb/query"
 )
 
 // Simple1WordQuery contains info for filling in simple 1 word queries

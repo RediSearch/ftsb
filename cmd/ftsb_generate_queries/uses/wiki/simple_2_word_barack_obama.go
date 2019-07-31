@@ -1,8 +1,8 @@
 package wiki
 
 import (
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
-	"github.com/filipecosta90/ftsb/query"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/utils"
+	"github.com/RediSearch/ftsb/query"
 )
 
 // Simple2WordQuery contains info for filling simple 2 word queries with the barack obama words

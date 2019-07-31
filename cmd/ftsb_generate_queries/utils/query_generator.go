@@ -1,6 +1,6 @@
 package utils
 
-import "github.com/filipecosta90/ftsb/query"
+import "github.com/RediSearch/ftsb/query"
 
 // EnWikiAbstractGenerator is query generator for a database type that handles the Devops use case
 type EnWikiAbstractGenerator interface {

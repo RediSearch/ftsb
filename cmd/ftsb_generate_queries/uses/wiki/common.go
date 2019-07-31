@@ -3,8 +3,8 @@ package wiki
 import (
 	"encoding/xml"
 	"fmt"
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_queries/utils"
-	"github.com/filipecosta90/ftsb/query"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/utils"
+	"github.com/RediSearch/ftsb/query"
 	"io"
 	"log"
 	"math/rand"

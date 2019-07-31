@@ -1,7 +1,7 @@
 package wiki
 
 import (
-	"github.com/filipecosta90/ftsb/cmd/ftsb_generate_data/serialize"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/serialize"
 )
 
 type commonFTSSimulatorConfig struct {
