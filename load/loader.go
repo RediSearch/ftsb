@@ -287,7 +287,7 @@ func (l *BenchmarkRunner) report(period time.Duration) {
 		colrate := float64(documentCount-prevDocumentCount) / float64(took.Seconds())
 		overallColRate := float64(documentCount) / float64(sinceStart.Seconds())
 
-		printFn("%d,%0.2f,%E,%0.2f\n", now.Unix(), colrate, float64(documentCount), overallColRate)
+		printFn("%d,%0.2f,%d,%0.2f\n", now.Unix(), colrate, documentCount, overallColRate)
 
 		prevDocumentCount = documentCount
 		prevTime = now

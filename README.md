@@ -43,18 +43,18 @@ scripts). The easiest way to get and install the Go programs is to use
 `go get` and then `go install`:
 ```bash
 # Fetch FTSB and its dependencies
-$ go get github.com/RediSearch/ftsb
-$ cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
-$ go get ./...
+go get github.com/RediSearch/ftsb
+cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
+go get ./...
 
 # Install desired binaries. At a minimum this includes ftsb_generate_data,
 # ftsb_generate_queries, one ftsb_load_* binary, and one ftsb_run_queries_*
 # binary:
-$ cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
-$ cd ftsb_generate_data && go install
-$ cd ../ftsb_generate_queries && go install
-$ cd ../ftsb_load_redisearch && go install
-$ cd ../ftsb_run_queries_redisearch && go install
+cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
+cd ftsb_generate_data && go install
+cd ../ftsb_generate_queries && go install
+cd ../ftsb_load_redisearch && go install
+cd ../ftsb_run_queries_redisearch && go install
 ```
 
 ## How to use FTSB
@@ -81,9 +81,9 @@ datasets, if you chose to generate for multiple databases) that can
 be used to benchmark data loading of the database(s) chosen using
 the `ftsb_generate_data` tool. The following example outputs the generated queries to a file named `enwiki-latest-abstract1.gz` in directory `/tmp`:
 ```bash
-$ curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
-$ gunzip -c enwiki-latest-abstract1.xml.gz > /tmp/enwiki-latest-abstract1.xml
-$ ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
+curl -O https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz
+gunzip -c enwiki-latest-abstract1.xml.gz > /tmp/enwiki-latest-abstract1.xml
+ftsb_generate_data -input-file /tmp/enwiki-latest-abstract1.xml \
      -format="redisearch" \
     | gzip > /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz 
 
@@ -97,8 +97,8 @@ _Note: We pipe the output to gzip to reduce on-disk space._
 Variables needed:
 1. the same use case
 1. the number of queries to generate. E.g., `100000`
-1. the type of query you'd like to generate. E.g., `simple-2word-query`
-1. the seed to pass to the Pseudorandom number generator. By passing the same seed you always generated the same deterministic dataset. E.g., `1234`
+1. the type of query you'd like to generate. E.g., `2word-intersection-query`
+1. the seed to pass to the Pseudorandom number generator. By passing the same seed you always generated the same deterministic dataset. E.g., `12345`
 1. and the stop-words to discard on query generation. When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query. This list of stop-words should match the one used for the index creation. We use as default the [RediSearch list of stop-words](https://oss.redislabs.com/redisearch/Stopwords.html), namely `a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with`
 
 For the last step there are numerous queries to choose from, which are
@@ -106,35 +106,35 @@ listed in [Appendix I](#appendix-i-query-types).
 
 For generating just one set of queries for a given type:
 ```bash
-$ ftsb_generate_queries -query-type="simple-2word-query" \
+ftsb_generate_queries -query-type="2word-intersection-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
-    -seed 1234 \
-    -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0
+    -seed 12345 \
+    -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0
 ```
 
 In debug mode 0, only the summary of query generation will be printed:
 ```text
-using random seed 1234
+using random seed 12345
 Reading /tmp/enwiki-latest-abstract1.xml
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
 ```
 
 
 In debug mode 2, the full info of the generated queries will will be printed:
 ```text
-using random seed 1234
+using random seed 12345
 Reading /tmp/enwiki-latest-abstract1.xml
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: institutions free
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: duration Longterm
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Trojan character
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Abraham Lincoln
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: deathplaceEuboea Empire
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: piece American
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Award Design
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: tenth edition
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: 1975 passage
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: institutions free
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: duration Longterm
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Trojan character
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Abraham Lincoln
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: deathplaceEuboea Empire
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: piece American
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: Award Design
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: tenth edition
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words). Used words: 1975 passage
 (...)
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random words): 100000 queries
 ```
 
 ### Benchmarking insert/write performance
@@ -152,21 +152,21 @@ flags. To find the flags for a particular database, use the `-help` flag
 So for loading documents into Redis using RediSearch use:
 ```bash
 # flush the database
-$ redis-cli flushall 
+redis-cli flushall
 
 # create the index
-$ redis-cli ft.create idx1 SCHEMA \
+redis-cli ft.create idx1 SCHEMA \
       TITLE TEXT WEIGHT 5 \
-      URL TEXT WEIGHT 5 \ 
+      URL TEXT WEIGHT 5 \
       ABSTRACT TEXT WEIGHT 1
 
 # Will insert using 2 clients, batch sizes of 10k, from a file
 # named `enwiki-latest-abstract1.gz` in directory `/tmp`
 # with pipeline of 100
-$ cat /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz \
+cat /tmp/ftsb_generate_data-enwiki-latest-abstract1-redisearch.gz \
       | gunzip \
-      | ./ftsb_load_redisearch -workers 2 -reporting-period 1s \
-       -batch-size 1000 -pipeline 10
+      | ftsb_load_redisearch -workers 8 -reporting-period 1s \
+       -batch-size 1000 -pipeline 100
 ```
 
 ---
@@ -205,9 +205,9 @@ described earlier. Once the data is loaded and the queries are generated,
 just use the corresponding `ftsb_run_queries_` binary for the database
 being tested:
 ```bash
-$ ftsb_run_queries_redisearch \
-       -file /tmp/redisearch-queries-enwiki-latest-abstract1-simple-2word-query-100K-queries-1-0-0 \
-       -max-queries 100000 -workers 16 -print-interval 20000 
+ftsb_run_queries_redisearch \
+       -file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0 \
+       -max-queries 100000 -workers 8 -print-interval 20000 
 ```
 
 You can change the value of the `--workers` flag to
@@ -223,7 +223,7 @@ All queries                                                                     
 + Query response size(number docs) statistics:
 	min(q0):   350.81 docs, q25:   350.81 docs, med(q50):   350.81 docs, q75:   350.81 docs, q99: 45839.32 docs, max(q100): 252995.00 docs, sum: 176735188 docs
 
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
 + Query execution latency:
 	min:     0.33 ms,  mean:    34.05 ms, q25:    18.13 ms, med(q50):    18.13 ms, q75:    18.13 ms, q99:   158.38 ms, max:   581.23 ms, stddev:    50.28ms, sum: 2724.082 sec, count: 80000
 
@@ -239,7 +239,7 @@ All queries                                                                     
 + Query response size(number docs) statistics:
 	min(q0):   346.37 docs, q25:   346.37 docs, med(q50):   346.37 docs, q75:   346.37 docs, q99: 45593.99 docs, max(q100): 252995.00 docs, sum: 210779012 docs
 
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
 + Query execution latency:
 	min:     0.33 ms,  mean:    35.32 ms, q25:    18.29 ms, med(q50):    18.29 ms, q75:    18.29 ms, q99:   157.98 ms, max:   581.23 ms, stddev:    51.84ms, sum: 3178.594 sec, count: 90000
 
@@ -256,7 +256,7 @@ All queries                                                                     
 + Query response size(number docs) statistics:
 	min(q0):   341.94 docs, q25:   341.94 docs, med(q50):   341.94 docs, q75:   341.94 docs, q99: 45312.15 docs, max(q100): 252995.00 docs, sum: 242417188 docs
 
-RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words).:
+RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
 + Query execution latency:
 	min:     0.33 ms,  mean:    36.24 ms, q25:    18.43 ms, med(q50):    18.43 ms, q75:    18.43 ms, q99:   158.22 ms, max:   581.23 ms, stddev:    52.98ms, sum: 3624.437 sec, count: 100000
 
@@ -273,8 +273,9 @@ Took:  226.577 sec
 |Query type|Description|Status|
 |:---|:---|:---|
 |simple-1word-query| Simple 1 Word Query | :heavy_check_mark:
-|2word-union-query| 2 Word Union Query | :heavy_multiplication_x:
-|simple-2word-query| Simple 2 Word Query| :heavy_check_mark:
+|2word-union-query| 2 Word Union Query | :heavy_check_mark:
+|2word-intersection-query| 2 Word Intersection Query| :heavy_check_mark:
 |exact-3word-match| Exact 3 Word Match| :heavy_multiplication_x:
-|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | :heavy_multiplication_x:
 |autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes| :heavy_multiplication_x:
+|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | :heavy_multiplication_x:
+|2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | :heavy_multiplication_x:

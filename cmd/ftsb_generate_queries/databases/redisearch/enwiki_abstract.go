@@ -11,7 +11,7 @@ type EnWikiAbstract struct {
 	Core *wiki.Core
 }
 
-// NewEnWikiAbstract makes an EnWikiAbstract object ready to generate TwoWordQueries.
+// NewEnWikiAbstract makes an EnWikiAbstract object ready to generate TwoWordIntersectionQueries.
 func NewEnWikiAbstract(filename string, stopwordsbl []string, seed int64, maxQueries int) *EnWikiAbstract {
 	return &EnWikiAbstract{wiki.NewCore(filename, stopwordsbl, seed, maxQueries)}
 }
@@ -21,18 +21,32 @@ func (d *EnWikiAbstract) GenerateEmptyQuery() query.Query {
 	return query.NewRediSearch()
 }
 
-// Simple2WordQuery does a search with 2 random words that exist on the set of documents
-func (d *EnWikiAbstract) Simple2WordQuery(qi query.Query) {
-	if d.Core.TwoWordQueryIndexPosition >= d.Core.TwoWordQueryIndex {
-		d.Core.TwoWordQueryIndexPosition = 0
+// TwoWordIntersectionQuery does a search with 2 random words that exist on the set of documents
+func (d *EnWikiAbstract) TwoWordUnionQuery(qi query.Query) {
+	if d.Core.TwoWordUnionQueryIndexPosition >= d.Core.TwoWordUnionQueryIndex {
+		d.Core.TwoWordUnionQueryIndexPosition = 0
 	}
-	twoWords := d.Core.TwoWordQueries[d.Core.TwoWordQueryIndexPosition]
+	twoWords := d.Core.TwoWordUnionQueries[d.Core.TwoWordUnionQueryIndexPosition]
 	redisQuery := fmt.Sprintf(`FT.SEARCH,%s`, twoWords)
 
-	humanLabel := "RediSearch Simple 2 Word Query - English-language Wikipedia:Database page abstracts (random in set words)."
+	humanLabel := "RediSearch 2 Word Union Query - English-language Wikipedia:Database page abstracts (random in set words)."
 	humanDesc := fmt.Sprintf("%s Used words: %s", humanLabel, twoWords)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
-	d.Core.TwoWordQueryIndexPosition++
+	d.Core.TwoWordUnionQueryIndexPosition++
+}
+
+// TwoWordIntersectionQuery does a search with 2 random words that exist on the set of documents
+func (d *EnWikiAbstract) TwoWordIntersectionQuery(qi query.Query) {
+	if d.Core.TwoWordIntersectionQueryIndexPosition >= d.Core.TwoWordIntersectionQueryIndex {
+		d.Core.TwoWordIntersectionQueryIndexPosition = 0
+	}
+	twoWords := d.Core.TwoWordIntersectionQueries[d.Core.TwoWordIntersectionQueryIndexPosition]
+	redisQuery := fmt.Sprintf(`FT.SEARCH,%s`, twoWords)
+
+	humanLabel := "RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words)."
+	humanDesc := fmt.Sprintf("%s Used words: %s", humanLabel, twoWords)
+	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
+	d.Core.TwoWordIntersectionQueryIndexPosition++
 }
 
 // Simple1WordQuery does a search with 1 random word that exist on the set of documents
@@ -53,7 +67,7 @@ func (d *EnWikiAbstract) Simple1WordQuery(qi query.Query) {
 func (d *EnWikiAbstract) Simple2WordBarackObama(qi query.Query) {
 	redisQuery := fmt.Sprintf(`FT.SEARCH,barack obama`)
 
-	humanLabel := "RediSearch Simple 2 Word Query - Barack Obama."
+	humanLabel := "RediSearch 2 Word Intersection Query - Barack Obama."
 	humanDesc := fmt.Sprintf("%s Used words: barack obama", humanLabel)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
 

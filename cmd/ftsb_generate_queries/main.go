@@ -20,9 +20,10 @@ import (
 
 var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
-		wiki.LabelSimple1WordQuery:       wiki.NewSimple1WordQuery(),
-		wiki.LabelSimple2WordQuery:       wiki.NewSimple2WordQuery(),
-		wiki.LabelSimple2WordBarackObama: wiki.NewSimple2WordBarackObama(),
+		wiki.LabelSimple1WordQuery:         wiki.NewSimple1WordQuery(),
+		wiki.LabelTwoWordIntersectionQuery: wiki.NewTwoWordIntersectionQuery(),
+		wiki.LabelSimple2WordUnionQuery: wiki.NewTwoWordUnionQuery(),
+		wiki.LabelSimple2WordBarackObama:   wiki.NewSimple2WordBarackObama(),
 	},
 }
 

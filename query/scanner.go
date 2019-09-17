@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// scanner is used to read in TwoWordQueries from a Reader where they are
+// scanner is used to read in TwoWordIntersectionQueries from a Reader where they are
 // Go-encoded and then distribute them to workers
 type scanner struct {
 	r     io.Reader
@@ -25,7 +25,7 @@ func (s *scanner) setReader(r io.Reader) *scanner {
 	return s
 }
 
-// scan reads encoded TwoWordQueries and places them into a channel
+// scan reads encoded TwoWordIntersectionQueries and places them into a channel
 func (s *scanner) scan(pool *sync.Pool, c chan Query) uint64 {
 	decoder := gob.NewDecoder(s.r)
 
@@ -57,7 +57,7 @@ func (s *scanner) scan(pool *sync.Pool, c chan Query) uint64 {
 			log.Fatal("error decoding query: ", err)
 		}
 
-		// TwoWordQueries counter
+		// TwoWordIntersectionQueries counter
 		n++
 	}
 	return n

@@ -16,24 +16,19 @@ import (
 )
 
 const (
-	allHosts                = "all hosts"
-	errNHostsCannotNegative = "nHosts cannot be negative"
-	errNoMetrics            = "cannot get 0 metrics"
-	errTooManyMetrics       = "too many metrics asked for"
-	errBadTimeOrder         = "bad time order: start is after end"
-	errMoreItemsThanScale   = "cannot get random permutation with more items than scale"
 
 	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
 	LabelSimple2WordBarackObama = "simple-2word-barack-obama"
 	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
 	LabelSimple1WordQuery = "simple-1word-query"
-	// LabelSimple2WordQuery is the label prefix for queries of the Simple 2 Word Query
-	LabelSimple2WordQuery = "simple-2word-query"
+	// LabelTwoWordIntersectionQuery is the label prefix for queries of the Simple 2 Word Intersection Query
+	LabelTwoWordIntersectionQuery = "2word-intersection-query"
+	// LabelTwoWordIntersectionQuery is the label prefix for queries of the Simple 2 Word Union Query
+	LabelSimple2WordUnionQuery = "2word-union-query"
 	// LabelExact3WordMatch is the label for the lastpoint query
 	LabelExact3WordMatch = "exact-3word-match"
 	// LabelAutocomplete1100Top3 is the label prefix for queries of the max all variety
 	LabelAutocomplete1100Top3 = "autocomplete-1100-top3"
-	// LabelGroupbyOrderbyLimit is the label for groupby-orderby-limit query
 )
 
 // for ease of testing
@@ -41,12 +36,15 @@ var fatal = log.Fatalf
 
 // Core is the common component of all generators for all systems
 type Core struct {
-	TwoWordQueryIndexPosition uint64
-	TwoWordQueryIndex         uint64
-	TwoWordQueries            []string
-	OneWordQueryIndexPosition uint64
-	OneWordQueryIndex         uint64
-	OneWordQueries            []string
+	TwoWordIntersectionQueryIndexPosition uint64
+	TwoWordIntersectionQueryIndex         uint64
+	TwoWordIntersectionQueries            []string
+	TwoWordUnionQueryIndexPosition        uint64
+	TwoWordUnionQueryIndex                uint64
+	TwoWordUnionQueries                   []string
+	OneWordQueryIndexPosition             uint64
+	OneWordQueryIndex                     uint64
+	OneWordQueries                        []string
 }
 
 // NewCore returns a new Core for the given input filename, seed, and maxQueries
@@ -62,7 +60,8 @@ func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) 
 	}
 
 	rand.Seed(seed)
-	var two_word_query []string
+	var twoWordIntersectionQuery []string
+	var twoWordUnionQuery []string
 	var oneWordQuery []string
 	if filename == "" {
 		fmt.Println("No input file provided. skipping input reading ")
@@ -80,6 +79,8 @@ func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) 
 		var currentText string
 		queryCount := 0
 		oneWordQueryCount := 0
+		twoWordUnionQueryCount := 0
+
 		for err != io.EOF && maxQueries > queryCount {
 			used_field := rand.Intn(2)
 
@@ -158,8 +159,13 @@ func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) 
 						}
 
 						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
-							two_word_query = append(two_word_query, first_word+" "+second_word)
+							twoWordIntersectionQuery = append(twoWordIntersectionQuery, first_word+" "+second_word)
 							queryCount++
+						}
+
+						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
+							twoWordUnionQuery = append(twoWordUnionQuery, first_word+"|"+second_word)
+							twoWordUnionQueryCount++
 						}
 					}
 					props = map[string]string{}
@@ -172,25 +178,33 @@ func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) 
 	}
 	return &Core{
 		0,
-		uint64(len(two_word_query)),
-		two_word_query,
+		uint64(len(twoWordIntersectionQuery)),
+		twoWordIntersectionQuery,
+		0,
+		uint64(len(twoWordUnionQuery)),
+		twoWordUnionQuery,
 		0,
 		uint64(len(oneWordQuery)),
 		oneWordQuery,
 	}
 }
 
-// Simple2WordQueryFiller is a type that can fill in a single groupby query
-type Simple2WordQueryFiller interface {
-	Simple2WordQuery(query.Query)
+// TwoWordIntersectionQueryFiller is a type that can fill in a single query
+type TwoWordIntersectionQueryFiller interface {
+	TwoWordIntersectionQuery(query.Query)
 }
 
-// Simple2WordQueryFiller is a type that can fill in a single groupby query
+// TwoWordUnionQueryFiller is a type that can fill in a single query
+type TwoWordUnionQueryFiller interface {
+	TwoWordUnionQuery(query.Query)
+}
+
+// OneWordQueryFiller is a type that can fill in a single query
 type Simple1WordQueryFiller interface {
 	Simple1WordQuery(query.Query)
 }
 
-// Simple2WordQueryFiller is a type that can fill in a single groupby query
+// SimpleTwoWordBarackObamaQueryFiller is a type that can fill in a single  query
 type Simple2WordBarackObamaFiller interface {
 	Simple2WordBarackObama(query.Query)
 }
