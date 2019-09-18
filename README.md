@@ -106,10 +106,14 @@ listed in [Appendix I](#appendix-i-query-types).
 
 For generating just one set of queries for a given type:
 ```bash
+# 2 Word intersection query
 ftsb_generate_queries -query-type="2word-intersection-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
     -seed 12345 \
     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0
+cat /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0 \
+    | gzip > /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0.gz
+# 2 Word Union query
 ```
 
 In debug mode 0, only the summary of query generation will be printed:
@@ -270,12 +274,12 @@ Took:  226.577 sec
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
 
 ### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
-|Query type|Description|Status|
-|:---|:---|:---|
-|simple-1word-query| Simple 1 Word Query | :heavy_check_mark:
-|2word-union-query| 2 Word Union Query | :heavy_check_mark:
-|2word-intersection-query| 2 Word Intersection Query| :heavy_check_mark:
-|exact-3word-match| Exact 3 Word Match| :heavy_multiplication_x:
-|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes| :heavy_multiplication_x:
-|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | :heavy_multiplication_x:
-|2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | :heavy_multiplication_x:
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+|simple-1word-query| Simple 1 Word Query | `Abraham` | :heavy_check_mark:
+|2word-union-query| 2 Word Union Query | `Abraham Lincoln` | :heavy_check_mark:
+|2word-intersection-query| 2 Word Intersection Query| `Abraham`&#124;`Lincoln` | :heavy_check_mark:
+|exact-3word-match| Exact 3 Word Match| `"President Abraham Lincoln"` |:heavy_multiplication_x:
+|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes|  | :heavy_multiplication_x:
+|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | `@text_field1: text_value1 @text_field2: text_value2` | :heavy_multiplication_x:
+|2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | `@text_field: text_value @numeric_field:[{min} {max}]` |:heavy_multiplication_x:
