@@ -111,8 +111,10 @@ ftsb_generate_queries -query-type="2word-intersection-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
     -seed 12345 \
     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0
+
 cat /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0 \
     | gzip > /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0.gz
+
 # 2 Word Union query
 ```
 
