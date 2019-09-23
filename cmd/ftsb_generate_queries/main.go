@@ -22,8 +22,9 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
 		wiki.LabelSimple1WordQuery:         wiki.NewSimple1WordQuery(),
 		wiki.LabelTwoWordIntersectionQuery: wiki.NewTwoWordIntersectionQuery(),
-		wiki.LabelSimple2WordUnionQuery: wiki.NewTwoWordUnionQuery(),
+		wiki.LabelSimple2WordUnionQuery:    wiki.NewTwoWordUnionQuery(),
 		wiki.LabelSimple2WordBarackObama:   wiki.NewSimple2WordBarackObama(),
+		wiki.LabelSimple1WordSpellCheck:   wiki.NewSimple1WordSpellCheck(),
 	},
 }
 
@@ -97,7 +98,7 @@ func init() {
 	flag.StringVar(&queryType, "query-type", "", "Query type. (Choices are in the use case matrix.)")
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 	flag.IntVar(&queryCount, "queries", 1000, "Number of queries to generate.")
-	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1) (default 0).")
+	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2) (default 0).")
 
 	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0, "Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
 	flag.UintVar(&interleavedGenerationGroups, "interleaved-generation-groups", 1, "The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")

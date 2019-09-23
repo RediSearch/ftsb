@@ -16,9 +16,9 @@ import (
 )
 
 const (
-
-	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
-	LabelSimple2WordBarackObama = "simple-2word-barack-obama"
+	//////////////////////////
+	// Full text search queries
+	//////////////////////////
 	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
 	LabelSimple1WordQuery = "simple-1word-query"
 	// LabelTwoWordIntersectionQuery is the label prefix for queries of the Simple 2 Word Intersection Query
@@ -29,6 +29,26 @@ const (
 	LabelExact3WordMatch = "exact-3word-match"
 	// LabelAutocomplete1100Top3 is the label prefix for queries of the max all variety
 	LabelAutocomplete1100Top3 = "autocomplete-1100-top3"
+	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
+	LabelSimple2WordBarackObama = "simple-2word-barack-obama"
+
+	//////////////////////////
+	// Spell Check queries
+	//////////////////////////
+
+	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Spell Check
+	LabelSimple1WordSpellCheck = "simple-1word-spellcheck"
+
+	//////////////////////////
+	// Autocomplete queries
+	//////////////////////////
+
+	//////////////////////////
+	// Synonym queries
+	//////////////////////////
+
+
+
 )
 
 // for ease of testing
@@ -207,6 +227,12 @@ type Simple1WordQueryFiller interface {
 // SimpleTwoWordBarackObamaQueryFiller is a type that can fill in a single  query
 type Simple2WordBarackObamaFiller interface {
 	Simple2WordBarackObama(query.Query)
+}
+
+
+// OneWordQueryFiller is a type that can fill in a single query
+type Simple1WordSpellCheckQueryFiller interface {
+	Simple1WordSpellCheck(query.Query)
 }
 
 func panicUnimplementedQuery(dg utils.EnWikiAbstractGenerator) {
