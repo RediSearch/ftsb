@@ -286,9 +286,16 @@ Took:  226.577 sec
 |2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | `@text_field: text_value @numeric_field:[{min} {max}]` |:heavy_multiplication_x:
 
 #### Spell Check queries
+
+Performs spelling correction on a query, returning suggestions for misspelled terms.
+To simmulate misspelled terms, for each word a deterministic random number of edits in the range 0..Min(word.length/2 , 4) is chosen. 
+
+
+For each edit a random type of edit (delete, insert random char, replace with random char, switch adjacent chars).
+
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
-| |  | `` | :heavy_multiplication_x:
+| simple-1word-spellcheck |  | `FT.SPELLCHECK {index} reids DISTANCE 1` | :heavy_multiplication_x:
 
 #### Autocomplete queries
 |Query type|Description|Example|Status|
