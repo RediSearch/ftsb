@@ -274,6 +274,7 @@ Took:  226.577 sec
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
 
 ### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
+#### Full text search queries
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 |simple-1word-query| Simple 1 Word Query | `Abraham` | :heavy_check_mark:
@@ -283,3 +284,23 @@ Took:  226.577 sec
 |autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes|  | :heavy_multiplication_x:
 |2field-2word-intersection-query| 2 Fields, one word each, Intersection query | `@text_field1: text_value1 @text_field2: text_value2` | :heavy_multiplication_x:
 |2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | `@text_field: text_value @numeric_field:[{min} {max}]` |:heavy_multiplication_x:
+
+#### Spell Check queries
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+| |  | `` | :heavy_multiplication_x:
+
+#### Autocomplete queries
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+| |  | `` | :heavy_multiplication_x:
+
+#### Aggregate queries
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+| |  | `` | :heavy_multiplication_x:
+
+#### Synonym queries
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+| |  | `` | :heavy_multiplication_x:
