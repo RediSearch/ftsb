@@ -304,12 +304,29 @@ For each edit a random type of edit (delete, insert random char, replace with ra
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
 
+
 #### Aggregate queries
+
+Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
+
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
-
 #### Synonym queries
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
+
+
+### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page metadata.
+
+
+#### Aggregate queries
+
+Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
+
+|Query type|Description|Example|Status|
+|:---|:---|:---|:---|
+| agg-(groupby-reduce-sortby-apply)-page-contributions-by-day |  Number of contributions by day, ordered chronologically | <br>`FT.AGGREGATE myIndex "*"
+                                                                                                                              APPLY "@timestamp - (@timestamp % 86400)" AS day\` | :heavy_multiplication_x:
+| agg-sort-count-contributor-by-day |  Sort contributions to pages by day and contributor | `` | :heavy_multiplication_x:
