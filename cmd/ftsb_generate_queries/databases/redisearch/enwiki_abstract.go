@@ -17,7 +17,7 @@ type EnWikiAbstract struct {
 
 // NewEnWikiAbstract makes an EnWikiAbstract object ready to generate TwoWordIntersectionQueries.
 func NewEnWikiAbstract(filename string, stopwordsbl []string, seed int64, maxQueries int) *EnWikiAbstract {
-	return &EnWikiAbstract{wiki.NewCore(filename, stopwordsbl, seed, maxQueries)}
+	return &EnWikiAbstract{wiki.NewWikiAbrastractReader(filename, stopwordsbl, seed, maxQueries)}
 }
 
 // GenerateEmptyQuery returns an empty query.RediSearch
@@ -75,33 +75,38 @@ func (d *EnWikiAbstract) Simple1WordSpellCheck(qi query.Query) {
 	oneWord := d.Core.OneWordQueries[d.Core.OneWordQueryIndexPosition]
 	//newWord := make(string, len(oneWord))
 	var newWord = oneWord
-	maxChanges := math.Min(float64(len(oneWord)-2),4)
-	numberChanges := rand.Intn(int(maxChanges))
-	// the word needs to have at least 4 chars
-	if len(newWord) > 3 {
-		for atChange :=0; atChange<numberChanges ; atChange++  {
-
-			charPos := rand.Intn( len(newWord) -1 ) + 1
-			// non-negative pseudo-random number in [0,4)
-			// 0 - delete char
-			// 1 - insert random char
-			// 2 - replace with random char
-			// 3 - switch adjacent chars
-			switch rand.Intn(4) {
-			case 0:
-				newWord = newWord[:charPos-1] + newWord[charPos+1:]
-			case 1:
-				newWord = newWord[:charPos] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
-			case 2:
-				newWord = newWord[:charPos-1] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
-			case 3:
-				adjacentPos := charPos+1
-				newWord = newWord[:charPos-1] + newWord[adjacentPos:adjacentPos] + newWord[charPos:charPos] +  newWord[adjacentPos+1:]
+	maxChanges := math.Min(float64(len(oneWord)-2), 4)
+	numberChanges := 1
+	effectiveChanges := 0
+	if maxChanges > 0 {
+		numberChanges = rand.Intn(int(maxChanges))
+		// the word needs to have at least 4 chars
+		for atChange := 0; atChange < numberChanges; atChange++ {
+			if len(newWord) > 3 {
+				charPos := rand.Intn(len(newWord)-2) + 1
+				// non-negative pseudo-random number in [0,4)
+				// 0 - delete char word[:charPos] + word[:charPos+1:]
+				// 1 - insert random char
+				// 2 - replace with random char
+				// 3 - switch adjacent chars
+				switch rand.Intn(4) {
+				case 0:
+					newWord = newWord[:charPos] + newWord[charPos+1:]
+				case 1:
+					newWord = newWord[:charPos] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
+				case 2:
+					newWord = newWord[:charPos] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
+				case 3:
+					adjacentPos := charPos + 1
+					newWord = newWord[:charPos] + newWord[adjacentPos:adjacentPos] + newWord[charPos:charPos] + newWord[adjacentPos+1:]
+				}
+				effectiveChanges = effectiveChanges + 1
 			}
 		}
+
 	}
 
-	redisQuery := fmt.Sprintf(`FT.SPELLCHECK,%s,DISTANCE,%d`, oneWord,1)
+	redisQuery := fmt.Sprintf(`FT.SPELLCHECK,%s,DISTANCE,%d`, newWord, effectiveChanges+1)
 
 	humanLabel := "RediSearch Simple 1 Spellcheck Query - English-language Wikipedia:Database page abstracts (random in set words)."
 	humanDesc := fmt.Sprintf("%s Original word: %s, Misspelled term: %s", humanLabel, oneWord, newWord)

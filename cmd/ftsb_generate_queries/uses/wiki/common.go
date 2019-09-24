@@ -67,8 +67,8 @@ type Core struct {
 	OneWordQueries                        []string
 }
 
-// NewCore returns a new Core for the given input filename, seed, and maxQueries
-func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) *Core {
+// NewWikiAbrastractReader returns a new Core for the given input filename, seed, and maxQueries
+func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, maxQueries int) *Core {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"

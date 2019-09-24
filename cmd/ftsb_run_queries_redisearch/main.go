@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/RediSearch/ftsb/query"
+	"github.com/RediSearch/redisearch-go/redisearch"
 	_ "github.com/lib/pq"
 )
 
@@ -84,7 +85,9 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		return nil, nil
 	}
 	tq := q.(*query.RediSearch)
-
+	total := 0
+	took := 0.0
+	timedOut := false
 	qry := string(tq.RedisQuery)
 
 	t := strings.Split(qry, ",")
@@ -92,37 +95,69 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		log.Fatalf("The query has not the correct format ", qry)
 	}
 	command := t[0]
-	if command != "FT.SEARCH" {
-		log.Fatalf("Command not supported yet. Only FT.SEARCH. ", command)
-	}
-	rediSearchQuery := redisearch.NewQuery(t[1])
-	start := time.Now()
-	docs, total, err := client.Search(rediSearchQuery)
-	took := float64(time.Since(start).Nanoseconds()) / 1e6
-
 	if p.opts.debug {
 		fmt.Println(strings.Join(t, " "))
 	}
-	timedOut := false
-	//err := nil
+
+
+	switch command {
+	case "FT.SPELLCHECK":
+		rediSearchQuery := redisearch.NewQuery(t[1])
+		distance, err := strconv.Atoi(t[2])
+		if err != nil {
+				log.Fatalf("Error converting distance. Error message:|%s|\n", err)
+		}
+		rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
+		start := time.Now()
+		suggs, total, err := client.SpellCheck(rediSearchQuery,rediSearchSpellCheckOptions)
+		took = float64(time.Since(start).Nanoseconds()) / 1e6
+
+
+	case "FT.SEARCH":
+		rediSearchQuery := redisearch.NewQuery(t[1])
+		start := time.Now()
+		docs, total, err := client.Search(rediSearchQuery)
+		took = float64(time.Since(start).Nanoseconds()) / 1e6
+		timedOut = p.handleResponseDocs(err, timedOut, t, docs, total)
+
+	default:
+		log.Fatalf("Command not supported yet.", command)
+	}
+
+	stat := query.GetStat()
+	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1])
+
+	return []*query.Stat{stat}, nil
+}
+
+func (p *Processor) handleResponseDocs(err error, timedOut bool, t []string, docs []redisearch.Document, total int) bool {
 	if err != nil {
-		if err.Error() == "Command timed out"{
+		if err.Error() == "Command timed out" {
 			timedOut = true
-			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t )
+			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
 		} else {
 			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", docs, err, err.Error())
 		}
-
 	} else {
 		if p.opts.printResponse {
 			fmt.Println("\nRESPONSE: ", total)
 		}
 	}
+	return timedOut
+}
 
-	//p.ResponseSizes <- uint64(total)
-	//p.Metrics <- 1
-	stat := query.GetStat()
-	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1] )
-
-	return []*query.Stat{stat}, nil
+func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []MisspelledTerm, total int) bool {
+	if err != nil {
+		if err.Error() == "Command timed out" {
+			timedOut = true
+			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
+		} else {
+			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", suggs, err, err.Error())
+		}
+	} else {
+		if p.opts.printResponse {
+			fmt.Println("\nRESPONSE: ", total)
+		}
+	}
+	return timedOut
 }
