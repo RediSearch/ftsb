@@ -24,7 +24,7 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 		wiki.LabelTwoWordIntersectionQuery: wiki.NewTwoWordIntersectionQuery(),
 		wiki.LabelSimple2WordUnionQuery:    wiki.NewTwoWordUnionQuery(),
 		wiki.LabelSimple2WordBarackObama:   wiki.NewSimple2WordBarackObama(),
-		wiki.LabelSimple1WordSpellCheck:   wiki.NewSimple1WordSpellCheck(),
+		wiki.LabelSimple1WordSpellCheck:    wiki.NewSimple1WordSpellCheck(),
 	},
 }
 

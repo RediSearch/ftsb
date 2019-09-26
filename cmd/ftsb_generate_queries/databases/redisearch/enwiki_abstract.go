@@ -8,8 +8,6 @@ import (
 	"math/rand"
 )
 
-const letters string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 // EnWikiAbstract produces RediSearch-specific queries for all the en wiki query types.
 type EnWikiAbstract struct {
 	Core *wiki.Core

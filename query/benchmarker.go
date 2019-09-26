@@ -24,16 +24,16 @@ const (
 // program against a database.
 type BenchmarkRunner struct {
 	// flag fields
-	dbName         string
-	limit          uint64
-	memProfile     string
-	workers        uint
-	printResponses bool
-	debug          int
-	fileName       string
-	outputFileLatencySlowlog string
-	latencySlowlog uint64
-	outputFileStatsResponseLatencyHist string
+	dbName                              string
+	limit                               uint64
+	memProfile                          string
+	workers                             uint
+	printResponses                      bool
+	debug                               int
+	fileName                            string
+	outputFileLatencySlowlog            string
+	latencySlowlog                      uint64
+	outputFileStatsResponseLatencyHist  string
 	outputFileStatsResponseDocCountHist string
 
 	// non-flag fields
@@ -93,7 +93,6 @@ type ProcessorCreate func() Processor
 
 // Processor is an interface that handles the setup of a query processing worker and executes queries one at a time
 type Processor interface {
-
 	// Init initializes at global state for the Processor, possibly based on its worker number / ID
 	Init(workerNum int, wg *sync.WaitGroup, m chan uint64, rs chan uint64)
 
@@ -132,7 +131,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	b.ch = make(chan Query, b.workers)
 
 	// Launch the stats processor:
-	go b.sp.process(b.workers, b.outputFileStatsResponseLatencyHist, b.outputFileStatsResponseDocCountHist )
+	go b.sp.process(b.workers, b.outputFileStatsResponseLatencyHist, b.outputFileStatsResponseDocCountHist)
 
 	// Launch query processors
 	var wg sync.WaitGroup
@@ -152,7 +151,6 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	wg.Wait()
 	b.sp.CloseAndWait()
 
-
 	// Wall clock end time
 	wallEnd := time.Now()
 	wallTook := wallEnd.Sub(wallStart)
@@ -161,7 +159,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 		log.Fatal(err)
 	}
 
-	_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt" )
+	_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt")
 
 	d0 := []byte(b.sp.StatsMapping[labelAllQueries].StringDocCountDebug())
 	fErr := ioutil.WriteFile("debug-query-doc-count.txt", d0, 0644)
@@ -169,14 +167,14 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 		log.Fatal(err)
 	}
 
-	_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n",b.outputFileStatsResponseLatencyHist )
+	_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n", b.outputFileStatsResponseLatencyHist)
 
 	d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
 	fErr = ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
 	if fErr != nil {
 		log.Fatal(err)
 	}
-	_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n",b.outputFileStatsResponseDocCountHist )
+	_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n", b.outputFileStatsResponseDocCountHist)
 
 	d2 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryResponseSizeFullHistogram())
 	fErr = ioutil.WriteFile(b.outputFileStatsResponseDocCountHist, d2, 0644)

@@ -60,10 +60,10 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, de
 	props := map[string]string{}
 	var currentText string
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "started reading " + inputFilename)
+		fmt.Fprintln(os.Stderr, "started reading "+inputFilename)
 	}
 	docCount := uint64(0)
-	for err != io.EOF && (docCount < limit || limit == 0 ) {
+	for err != io.EOF && (docCount < limit || limit == 0) {
 
 		switch t := tok.(type) {
 
@@ -93,19 +93,17 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, de
 				}
 
 				if debug > 1 {
-						fmt.Fprintln(os.Stderr, "At document " + id )
+					fmt.Fprintln(os.Stderr, "At document "+id)
 				}
-
 
 				documents = append(documents, serialize.Document{[]byte(id), []byte( props["title"]), []byte(props["url"]), []byte( props["abstract"])})
 				props = map[string]string{}
 				docCount++
 				if debug > 0 {
-					if docCount % 1000 == 0 {
-						fmt.Fprintln(os.Stderr, "At document " + strconv.Itoa(int(docCount)))
+					if docCount%1000 == 0 {
+						fmt.Fprintln(os.Stderr, "At document "+strconv.Itoa(int(docCount)))
 					}
 				}
-
 
 			}
 			currentText = ""
@@ -116,10 +114,8 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, de
 	}
 
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "finished reading " + inputFilename)
+		fmt.Fprintln(os.Stderr, "finished reading "+inputFilename)
 	}
-
-
 
 	maxPoints = uint64(len(documents))
 	if limit > 0 && limit < uint64(len(documents)) {

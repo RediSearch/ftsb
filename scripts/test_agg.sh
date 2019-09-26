@@ -20,7 +20,7 @@ redis-cli ft.drop $IDX SCHEMA
 
 # create the index
 redis-cli ft.create $IDX SCHEMA \
-  TITLE TEXT SORTABLE\
+  TITLE TEXT SORTABLE \
   NAMESPACE TAG SORTABLE \
   ID NUMERIC SORTABLE \
   PARENT_REVISION_ID NUMERIC SORTABLE \
@@ -31,7 +31,6 @@ redis-cli ft.create $IDX SCHEMA \
   CURRENT_REVISION_EDITOR_USERID NUMERIC SORTABLE \
   CURRENT_REVISION_EDITOR_COMMENT TEXT \
   CURRENT_REVISION_CONTENT_LENGTH NUMERIC SORTABLE
-
 
 #<page>
 #    <title>Stockton Airport</title>
@@ -52,16 +51,16 @@ redis-cli ft.create $IDX SCHEMA \
 #    </revision>
 #  </page>
 
-redis-cli FT.ADD $IDX $DOCPREFIX-7697612 1.0 FIELDS\
-  TITLE "Stockton Airport"\
-  NAMESPACE "0"\
-  ID 7697612\
-  PARENT_REVISION_ID 479135040\
-  CURRENT_REVISION_ID 865514439\
-  CURRENT_REVISION_TIMESTAMP 1540378169\
-  CURRENT_REVISION_EDITOR_USERNAME "Narky Blert"\
-  CURRENT_REVISION_EDITOR_USERID 22041646\
-  CURRENT_REVISION_EDITOR_COMMENT "CE"\
+redis-cli FT.ADD $IDX $DOCPREFIX-7697612 1.0 FIELDS \
+  TITLE "Stockton Airport" \
+  NAMESPACE "0" \
+  ID 7697612 \
+  PARENT_REVISION_ID 479135040 \
+  CURRENT_REVISION_ID 865514439 \
+  CURRENT_REVISION_TIMESTAMP 1540378169 \
+  CURRENT_REVISION_EDITOR_USERNAME "Narky Blert" \
+  CURRENT_REVISION_EDITOR_USERID 22041646 \
+  CURRENT_REVISION_EDITOR_COMMENT "CE" \
   CURRENT_REVISION_CONTENT_LENGTH 2
 
 #<page>
@@ -84,70 +83,68 @@ redis-cli FT.ADD $IDX $DOCPREFIX-7697612 1.0 FIELDS\
 #  </revision>
 #</page>
 
-redis-cli FT.ADD $IDX $DOCPREFIX-7697694 1.0 FIELDS\
-  TITLE "Talk:Torque tube"\
-  NAMESPACE "1"\
-  ID 7697694\
-  PARENT_REVISION_ID 571774265\
-  CURRENT_REVISION_ID 690321498\
-  CURRENT_REVISION_TIMESTAMP 1447349117\
-  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin"\
-  CURRENT_REVISION_EDITOR_USERID 1606992\
-  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] assessment"\
+redis-cli FT.ADD $IDX $DOCPREFIX-7697694 1.0 FIELDS \
+  TITLE "Talk:Torque tube" \
+  NAMESPACE "1" \
+  ID 7697694 \
+  PARENT_REVISION_ID 571774265 \
+  CURRENT_REVISION_ID 690321498 \
+  CURRENT_REVISION_TIMESTAMP 1447349117 \
+  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin" \
+  CURRENT_REVISION_EDITOR_USERID 1606992 \
+  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] assessment" \
   CURRENT_REVISION_CONTENT_LENGTH 50
-
 
 ###### more made up docs
 
-redis-cli FT.ADD $IDX $DOCPREFIX-111 1.0 FIELDS\
-  TITLE "Test same editor doc"\
-  NAMESPACE "0"\
-  ID 111\
-  PARENT_REVISION_ID 571774265\
-  CURRENT_REVISION_ID 1112\
-  CURRENT_REVISION_TIMESTAMP 1427349117\
-  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin"\
-  CURRENT_REVISION_EDITOR_USERID 1606992\
-  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] assessment"\
+redis-cli FT.ADD $IDX $DOCPREFIX-111 1.0 FIELDS \
+  TITLE "Test same editor doc" \
+  NAMESPACE "0" \
+  ID 111 \
+  PARENT_REVISION_ID 571774265 \
+  CURRENT_REVISION_ID 1112 \
+  CURRENT_REVISION_TIMESTAMP 1427349117 \
+  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin" \
+  CURRENT_REVISION_EDITOR_USERID 1606992 \
+  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] assessment" \
   CURRENT_REVISION_CONTENT_LENGTH 50
-
 
 ###### more made up docs
 
-redis-cli FT.ADD $IDX $DOCPREFIX-1 1.0 FIELDS\
-  TITLE "Test same editor doc"\
-  NAMESPACE "0"\
-  ID 1\
-  PARENT_REVISION_ID 571774265\
-  CURRENT_REVISION_ID 1\
-  CURRENT_REVISION_TIMESTAMP 1427349110\
-  CURRENT_REVISION_EDITOR_IP "1.1.1.1"\
-  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin"\
-  CURRENT_REVISION_EDITOR_COMMENT "asdfghjkla"\
+redis-cli FT.ADD $IDX $DOCPREFIX-1 1.0 FIELDS \
+  TITLE "Test same editor doc" \
+  NAMESPACE "0" \
+  ID 1 \
+  PARENT_REVISION_ID 571774265 \
+  CURRENT_REVISION_ID 1 \
+  CURRENT_REVISION_TIMESTAMP 1427349110 \
+  CURRENT_REVISION_EDITOR_IP "1.1.1.1" \
+  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin" \
+  CURRENT_REVISION_EDITOR_COMMENT "asdfghjkla" \
   CURRENT_REVISION_CONTENT_LENGTH 10
 
-redis-cli FT.ADD $IDX $DOCPREFIX-2 1.0 FIELDS\
-  TITLE "Test same editor doc"\
-  NAMESPACE "0"\
-  ID 2\
-  PARENT_REVISION_ID 571774265\
-  CURRENT_REVISION_ID 2\
-  CURRENT_REVISION_TIMESTAMP 1427349130\
-  CURRENT_REVISION_EDITOR_IP "1.1.1.1"\
-  CURRENT_REVISION_EDITOR_USERNAME "Filipe"\
-  CURRENT_REVISION_EDITOR_COMMENT "asdfghjklaasdfghjkla"\
+redis-cli FT.ADD $IDX $DOCPREFIX-2 1.0 FIELDS \
+  TITLE "Test same editor doc" \
+  NAMESPACE "0" \
+  ID 2 \
+  PARENT_REVISION_ID 571774265 \
+  CURRENT_REVISION_ID 2 \
+  CURRENT_REVISION_TIMESTAMP 1427349130 \
+  CURRENT_REVISION_EDITOR_IP "1.1.1.1" \
+  CURRENT_REVISION_EDITOR_USERNAME "Filipe" \
+  CURRENT_REVISION_EDITOR_COMMENT "asdfghjklaasdfghjkla" \
   CURRENT_REVISION_CONTENT_LENGTH 20
 
-redis-cli FT.ADD $IDX $DOCPREFIX-3 1.0 FIELDS\
-  TITLE "Test same editor doc"\
-  NAMESPACE "0"\
-  ID 3\
-  PARENT_REVISION_ID 571774265\
-  CURRENT_REVISION_ID 2\
-  CURRENT_REVISION_TIMESTAMP 1427349130\
-  CURRENT_REVISION_EDITOR_IP "1.1.1.1"\
-  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin"\
-  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] abasdasdsda"\
+redis-cli FT.ADD $IDX $DOCPREFIX-3 1.0 FIELDS \
+  TITLE "Test same editor doc" \
+  NAMESPACE "0" \
+  ID 3 \
+  PARENT_REVISION_ID 571774265 \
+  CURRENT_REVISION_ID 2 \
+  CURRENT_REVISION_TIMESTAMP 1427349130 \
+  CURRENT_REVISION_EDITOR_IP "1.1.1.1" \
+  CURRENT_REVISION_EDITOR_USERNAME "CZmarlin" \
+  CURRENT_REVISION_EDITOR_COMMENT "[[Wikipedia:WikiProject|WikiProject]] abasdasdsda" \
   CURRENT_REVISION_CONTENT_LENGTH 49
 
 # One year period, Exact Number of contributions by day, ordered chronologically
@@ -160,9 +157,8 @@ redis-cli FT.AGGREGATE $IDX "*" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)" AS day \
   GROUPBY 1 @day \
   REDUCE COUNT 1 @ID AS num_contributions \
-  SORTBY 2 @day DESC MAX 365  \
+  SORTBY 2 @day DESC MAX 365 \
   APPLY "timefmt(@day)" AS day
-
 
 # 2) One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
 # agg-(apply-groupby1-reduce1-sortby1-apply)-1month-exact-distinct-editors-by-hour
@@ -175,9 +171,8 @@ redis-cli FT.AGGREGATE $IDX "*" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)" AS hour \
   GROUPBY 1 @hour \
   REDUCE COUNT 1 @CURRENT_REVISION_EDITOR_USERNAME AS num_distinct_editors \
-  SORTBY 2 @hour DESC MAX 720  \
+  SORTBY 2 @hour DESC MAX 720 \
   APPLY "timefmt(@hour)" AS hour
-
 
 # 3) One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
 # agg-(apply-groupby1-approx.reduce1-sortby1-apply)-1month-approximate-distinct-editors-by-hour
@@ -193,7 +188,6 @@ redis-cli FT.AGGREGATE $IDX "*" \
   SORTBY 2 @hour DESC MAX 720 \
   APPLY "timefmt(@hour)" AS hour
 
-
 # 4) One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
 # agg-(apply-groupby2-approx.reduce1-filter1-sortby2-apply)-1day-approximate-page-contributions-by-5minutes-by-editor-username
 echo ""
@@ -205,10 +199,9 @@ redis-cli FT.AGGREGATE $IDX "*" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 300)" AS fiveMinutes \
   GROUPBY 2 @fiveMinutes @CURRENT_REVISION_EDITOR_USERNAME \
   REDUCE COUNT_DISTINCTISH 1 @ID AS num_contributions \
-  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""'\
+  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""' \
   SORTBY 4 @fiveMinutes ASC @CURRENT_REVISION_EDITOR_USERNAME DESC MAX 288 \
   APPLY "timefmt(@fiveMinutes)" AS fiveMinutes
-
 
 # 5) Aproximate All time Top 10 Revision editor usernames
 # agg-(groupby1-aprox.reduce1-filter1-sortby1-limit1)-aproximate-top10-editor-usernames
@@ -220,7 +213,7 @@ echo "--------------------------------------------------------------------------
 redis-cli FT.AGGREGATE $IDX "*" \
   GROUPBY 1 "@CURRENT_REVISION_EDITOR_USERNAME" \
   REDUCE COUNT_DISTINCTISH 1 "@ID" AS num_contributions \
-  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""'\
+  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""' \
   SORTBY 2 @num_contributions ASC \
   LIMIT 0 10
 
@@ -232,12 +225,11 @@ echo "6) Aproximate All time Top 10 Revision editor usernames by namespace (TAG 
 echo "---------------------------------------------------------------------------------"
 
 redis-cli FT.AGGREGATE $IDX "*" \
-  GROUPBY 2 "@NAMESPACE" "@CURRENT_REVISION_EDITOR_USERNAME"\
+  GROUPBY 2 "@NAMESPACE" "@CURRENT_REVISION_EDITOR_USERNAME" \
   REDUCE COUNT_DISTINCTISH 1 "@ID" AS num_contributions \
-  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""'\
+  FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""' \
   SORTBY 4 @NAMESPACE ASC @num_contributions ASC \
   LIMIT 0 10
-
 
 # 7) Top 10 editor username by average revision content
 # agg-(groupby1-reduce-sortby1-limit1)-avg-revision-content-length-by-editor-username
@@ -266,4 +258,3 @@ redis-cli FT.AGGREGATE $IDX "*" \
   REDUCE COUNT_DISTINCTISH 1 @CURRENT_REVISION_EDITOR_USERNAME AS num_distinct_editors \
   APPLY "@num_contributions / @num_distinct_editors" AS avg_num_contributions_by_editor \
   SORTBY 2 @year ASC
-

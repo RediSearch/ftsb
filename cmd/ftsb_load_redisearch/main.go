@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/RediSearch/ftsb/load"
+	"github.com/RediSearch/redisearch-go/redisearch"
 	"log"
 	"os"
 	"strconv"
@@ -18,7 +18,7 @@ var (
 	host     string
 	index    string
 	pipeline uint64
-	debug int
+	debug    int
 )
 
 // Global vars
@@ -83,7 +83,7 @@ type processor struct {
 //, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
 func rowToRSDocument(row string) (document redisearch.Document) {
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document " + row )
+		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document "+row)
 	}
 	nFieldsStr := strings.SplitN(row, ",", 2)
 	if len(nFieldsStr) != 2 {
@@ -92,7 +92,7 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 	nFields, _ := strconv.Atoi(nFieldsStr[0])
 
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "Document has " + nFieldsStr[0] + "fields"  )
+		fmt.Fprintln(os.Stderr, "Document has "+nFieldsStr[0]+"fields")
 	}
 
 	fieldSizesStr := strings.SplitN(nFieldsStr[1], ",", nFields+1)
@@ -100,13 +100,13 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 	previousPos := 0
 	fieldLen := 0
 	fieldLen, _ = strconv.Atoi(fieldSizesStr[0])
-	documentId := index + "-" + ftsRow[previousPos:(previousPos + fieldLen)]
+	documentId := index + "-" + ftsRow[previousPos:(previousPos+fieldLen)]
 	previousPos = previousPos + fieldLen
 	fieldLen, _ = strconv.Atoi(fieldSizesStr[1])
 	documentScore, _ := strconv.ParseFloat(ftsRow[previousPos:(previousPos+fieldLen)], 64)
 	previousPos = previousPos + fieldLen
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "Doc " + documentId  )
+		fmt.Fprintln(os.Stderr, "Doc "+documentId)
 	}
 
 	doc := redisearch.NewDocument(documentId, float32(documentScore))
@@ -119,7 +119,7 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 		fieldValue := ftsRow[previousPos:(previousPos + fieldLen)]
 		previousPos = previousPos + fieldLen
 		if debug > 0 {
-			fmt.Fprintln(os.Stderr, "On doc " + documentId + " adding field with NAME " + fieldName + " and VALUE " + fieldValue )
+			fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+fieldName+" and VALUE "+fieldValue)
 		}
 		doc.Set(fieldName, fieldValue)
 	}

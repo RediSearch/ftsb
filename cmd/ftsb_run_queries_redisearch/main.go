@@ -99,19 +99,17 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		fmt.Println(strings.Join(t, " "))
 	}
 
-
 	switch command {
 	case "FT.SPELLCHECK":
 		rediSearchQuery := redisearch.NewQuery(t[1])
 		distance, err := strconv.Atoi(t[2])
 		if err != nil {
-				log.Fatalf("Error converting distance. Error message:|%s|\n", err)
+			log.Fatalf("Error converting distance. Error message:|%s|\n", err)
 		}
 		rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
 		start := time.Now()
-		suggs, total, err := client.SpellCheck(rediSearchQuery,rediSearchSpellCheckOptions)
+		suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
 		took = float64(time.Since(start).Nanoseconds()) / 1e6
-
 
 	case "FT.SEARCH":
 		rediSearchQuery := redisearch.NewQuery(t[1])
