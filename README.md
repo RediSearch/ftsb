@@ -275,7 +275,7 @@ Took:  226.577 sec
 
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
 
-### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
+### Appendix I.I - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
 #### Full text search queries
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
@@ -312,13 +312,14 @@ Aggregations are a way to process the results of a search query, group, sort and
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
+
 #### Synonym queries
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
 
 
-### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page metadata.
+### Appendix I.II - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page metadata.
 
 
 #### Aggregate queries
@@ -327,6 +328,11 @@ Aggregations are a way to process the results of a search query, group, sort and
 
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
-| agg-(groupby-reduce-sortby-apply)-page-contributions-by-day |  Number of contributions by day, ordered chronologically | <br>`FT.AGGREGATE myIndex "*"
-                                                                                                                              APPLY "@timestamp - (@timestamp % 86400)" AS day\` | :heavy_multiplication_x:
-| agg-sort-count-contributor-by-day |  Sort contributions to pages by day and contributor | `` | :heavy_multiplication_x:
+| agg-1year-exact-page-contributions-by-day |  One year period, Exact Number of contributions by day, ordered chronologically | `(apply-groupby1-reduce1-sortby1-apply)` | :heavy_multiplication_x:
+| agg-1month-exact-distinct-editors-by-hour |  One month period, Exact Number of distinct editors contributions by hour, ordered chronologically | `(apply-groupby1-reduce1-sortby1-apply)` | :heavy_multiplication_x:
+| agg-1month-approximate-distinct-editors-by-hour |  One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically | `(apply-groupby1-approx.reduce1-sortby1-apply)` | :heavy_multiplication_x:
+| agg-1day-approximate-page-contributions-by-5minutes-by-editor-username |  One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username | `(apply-groupby2-approx.reduce1-filter1-sortby2-apply)` | :heavy_multiplication_x:
+| agg-aproximate-top10-editor-usernames |  Aproximate All time Top 10 Revision editor usernames | `(groupby1-aprox.reduce1-filter1-sortby1-limit1)` | :heavy_multiplication_x:
+| agg-aproximate-top10-editor-usernames-by-namespace |  Aproximate All time Top 10 Revision editor usernames by namespace (TAG field) | `(groupby2-aprox.reduce1-filter1-sortby2-limit1)` | :heavy_multiplication_x:
+| agg-avg-revision-content-length-by-editor-username |   Top 10 editor username by average revision content | `(groupby1-reduce-sortby1-limit1)` | :heavy_multiplication_x:
+| agg-aproximate-avg-editor-contributions-by-year |   Aproximate average number of contributions by year each editor makes | `(apply-groupby1-reduce2-apply-sortby1)` | :heavy_multiplication_x:

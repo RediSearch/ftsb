@@ -250,7 +250,7 @@ redis-cli FT.AGGREGATE $IDX "*" \
   GROUPBY 1 @CURRENT_REVISION_EDITOR_USERNAME \
   REDUCE AVG 1 @CURRENT_REVISION_CONTENT_LENGTH AS avg_rcl \
   SORTBY 2 @avg_rcl DESC \
-  LIMIT 0 10
+  LIMIT 0 1
 
 # 8) Aproximate average number of contributions by year each editor makes
 # agg-(apply-groupby1-reduce2-apply-sortby1)-aproximate-avg-editor-contributions-by-year
