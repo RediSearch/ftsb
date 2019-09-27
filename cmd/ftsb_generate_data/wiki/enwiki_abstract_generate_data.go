@@ -19,8 +19,11 @@ type FTSSimulator struct {
 	*commonFTSSimulator
 }
 
-// Next advances a Document to the next state in the generator.
-func (d *FTSSimulator) Next(p *serialize.Document) bool {
+// WikiAbstractSimulatorConfig is used to create a FTSSimulator.
+type WikiAbstractSimulatorConfig commonFTSSimulatorConfig
+
+// Next advances a WikiAbstract to the next state in the generator.
+func (d *FTSSimulator) Next(p *serialize.WikiAbstract) bool {
 	// Switch to the next document
 	if d.recordIndex >= uint64(len(d.records)) {
 		d.recordIndex = 0
@@ -28,7 +31,7 @@ func (d *FTSSimulator) Next(p *serialize.Document) bool {
 	return d.populateDocument(p)
 }
 
-func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
+func (s *FTSSimulator) populateDocument(p *serialize.WikiAbstract) bool {
 	record := &s.records[s.recordIndex]
 
 	p.Id = record.Id
@@ -42,15 +45,12 @@ func (s *FTSSimulator) populateDocument(p *serialize.Document) bool {
 	return ret
 }
 
-// FTSSimulatorConfig is used to create a FTSSimulator.
-type FTSSimulatorConfig commonFTSSimulatorConfig
-
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
+func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
-	var documents []serialize.Document
+	var documents []serialize.WikiAbstract
 	xmlFile, _ := os.Open(inputFilename)
 	dec := xml.NewDecoder(xmlFile)
 
@@ -96,7 +96,7 @@ func (c *FTSSimulatorConfig) NewSimulator(limit uint64, inputFilename string, de
 					fmt.Fprintln(os.Stderr, "At document "+id)
 				}
 
-				documents = append(documents, serialize.Document{[]byte(id), []byte( props["title"]), []byte(props["url"]), []byte( props["abstract"])})
+				documents = append(documents, serialize.WikiAbstract{[]byte(id), []byte( props["title"]), []byte(props["url"]), []byte( props["abstract"])})
 				props = map[string]string{}
 				docCount++
 				if debug > 0 {

@@ -12,6 +12,6 @@ type SimulatorConfig interface {
 // Simulator simulates a use case.
 type Simulator interface {
 	Finished() bool
-	Next(*serialize.Document) bool
+	Next(*serialize.WikiAbstract) bool
 	//Fields() map[string][][]byte
 }

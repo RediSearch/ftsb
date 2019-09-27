@@ -110,6 +110,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		start := time.Now()
 		suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
 		took = float64(time.Since(start).Nanoseconds()) / 1e6
+		timedOut = p.handleResponseSpellCheck(err, timedOut, t, suggs, total)
 
 	case "FT.SEARCH":
 		rediSearchQuery := redisearch.NewQuery(t[1])
@@ -144,7 +145,7 @@ func (p *Processor) handleResponseDocs(err error, timedOut bool, t []string, doc
 	return timedOut
 }
 
-func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []MisspelledTerm, total int) bool {
+func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []redisearch.MisspelledTerm, total int) bool {
 	if err != nil {
 		if err.Error() == "Command timed out" {
 			timedOut = true

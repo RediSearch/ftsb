@@ -5,11 +5,11 @@ import (
 	"strconv"
 )
 
-// RediSearchSerializer writes a Document in a serialized form for RediSearch
-type RediSearchSerializer struct{}
+// RediSearchWikiAbstractSerializer writes a WikiAbstract in a serialized form for RediSearch
+type RediSearchWikiAbstractSerializer struct{}
 
-// Serialize writes Document data to the given writer, in a format that will be easy to create a RediSearch command
-func (s *RediSearchSerializer) Serialize(p *Document, w io.Writer) (err error) {
+// Serialize writes WikiAbstract data to the given writer, in a format that will be easy to create a RediSearch command
+func (s *RediSearchWikiAbstractSerializer) Serialize(p *WikiAbstract, w io.Writer) (err error) {
 	// To do this
 	// FT.ADD myIdx doc1 1.0 FIELDS title "hello world" body "lorem ipsum" url "http://redis.io"
 	// #fields,lenField1,lenField2,(...) myIdx(implicit since the tool will use the index it wants) doc1 1.0 FIELDS(implicit) title "hello world" body "lorem ipsum" url "http://redis.io"

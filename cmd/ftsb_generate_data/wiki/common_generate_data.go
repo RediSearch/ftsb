@@ -13,7 +13,7 @@ type commonFTSSimulator struct {
 	madeDocuments uint64
 	maxDocuments  uint64
 	recordIndex   uint64
-	records       []serialize.Document
+	records       []serialize.WikiAbstract
 }
 
 // Finished tells whether we have simulated all the necessary documents
