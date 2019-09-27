@@ -78,13 +78,13 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 				//#    </revision>
 				//#  </page>
 				//
-				if (name == "title" ||
+				if name == "title" ||
 					name == "ns" ||
 					name == "id" ||
 					name == "parentid" ||
 					name == "timestamp" ||
 					name == "username" ||
-					name == "comment") {
+					name == "comment" {
 					props[name] = currentText
 				} else if name == "page" {
 					props["title"] = strings.TrimSpace(props["title"])

@@ -86,23 +86,23 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document "+row)
 	}
 
-	fieldSizesStr :=strings.Split(row,",")
+	fieldSizesStr := strings.Split(row, ",")
 	documentId := index + "-" + fieldSizesStr[0]
 	documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
 	doc := redisearch.NewDocument(documentId, float32(documentScore))
 
 	for _, keyValuePair := range fieldSizesStr[2:] {
-		pair :=strings.Split(keyValuePair,"=")
+		pair := strings.Split(keyValuePair, "=")
 		if len(pair) == 2 {
 			if debug > 0 {
 				fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
 			}
-			doc.Set(pair[0],pair[1])
+			doc.Set(pair[0], pair[1])
 		} else {
 			if debug > 0 {
-				fmt.Fprintf(os.Stderr, "On doc "+documentId + " len(pair)=%d", len(pair) )
+				fmt.Fprintf(os.Stderr, "On doc "+documentId+" len(pair)=%d", len(pair))
 			}
-			log.Fatalf("keyValuePair pair size != 2 . Got "+ keyValuePair)
+			log.Fatalf("keyValuePair pair size != 2 . Got " + keyValuePair)
 		}
 	}
 	if debug > 0 {
@@ -112,7 +112,7 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 }
 
 func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, client *redisearch.Client, pipeline uint64) {
-	var documents []redisearch.Document = make([]redisearch.Document, 0)
+	var documents = make([]redisearch.Document, 0)
 
 	pipelinePos := uint64(0)
 	for row := range rows {

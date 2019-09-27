@@ -7,17 +7,18 @@ import (
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/google/uuid"
 	"io"
+	"math/rand"
 	"os"
-	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // WikiAbstractSimulatorConfig is used to create a FTSSimulator.
-type WikiAbstractSimulatorConfig commonFTSSimulatorConfig
+type WikiPagesSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
+func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -27,6 +28,7 @@ func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename s
 
 	maxPoints := limit
 	tok, err := dec.RawToken()
+	layout := "2006-01-02T15:04:05Z"
 
 	props := map[string]string{}
 	var currentText string
@@ -43,13 +45,22 @@ func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename s
 				currentText += string(t)
 			}
 
+
 		case xml.EndElement:
 			name := t.Name.Local
-			if name == "title" || name == "url" || name == "abstract" {
+			if name == "title" ||
+				name == "ns" ||
+				name == "id" ||
+				name == "parentid" ||
+				name == "username" ||
+				name == "comment" {
 				props[name] = currentText
-			} else if name == "doc" {
+			} else if name == "timestamp" {
+				currentText = strings.TrimSpace(currentText)
+				t, _ := time.Parse(layout,currentText)
+				props[name] = fmt.Sprintf("%d", t.Unix())
+			} else if name == "page" {
 				u2, _ := uuid.NewRandom()
-
 				for key, value := range props {
 					props[key] = strings.TrimSpace(value)
 					props[key] = strings.ReplaceAll(props[key], "=", "")
@@ -60,15 +71,22 @@ func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename s
 					}
 				}
 
-				id := u2.String() + "-" + path.Base(props["url"])
-
 				if debug > 1 {
-					fmt.Fprintln(os.Stderr, "At document "+id)
+					fmt.Fprintln(os.Stderr, "At document "+props["id"])
 				}
+				id := u2.String() + "-" + props["id"]
 				doc := redisearch.NewDocument(id, 1.0).
-					Set("Title", props["title"]).
-					Set("Url", props["url"]).
-					Set("Abstract", props["abstract"])
+					Set("TITLE", props["title"]).
+					Set("NAMESPACE", props["ns"]).
+					Set("ID", props["id"]).
+					Set("PARENT_REVISION_ID", props["parentid"]).
+					Set("CURRENT_REVISION_TIMESTAMP", props["timestamp"]).
+					Set("CURRENT_REVISION_ID", props["id"]).
+					Set("CURRENT_REVISION_EDITOR_USERNAME", props["username"]).
+					Set("CURRENT_REVISION_EDITOR_IP", fmt.Sprintf("%d.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256))).
+					Set("CURRENT_REVISION_EDITOR_USERID", props["id"]).
+					Set("CURRENT_REVISION_EDITOR_COMMENT", props["comment"]).
+					Set("CURRENT_REVISION_CONTENT_LENGTH", len(props["comment"]))
 				documents = append(documents, doc)
 
 				props = map[string]string{}

@@ -188,14 +188,14 @@ func main() {
 
 	cfg := getConfig(useCase)
 	sim := cfg.NewSimulator(maxDataPoints, inputfileName, debug)
-	serializer := getSerializer(sim, format, useCase, out)
+	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, useCase, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }
 
 func runSimulator(sim common.Simulator, useCase string, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
 	currGroupID := uint(0)
 
-	doc := redisearch.NewDocument("1", 1 )
+	doc := redisearch.NewDocument("1", 1)
 
 	for !sim.Finished() {
 
@@ -224,22 +224,22 @@ func getConfig(useCase string) common.SimulatorConfig {
 		return &wiki.WikiAbstractSimulatorConfig{
 			fileName,
 		}
+	case useCaseEnWikiPages:
+		return &wiki.WikiPagesSimulatorConfig{
+			fileName,
+		}
 	default:
 		fatal("unknown use case: '%s'", useCase)
 		return nil
 	}
 }
 
-func getSerializer(sim common.Simulator, format string, useCase string, out *bufio.Writer) serialize.DocumentSerializer {
+func getSerializer(sim common.Simulator, format string, out *bufio.Writer) serialize.DocumentSerializer {
 	switch format {
 	case formatRediSearch:
-		switch useCase {
-		case useCaseEnWikiAbstract:
-			return &serialize.RediSearchDocumentSerializer{}
-		default:
-			fatal("unknown use case: '%s'", useCase)
-			return nil
-		}
+
+		return &serialize.RediSearchDocumentSerializer{}
+
 	default:
 		fatal("unknown format: '%s'", format)
 		return nil
