@@ -10,7 +10,7 @@ import (
 //
 // Internally, WikiAbstract uses byte slices instead of strings to try to minimize
 // overhead.
-type WikiPages struct {
+type RediSearchDocument struct {
 	Id, Title, Namespace                                                                []byte
 	ParentRevisionId, CurrentRevisionTS, CurrentRevisionId                              []byte
 	CurrentRevisionEditorUsername, CurrentRevisionEditorIP, CurrentRevisionEditorUserId []byte
@@ -18,8 +18,8 @@ type WikiPages struct {
 }
 
 // NewWikiAbstract returns a new empty WikiAbstract
-func NewWikiPages() *WikiPages {
-	return &WikiPages{
+func NewWikiPages() *RediSearchDocument {
+	return &RediSearchDocument{
 		Id:                                 make([]byte, 0),
 		Title:                              make([]byte, 0),
 		Namespace:                          make([]byte, 0),
@@ -35,7 +35,7 @@ func NewWikiPages() *WikiPages {
 }
 
 // Reset clears all information from this WikiAbstract so it can be reused.
-func (p *WikiPages) Reset() {
+func (p *RediSearchDocument) Reset() {
 	p.Id = p.Id[:0]
 	p.Title = p.Title[:0]
 	p.Namespace = p.Namespace[:0]
@@ -51,7 +51,7 @@ func (p *WikiPages) Reset() {
 
 // DocumentSerializer serializes a WikiAbstract for writing
 type WikiPagesSerializer interface {
-	Serialize(p *WikiPages, w io.Writer) error
+	Serialize(p *RediSearchDocument, w io.Writer) error
 }
 
 //#<page>

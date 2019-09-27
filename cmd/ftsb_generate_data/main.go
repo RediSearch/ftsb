@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/RediSearch/redisearch-go/redisearch"
 	"io"
 	"log"
 	"math/rand"
@@ -188,32 +189,33 @@ func main() {
 	cfg := getConfig(useCase)
 	sim := cfg.NewSimulator(maxDataPoints, inputfileName, debug)
 	serializer := getSerializer(sim, format, useCase, out)
-	runSimulator(sim, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
+	runSimulator(sim, useCase, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }
 
-func runSimulator(sim common.Simulator, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
+func runSimulator(sim common.Simulator, useCase string, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
 	currGroupID := uint(0)
-	wikiAbstract := serialize.NewWikiAbstract()
+
+	var doc *redisearch.Document = nil
+
 	for !sim.Finished() {
 
-		write := sim.Next(wikiAbstract)
+		write := sim.Next(doc)
 		if !write {
-			wikiAbstract.Reset()
 			continue
 		}
 
 		// in the default case this is always true
 		if currGroupID == groupID {
-			err := serializer.Serialize(wikiAbstract, out)
+			err := serializer.Serialize(doc, out)
 			if err != nil {
-				fatal("can not serialize wikiAbstract: %s", err)
+				fatal("can not serialize wikiPages: %s", err)
 				return
 			}
 		}
-		wikiAbstract.Reset()
 
 		currGroupID = (currGroupID + 1) % totalGroups
 	}
+
 }
 
 func getConfig(useCase string) common.SimulatorConfig {
@@ -233,7 +235,7 @@ func getSerializer(sim common.Simulator, format string, useCase string, out *buf
 	case formatRediSearch:
 		switch useCase {
 		case useCaseEnWikiAbstract:
-			return &serialize.RediSearchWikiAbstractSerializer{}
+			return &serialize.RediSearchDocumentSerializer{}
 		default:
 			fatal("unknown use case: '%s'", useCase)
 			return nil
