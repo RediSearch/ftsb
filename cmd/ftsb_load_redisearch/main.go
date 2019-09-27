@@ -93,10 +93,17 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 
 	for _, keyValuePair := range fieldSizesStr[2:] {
 		pair :=strings.Split(keyValuePair,"=")
-		if debug > 0 {
-			fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
+		if len(pair) == 2 {
+			if debug > 0 {
+				fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
+			}
+			doc.Set(pair[0],pair[1])
+		} else {
+			if debug > 0 {
+				fmt.Fprintf(os.Stderr, "On doc "+documentId + " len(pair)=%d", len(pair) )
+			}
+			log.Fatalf("keyValuePair pair size != 2 . Got "+ keyValuePair)
 		}
-		doc.Set(pair[0],pair[1])
 	}
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "Doc "+documentId)

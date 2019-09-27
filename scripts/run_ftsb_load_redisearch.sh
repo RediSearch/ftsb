@@ -2,7 +2,8 @@
 
 DATASET="enwiki-latest-abstract1"
 MAX_QUERIES=10000
-WORKERS=8
+DEBUG=0
+WORKERS=1
 PRINT_INTERVAL=10000
 
 # flush the database
@@ -20,7 +21,7 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
   cat /tmp/ftsb_generate_data-$DATASET-redisearch.gz |
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
-      -batch-size 1000 -pipeline 100
+      -batch-size 1000 -pipeline 100 -debug $DEBUG
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi

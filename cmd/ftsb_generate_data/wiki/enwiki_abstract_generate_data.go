@@ -49,18 +49,24 @@ func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename s
 				props[name] = currentText
 			} else if name == "doc" {
 				u2, _ := uuid.NewRandom()
-				id := u2.String() + "-" + path.Base(props["url"])
+
 				props["title"] = strings.TrimPrefix(strings.TrimSpace(props["title"]), "Wikipedia: ")
 				props["abstract"] = strings.TrimSpace(props["abstract"])
 				props["url"] = strings.TrimSpace(props["url"])
 
-				props["title"] = strings.ReplaceAll(props["title"], "=", "=")
-				props["abstract"] = strings.ReplaceAll(props["abstract"], "=", "=")
-				props["url"] = strings.ReplaceAll(props["url"], "=", "=")
+				props["title"] = strings.ReplaceAll(props["title"], "=", "")
+				props["abstract"] = strings.ReplaceAll(props["abstract"], "=", "")
+				props["url"] = strings.ReplaceAll(props["url"], "=", "")
+
+				props["title"] = strings.ReplaceAll(props["title"], ",", "")
+				props["abstract"] = strings.ReplaceAll(props["abstract"], ",", "")
+				props["url"] = strings.ReplaceAll(props["url"], ",", "")
 
 				props["title"] = strings.ReplaceAll(props["title"], "\"", "\\\"")
 				props["abstract"] = strings.ReplaceAll(props["abstract"], "\"", "\\\"")
 				props["url"] = strings.ReplaceAll(props["url"], "\"", "\\\"")
+
+				id := u2.String() + "-" + path.Base(props["url"])
 
 				for _, char := range field_tokenization {
 					props["abstract"] = strings.ReplaceAll(props["abstract"], string(char), string("\\"+string(char)))
