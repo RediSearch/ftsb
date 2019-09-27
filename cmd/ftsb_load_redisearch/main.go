@@ -85,43 +85,21 @@ func rowToRSDocument(row string) (document redisearch.Document) {
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document "+row)
 	}
-	nFieldsStr := strings.SplitN(row, ",", 2)
-	if len(nFieldsStr) != 2 {
-		log.Fatalf("row does not have the correct format( len %d ) %s failed\n", len(nFieldsStr), row)
-	}
-	nFields, _ := strconv.Atoi(nFieldsStr[0])
 
-	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "Document has "+nFieldsStr[0]+"fields")
-	}
-
-	fieldSizesStr := strings.SplitN(nFieldsStr[1], ",", nFields+1)
-	ftsRow := fieldSizesStr[nFields]
-	previousPos := 0
-	fieldLen := 0
-	fieldLen, _ = strconv.Atoi(fieldSizesStr[0])
-	documentId := index + "-" + ftsRow[previousPos:(previousPos+fieldLen)]
-	previousPos = previousPos + fieldLen
-	fieldLen, _ = strconv.Atoi(fieldSizesStr[1])
-	documentScore, _ := strconv.ParseFloat(ftsRow[previousPos:(previousPos+fieldLen)], 64)
-	previousPos = previousPos + fieldLen
-	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "Doc "+documentId)
-	}
-
+	fieldSizesStr :=strings.Split(row,",")
+	documentId := index + "-" + fieldSizesStr[0]
+	documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
 	doc := redisearch.NewDocument(documentId, float32(documentScore))
 
-	for i := 2; i < nFields; i = i + 2 {
-		fieldLen, _ = strconv.Atoi(fieldSizesStr[i])
-		fieldName := ftsRow[previousPos:(previousPos + fieldLen)]
-		previousPos = previousPos + fieldLen
-		fieldLen, _ = strconv.Atoi(fieldSizesStr[i+1])
-		fieldValue := ftsRow[previousPos:(previousPos + fieldLen)]
-		previousPos = previousPos + fieldLen
+	for _, keyValuePair := range fieldSizesStr[2:] {
+		pair :=strings.Split(keyValuePair,"=")
 		if debug > 0 {
-			fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+fieldName+" and VALUE "+fieldValue)
+			fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
 		}
-		doc.Set(fieldName, fieldValue)
+		doc.Set(pair[0],pair[1])
+	}
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, "Doc "+documentId)
 	}
 	return doc
 }
