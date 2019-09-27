@@ -2,8 +2,6 @@
 
 DATASET="enwiki-latest-abstract1"
 #Current revisions only, no talk or user pages; this is probably what you want, and is approximately 14 GB compressed (expands to over 58 GB when decompressed).
-PAGES_DATASET="enwiki-latest-pages-articles-multistream1.xml-p10p30302.bz2"
-PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream1"
 
 MAX_QUERIES=100
 WORKERS=8

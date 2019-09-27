@@ -45,7 +45,6 @@ func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename stri
 				currentText += string(t)
 			}
 
-
 		case xml.EndElement:
 			name := t.Name.Local
 			if name == "title" ||
@@ -57,7 +56,7 @@ func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename stri
 				props[name] = currentText
 			} else if name == "timestamp" {
 				currentText = strings.TrimSpace(currentText)
-				t, _ := time.Parse(layout,currentText)
+				t, _ := time.Parse(layout, currentText)
 				props[name] = fmt.Sprintf("%d", t.Unix())
 			} else if name == "page" {
 				u2, _ := uuid.NewRandom()
@@ -74,26 +73,32 @@ func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename stri
 				if debug > 1 {
 					fmt.Fprintln(os.Stderr, "At document "+props["id"])
 				}
-				id := u2.String() + "-" + props["id"]
-				doc := redisearch.NewDocument(id, 1.0).
-					Set("TITLE", props["title"]).
-					Set("NAMESPACE", props["ns"]).
-					Set("ID", props["id"]).
-					Set("PARENT_REVISION_ID", props["parentid"]).
-					Set("CURRENT_REVISION_TIMESTAMP", props["timestamp"]).
-					Set("CURRENT_REVISION_ID", props["id"]).
-					Set("CURRENT_REVISION_EDITOR_USERNAME", props["username"]).
-					Set("CURRENT_REVISION_EDITOR_IP", fmt.Sprintf("%d.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256))).
-					Set("CURRENT_REVISION_EDITOR_USERID", props["id"]).
-					Set("CURRENT_REVISION_EDITOR_COMMENT", props["comment"]).
-					Set("CURRENT_REVISION_CONTENT_LENGTH", len(props["comment"]))
-				documents = append(documents, doc)
 
-				props = map[string]string{}
-				docCount++
-				if debug > 0 {
-					if docCount%1000 == 0 {
-						fmt.Fprintln(os.Stderr, "At document "+strconv.Itoa(int(docCount)))
+				if len(props["id"]) > 0 &&
+					len(props["parentid"]) > 0 &&
+					len(props["timestamp"]) > 0 {
+
+					id := u2.String() + "-" + props["id"]
+					doc := redisearch.NewDocument(id, 1.0).
+						Set("TITLE", props["title"]).
+						Set("NAMESPACE", props["ns"]).
+						Set("ID", props["id"]).
+						Set("PARENT_REVISION_ID", props["parentid"]).
+						Set("CURRENT_REVISION_TIMESTAMP", props["timestamp"]).
+						Set("CURRENT_REVISION_ID", props["id"]).
+						Set("CURRENT_REVISION_EDITOR_USERNAME", props["username"]).
+						Set("CURRENT_REVISION_EDITOR_IP", fmt.Sprintf("%d.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256))).
+						Set("CURRENT_REVISION_EDITOR_USERID", props["id"]).
+						Set("CURRENT_REVISION_EDITOR_COMMENT", props["comment"]).
+						Set("CURRENT_REVISION_CONTENT_LENGTH", len(props["comment"]))
+					documents = append(documents, doc)
+
+					props = map[string]string{}
+					docCount++
+					if debug > 0 {
+						if docCount%1000 == 0 {
+							fmt.Fprintln(os.Stderr, "At document "+strconv.Itoa(int(docCount)))
+						}
 					}
 				}
 

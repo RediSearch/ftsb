@@ -5,7 +5,7 @@ PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream1"
 MAX_QUERIES=10000
 PIPELINE=1
 DEBUG=0
-WORKERS=8
+WORKERS=1
 PRINT_INTERVAL=10000
 IDX="pages-meta-idx1"
 

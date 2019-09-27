@@ -81,34 +81,37 @@ type processor struct {
 }
 
 //, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
-func rowToRSDocument(row string) (document redisearch.Document) {
+func rowToRSDocument(row string) (document* redisearch.Document ) {
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document "+row)
 	}
-
 	fieldSizesStr := strings.Split(row, ",")
-	documentId := index + "-" + fieldSizesStr[0]
-	documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
-	doc := redisearch.NewDocument(documentId, float32(documentScore))
+	// we need at least the id and score
+	if len(fieldSizesStr) >= 2 {
+		documentId := index + "-" + fieldSizesStr[0]
+		documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
+		doc := redisearch.NewDocument(documentId, float32(documentScore))
 
-	for _, keyValuePair := range fieldSizesStr[2:] {
-		pair := strings.Split(keyValuePair, "=")
-		if len(pair) == 2 {
-			if debug > 0 {
-				fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
+		for _, keyValuePair := range fieldSizesStr[2:] {
+			pair := strings.Split(keyValuePair, "=")
+			if len(pair) == 2 {
+				if debug > 0 {
+					fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
+				}
+				doc.Set(pair[0], pair[1])
+			} else {
+				if debug > 0 {
+					fmt.Fprintf(os.Stderr, "On doc "+documentId+" len(pair)=%d", len(pair))
+				}
+				log.Fatalf("keyValuePair pair size != 2 . Got " + keyValuePair)
 			}
-			doc.Set(pair[0], pair[1])
-		} else {
-			if debug > 0 {
-				fmt.Fprintf(os.Stderr, "On doc "+documentId+" len(pair)=%d", len(pair))
-			}
-			log.Fatalf("keyValuePair pair size != 2 . Got " + keyValuePair)
 		}
+		if debug > 0 {
+			fmt.Fprintln(os.Stderr, "Doc "+documentId)
+		}
+		return &doc
 	}
-	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "Doc "+documentId)
-	}
-	return doc
+	return document
 }
 
 func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, client *redisearch.Client, pipeline uint64) {
@@ -117,17 +120,20 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 	pipelinePos := uint64(0)
 	for row := range rows {
 		doc := rowToRSDocument(row)
-		documents = append(documents, doc)
-		pipelinePos++
-		if pipelinePos%pipeline == 0 {
-			// Index the document. The API accepts multiple documents at a time
-			if err := client.Index(documents...); err != nil {
-				log.Fatalf("failed: %s\n", err)
+		if doc !=nil {
+			documents = append(documents, *doc)
+			pipelinePos++
+			if pipelinePos%pipeline == 0 {
+				// Index the document. The API accepts multiple documents at a time
+				if err := client.Index(documents...); err != nil {
+					log.Fatalf("failed: %s\n", err)
+				}
+				metrics <- pipelinePos
+				documents = make([]redisearch.Document, 0)
+				pipelinePos = 0
 			}
-			metrics <- pipelinePos
-			documents = make([]redisearch.Document, 0)
-			pipelinePos = 0
 		}
+
 
 	}
 	if pipelinePos != 0 {
