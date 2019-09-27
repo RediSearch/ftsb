@@ -19,12 +19,13 @@ func (s *RediSearchDocumentSerializer) Serialize(p *redisearch.Document, w io.Wr
 	buf = append(buf, p.Id...)
 	buf = append(buf, ',')
 	buf = fastFormatAppend(p.Score, buf)
-	buf = append(buf, ',')
 	for key, value := range p.Properties {
+		buf = append(buf, ',')
 		buf = append(buf, key...)
 		buf = append(buf, '=')
 		buf = fastFormatAppend(value, buf)
 	}
+	buf = append(buf, '\n')
 	_, err = w.Write(buf)
 	return err
 }

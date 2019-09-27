@@ -17,8 +17,8 @@ else
   echo "Dataset found locally at /tmp/$DATASET.xml. No need to retrieve again from from wikimedia."
 fi
 
-if [ ! -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
-  echo "ftsb_generate_data file not found. Issuing ftsb_generate_data."
+if [ -f /tmp/$DATASET.xml ]; then
+  echo "Issuing ftsb_generate_data."
   ftsb_generate_data -input-file /tmp/$DATASET.xml \
     -format="redisearch" |
     gzip >/tmp/ftsb_generate_data-$DATASET-redisearch.gz

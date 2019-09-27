@@ -195,18 +195,18 @@ func main() {
 func runSimulator(sim common.Simulator, useCase string, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
 	currGroupID := uint(0)
 
-	var doc *redisearch.Document = nil
+	doc := redisearch.NewDocument("1", 1 )
 
 	for !sim.Finished() {
 
-		write := sim.Next(doc)
+		write := sim.Next(&doc)
 		if !write {
 			continue
 		}
 
 		// in the default case this is always true
 		if currGroupID == groupID {
-			err := serializer.Serialize(doc, out)
+			err := serializer.Serialize(&doc, out)
 			if err != nil {
 				fatal("can not serialize wikiPages: %s", err)
 				return
