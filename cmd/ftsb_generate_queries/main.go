@@ -26,6 +26,9 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 		wiki.LabelSimple2WordBarackObama:   wiki.NewSimple2WordBarackObama(),
 		wiki.LabelSimple1WordSpellCheck:    wiki.NewSimple1WordSpellCheck(),
 	},
+	"enwiki-pages": {
+		wiki.LabelAggAproximateAvgEditorContributionsByYear: wiki.NewAggAproximateAvgEditorContributionsByYearQuery(),
+	},
 }
 
 const defaultWriteSize = 4 << 20 // 4 MB
@@ -49,9 +52,16 @@ var (
 	interleavedGenerationGroups  uint
 )
 
-func getGenerator(format string, inputfile string, stopwordsbl []string, seed int64, maxQueries int) utils.EnWikiAbstractGenerator {
+func getGenerator(format string, usecase string, inputfile string, stopwordsbl []string, seed int64, maxQueries int, debug int ) utils.EnWikiAbstractGenerator {
 	if format == "redisearch" {
-		return redisearch.NewEnWikiAbstract(inputfile, stopwordsbl, seed, maxQueries)
+		switch usecase {
+		case wiki.LabelEnWikiAbstract:
+			return redisearch.NewEnWikiAbstract(inputfile, stopwordsbl, seed, maxQueries, debug )
+		case wiki.LabelEnWikiPages:
+			return redisearch.NewEnWikiPages(inputfile, stopwordsbl, seed, maxQueries, debug )
+		default:
+			panic(fmt.Sprintf("no document generator specified for format '%s'", format))
+		}
 	}
 
 	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
@@ -130,7 +140,7 @@ func init() {
 	// sort the stopwords for faster search
 	sort.Strings(stopWords)
 	// Make the query generator:
-	generator = getGenerator(format, inputfileName, stopWords, seed, queryCount)
+	generator = getGenerator(format, useCase, inputfileName, stopWords, seed, queryCount, debug )
 	filler = useCaseMatrix[useCase][queryType](generator)
 }
 

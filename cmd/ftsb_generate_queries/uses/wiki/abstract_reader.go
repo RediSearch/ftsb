@@ -3,6 +3,7 @@ package wiki
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/wiki"
 	"io"
 	"log"
 	"math/rand"
@@ -13,7 +14,7 @@ import (
 )
 
 // NewWikiAbrastractReader returns a new Core for the given input filename, seed, and maxQueries
-func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, maxQueries int) *Core {
+func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int ) *wiki.Core {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -168,7 +169,7 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 			tok, err = dec.RawToken()
 		}
 	}
-	return &Core{
+	return &wiki.Core{
 		0,
 		uint64(len(twoWordIntersectionQuery)),
 		twoWordIntersectionQuery,
@@ -178,5 +179,8 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 		0,
 		uint64(len(oneWordQuery)),
 		oneWordQuery,
+		nil,
+		0,
+		0,
 	}
 }

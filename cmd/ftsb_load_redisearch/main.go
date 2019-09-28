@@ -81,7 +81,7 @@ type processor struct {
 }
 
 //, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
-func rowToRSDocument(row string) (document* redisearch.Document ) {
+func rowToRSDocument(row string) (document *redisearch.Document) {
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "converting row to rediSearch Document "+row)
 	}
@@ -120,7 +120,7 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 	pipelinePos := uint64(0)
 	for row := range rows {
 		doc := rowToRSDocument(row)
-		if doc !=nil {
+		if doc != nil {
 			documents = append(documents, *doc)
 			pipelinePos++
 			if pipelinePos%pipeline == 0 {
@@ -133,7 +133,6 @@ func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint
 				pipelinePos = 0
 			}
 		}
-
 
 	}
 	if pipelinePos != 0 {

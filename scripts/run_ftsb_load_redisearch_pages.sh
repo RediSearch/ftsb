@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATASET="enwiki-latest-abstract1"
-PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream1"
+PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
 MAX_QUERIES=10000
 PIPELINE=1
 DEBUG=0

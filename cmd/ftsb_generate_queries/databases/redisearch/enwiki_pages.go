@@ -2,7 +2,7 @@ package redisearch
 
 import (
 	"fmt"
-	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/uses/wiki"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/wiki"
 	"github.com/RediSearch/ftsb/query"
 )
 
@@ -15,8 +15,8 @@ type EnWikiPages struct {
 // NewEnWikiPages
 // makes an EnWikiPages
 // object ready to generate TwoWordIntersectionQueries.
-func NewEnWikiPages(filename string, stopwordsbl []string, seed int64, maxQueries int) *EnWikiPages {
-	return &EnWikiPages{wiki.NewWikiAbrastractReader(filename, stopwordsbl, seed, maxQueries)}
+func NewEnWikiPages(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int ) *EnWikiPages {
+	return &EnWikiPages{wiki.NewWikiPagesReader(filename, stopwordsbl, seed, maxQueries, debug )}
 }
 
 // GenerateEmptyQuery returns an empty query.RediSearch
@@ -24,13 +24,19 @@ func (d *EnWikiPages) GenerateEmptyQuery() query.Query {
 	return query.NewRediSearch()
 }
 
-// Simple2WordBarackObama does a search with the 2 fixed words barack obama
+// AggAproximateAvgEditorContributionsByYear does a search with the 2 fixed words barack obama
 func (d *EnWikiPages) AggAproximateAvgEditorContributionsByYear(qi query.Query) {
-	redisQuery := fmt.Sprintf(`FT.SEARCH,barack obama`)
+
+	if d.Core.PagesEditorsIndexPosition >= d.Core.PagesEditorsQueryIndex {
+		d.Core.PagesEditorsIndexPosition = 0
+	}
+	twoWords := d.Core.PagesEditors[d.Core.PagesEditorsIndexPosition]
+	redisQuery := fmt.Sprintf(`FT.AGGREGATE,1,%s`, twoWords)
 
 	humanLabel := "RediSearch - Aggregate query - Aproximate average number of contributions by year each editor makes."
-	humanDesc := fmt.Sprintf("%s Used words: barack obama", humanLabel)
+	humanDesc := fmt.Sprintf("%s Used words: %s", humanLabel, twoWords)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
+	d.Core.PagesEditorsIndexPosition++
 
 }
 

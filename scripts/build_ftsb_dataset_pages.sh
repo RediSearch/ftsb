@@ -12,7 +12,7 @@ echo "--------------------------------------------------------------------------
 echo "2) $PAGES_DATASET_OUTPUT"
 echo "---------------------------------------------------------------------------------"
 
-if [ ! -f /tmp/$PAGES_DATASET_OUTPUT.xml ]; then
+if [ ! -f /tmp/$DATASET.xml ]; then
   echo "Dataset not found locally. Retrieving from wikimedia."
   curl -O https://dumps.wikimedia.org/enwiki/latest/$DATASETIN.bz2
   gunzip -c $DATASETIN.bz2 >/tmp/$DATASET.xml

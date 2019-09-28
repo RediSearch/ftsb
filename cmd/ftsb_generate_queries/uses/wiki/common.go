@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	LabelEnWikiAbstract = "enwiki-abstract"
+	LabelEnWikiPages    = "enwiki-pages"
 	//////////////////////////
 	// Full text search queries
 	//////////////////////////
@@ -44,27 +46,19 @@ const (
 	// Aggregation queries
 	//////////////////////////
 
+	LabelAggAproximateAvgEditorContributionsByYear = "agg-editor-1year-exact-page-contributions-by-day"
 )
 
 // for ease of testing
 var fatal = log.Fatalf
 
-// Core is the common component of all generators for all systems
-type Core struct {
-	TwoWordIntersectionQueryIndexPosition uint64
-	TwoWordIntersectionQueryIndex         uint64
-	TwoWordIntersectionQueries            []string
-	TwoWordUnionQueryIndexPosition        uint64
-	TwoWordUnionQueryIndex                uint64
-	TwoWordUnionQueries                   []string
-	OneWordQueryIndexPosition             uint64
-	OneWordQueryIndex                     uint64
-	OneWordQueries                        []string
-}
-
 // TwoWordIntersectionQueryFiller is a type that can fill in a single query
 type TwoWordIntersectionQueryFiller interface {
 	TwoWordIntersectionQuery(query.Query)
+}
+
+type AggAproximateAvgEditorContributionsByYearFiller interface {
+	AggAproximateAvgEditorContributionsByYear(query.Query)
 }
 
 // TwoWordUnionQueryFiller is a type that can fill in a single query

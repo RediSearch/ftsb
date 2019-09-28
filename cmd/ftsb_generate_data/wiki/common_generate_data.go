@@ -4,6 +4,30 @@ import (
 	"github.com/RediSearch/redisearch-go/redisearch"
 )
 
+func NewCore(pagesEditors []string) *Core {
+	return &Core{
+		PagesEditors:              pagesEditors,
+		PagesEditorsIndexPosition: 0,
+		PagesEditorsQueryIndex:    uint64(len(pagesEditors)),
+	}
+}
+
+// Core is the common component of all generators for all systems
+type Core struct {
+	TwoWordIntersectionQueryIndexPosition uint64
+	TwoWordIntersectionQueryIndex         uint64
+	TwoWordIntersectionQueries            []string
+	TwoWordUnionQueryIndexPosition        uint64
+	TwoWordUnionQueryIndex                uint64
+	TwoWordUnionQueries                   []string
+	OneWordQueryIndexPosition             uint64
+	OneWordQueryIndex                     uint64
+	OneWordQueries                        []string
+	PagesEditors                          []string
+	PagesEditorsIndexPosition             uint64
+	PagesEditorsQueryIndex                uint64
+}
+
 type commonFTSSimulatorConfig struct {
 	InputFilename string
 	// Start is the beginning time for the Simulator

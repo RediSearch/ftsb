@@ -88,6 +88,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	total := 0
 	took := 0.0
 	timedOut := false
+
 	qry := string(tq.RedisQuery)
 
 	t := strings.Split(qry, ",")
@@ -100,6 +101,29 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	}
 
 	switch command {
+	case "FT.AGGREGATE":
+		queryNum := t[1]
+		query := redisearch.NewAggregateQuery()
+		switch queryNum {
+		case "1":
+			//1) One year period, Exact Number of contributions by day, ordered chronologically
+			query.SetQuery(redisearch.NewQuery(t[2])).
+				SetMax(365).
+				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
+				GroupBy(*redisearch.NewGroupBy("@day").
+					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCount, []string{"@ID"}, "num_contributions"))).
+				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@day", false)}).
+				Apply(*redisearch.NewProjection("timefmt(@day)", "day"))
+
+		default:
+			log.Fatalf("FT.AGGREGATE queryNum (%d) query not supported yet.", queryNum)
+		}
+
+		start := time.Now()
+		res, total, err := client.Aggregate(query)
+		took = float64(time.Since(start).Nanoseconds()) / 1e6
+		timedOut = p.handleResponseAggregate(err, timedOut, t, res, total)
+
 	case "FT.SPELLCHECK":
 		rediSearchQuery := redisearch.NewQuery(t[1])
 		distance, err := strconv.Atoi(t[2])
@@ -152,6 +176,22 @@ func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []strin
 			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
 		} else {
 			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", suggs, err, err.Error())
+		}
+	} else {
+		if p.opts.printResponse {
+			fmt.Println("\nRESPONSE: ", total)
+		}
+	}
+	return timedOut
+}
+
+func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int) bool {
+	if err != nil {
+		if err.Error() == "Command timed out" {
+			timedOut = true
+			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
+		} else {
+			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", aggs, err, err.Error())
 		}
 	} else {
 		if p.opts.printResponse {
