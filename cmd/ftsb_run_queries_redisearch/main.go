@@ -106,8 +106,35 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		query := redisearch.NewAggregateQuery()
 		switch queryNum {
 		case "1":
-			//1) One year period, Exact Number of contributions by day, ordered chronologically
-			query.SetQuery(redisearch.NewQuery(t[2])).
+			//1) One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
+
+		case "2":
+		//2) One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
+
+		case "3":
+		//3) One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
+		case "4":
+		//4) One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
+		case "5":
+			//5) Aproximate All time Top 10 Revision editor usernames
+		case "6":
+			//6) Aproximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)
+			query = query.GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+				Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
+				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
+				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@NAMESPACE", true), *redisearch.NewSortingKeyDir("@num_contributions", true)}).
+				Limit(0, 10)
+
+		case "7":
+			//7) Top 10 editor username by average revision content
+			query = query.GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+				Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerAvg, []string{"@CURRENT_REVISION_CONTENT_LENGTH"}, "avg_rcl"))).
+				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@avg_rcl", false)}).
+				Limit(0, 10)
+
+		case "8":
+			//8) Approximate average number of contributions a specific each editor makes
+			query = query.SetQuery(redisearch.NewQuery("@CURRENT_REVISION_EDITOR_USERNAME:" + t[2])).
 				SetMax(365).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
 				GroupBy(*redisearch.NewGroupBy("@day").

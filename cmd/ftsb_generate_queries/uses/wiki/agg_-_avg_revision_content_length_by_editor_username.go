@@ -6,26 +6,26 @@ import (
 )
 
 // TwoWordIntersectionQuery contains info for filling in simple 2 word queries
-type AggAproximateAllTimeTop10EditorByNamespaceQuery struct {
+type AggTop10EditorByAvgRevisionContentQuery struct {
 	core utils.EnWikiAbstractGenerator
 }
 
 // NewTwoWordIntersectionQuery produces a new function that produces a new TwoWordIntersectionQuery
-func NewAggAproximateAllTimeTop10EditorByNamespaceQuery() utils.QueryFillerMaker {
+func NewAggTop10EditorByAvgRevisionContentQuery() utils.QueryFillerMaker {
 	return func(core utils.EnWikiAbstractGenerator) utils.QueryFiller {
-		return &AggAproximateAllTimeTop10EditorByNamespaceQuery{
+		return &AggTop10EditorByAvgRevisionContentQuery{
 			core: core,
 		}
 	}
 }
 
 // Fill fills in the query.Query with query details
-func (d *AggAproximateAllTimeTop10EditorByNamespaceQuery) Fill(q query.Query) query.Query {
-	fc, ok := d.core.(AggAproximateAllTimeTop10EditorByNamespaceFiller)
+func (d *AggTop10EditorByAvgRevisionContentQuery) Fill(q query.Query) query.Query {
+	fc, ok := d.core.(AggTop10EditorByAvgRevisionContentFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)
 	}
-	fc.AggAproximateAllTimeTop10EditorByNamespace(q)
+	fc.AggTop10EditorByAvgRevisionContent(q)
 	return q
 }
 

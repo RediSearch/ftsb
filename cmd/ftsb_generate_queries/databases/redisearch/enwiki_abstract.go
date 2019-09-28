@@ -15,8 +15,8 @@ type EnWikiAbstract struct {
 }
 
 // NewEnWikiAbstract makes an EnWikiAbstract object ready to generate TwoWordIntersectionQueries.
-func NewEnWikiAbstract(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int ) *EnWikiAbstract {
-	return &EnWikiAbstract{wiki2.NewWikiAbrastractReader(filename, stopwordsbl, seed, maxQueries, debug )}
+func NewEnWikiAbstract(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int) *EnWikiAbstract {
+	return &EnWikiAbstract{wiki2.NewWikiAbrastractReader(filename, stopwordsbl, seed, maxQueries, debug)}
 }
 
 // GenerateEmptyQuery returns an empty query.RediSearch

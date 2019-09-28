@@ -28,3 +28,8 @@ func (d *AggAproximateAvgEditorContributionsByYearQuery) Fill(q query.Query) que
 	fc.AggAproximateAvgEditorContributionsByYear(q)
 	return q
 }
+
+
+//
+//NewAggAproximateAllTimeTop10EditorByNamespaceQuery(),
+//wiki.LabelAggTop10EditorByAvgRevisionContent: wiki.NewAggTop10EditorByAvgRevisionContentQuery()

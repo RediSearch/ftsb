@@ -46,6 +46,11 @@ const (
 	// Aggregation queries
 	//////////////////////////
 
+	//6
+	LabeAggAproximateAllTimeTop10EditorByNamespace = "agg-*-aproximate-top10-editor-usernames-by-namespace"
+	//7
+	LabelAggTop10EditorByAvgRevisionContent = "agg-*-avg-revision-content-length-by-editor-username"
+	//8
 	LabelAggAproximateAvgEditorContributionsByYear = "agg-editor-1year-exact-page-contributions-by-day"
 )
 
@@ -60,6 +65,17 @@ type TwoWordIntersectionQueryFiller interface {
 type AggAproximateAvgEditorContributionsByYearFiller interface {
 	AggAproximateAvgEditorContributionsByYear(query.Query)
 }
+
+type AggAproximateAllTimeTop10EditorByNamespaceFiller interface {
+	AggAproximateAllTimeTop10EditorByNamespace(query.Query)
+}
+
+
+type AggTop10EditorByAvgRevisionContentFiller interface {
+	AggTop10EditorByAvgRevisionContent(query.Query)
+}
+
+
 
 // TwoWordUnionQueryFiller is a type that can fill in a single query
 type TwoWordUnionQueryFiller interface {
