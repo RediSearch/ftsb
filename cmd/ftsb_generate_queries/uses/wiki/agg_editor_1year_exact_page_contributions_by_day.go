@@ -29,7 +29,6 @@ func (d *AggAproximateAvgEditorContributionsByYearQuery) Fill(q query.Query) que
 	return q
 }
 
-
 //
 //NewAggAproximateAllTimeTop10EditorByNamespaceQuery(),
 //wiki.LabelAggTop10EditorByAvgRevisionContent: wiki.NewAggTop10EditorByAvgRevisionContentQuery()

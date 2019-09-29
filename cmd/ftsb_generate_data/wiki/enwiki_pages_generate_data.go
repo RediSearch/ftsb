@@ -6,6 +6,9 @@ import (
 	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/common"
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/google/uuid"
+	"log"
+	"regexp"
+
 	//"io"
 	"io/ioutil"
 	"math/rand"
@@ -19,8 +22,11 @@ import (
 type WikiPagesSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int) common.Simulator {
-	documents, _, maxPoints := WikiPagesParseXml(inputFilename, limit, debug, []string{}, 0)
+func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int, stopwords []string, seed int64) common.Simulator {
+	documents, _, maxPoints := WikiPagesParseXml(inputFilename, limit, debug, stopwords, seed)
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, "pages read %d ", maxPoints)
+	}
 	sim := &FTSSimulator{&commonFTSSimulator{
 		madeDocuments: 0,
 		maxDocuments:  maxPoints,
@@ -72,14 +78,20 @@ type Contributor struct {
 
 // NewWikiAbrastractReader returns a new Core for the given input filename, seed, and maxQueries
 func NewWikiPagesReader(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int) *Core {
-	_, editors, _ := WikiPagesParseXml(filename, uint64(maxQueries), debug, []string{}, seed)
+	_, editors, _ := WikiPagesParseXml(filename, uint64(maxQueries), debug, stopwordsbl, seed)
 	return NewCore(editors)
 }
 
 func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsbl []string, seed int64) ([]redisearch.Document, []string, uint64) {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
-	field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
+	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
+	// Make a Regex to say we only want letters and numbers
+	reg, err := regexp.Compile("[^a-zA-Z0-9 ]+")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	rand.Seed(seed)
 
 	var editors []string
@@ -109,40 +121,25 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 	// we iterate through every user within our users array and
 	// print out the user Type, their name, and their facebook url
 	// as just an example
-	for i := 0; i < len(pages.Pages) && uint64(i) < limit; i++ {
+	for i := 0; i < len(pages.Pages) && (uint64(i) < limit || limit == 0); i++ {
 		page := pages.Pages[i]
-		docCount++
 
 		page.Revision.Timestamp = strings.TrimSpace(page.Revision.Timestamp)
 		t, _ := time.Parse(layout, page.Revision.Timestamp)
 		page.Revision.Timestamp = fmt.Sprintf("%d", t.Unix())
-
-		page.Title = strings.TrimSpace(page.Title)
-		page.Title = strings.ReplaceAll(page.Title, "=", "")
-		page.Title = strings.ReplaceAll(page.Title, ",", "")
-		page.Title = strings.ReplaceAll(page.Title, "\"", "\\\"")
-		for _, char := range field_tokenization {
-			page.Title = strings.ReplaceAll(page.Title, string(char), string("\\"+string(char)))
-		}
-
-		page.Revision.Comment = strings.TrimSpace(page.Revision.Comment)
-		page.Revision.Comment = strings.ReplaceAll(page.Revision.Comment, "=", "")
-		page.Revision.Comment = strings.ReplaceAll(page.Revision.Comment, ",", "")
-		page.Revision.Comment = strings.ReplaceAll(page.Revision.Comment, "\"", "\\\"")
-		for _, char := range field_tokenization {
-			page.Revision.Comment = strings.ReplaceAll(page.Revision.Comment, string(char), string("\\"+string(char)))
-		}
+		page.Title = reg.ReplaceAllString(page.Title, "")
+		page.Revision.Comment = reg.ReplaceAllString(page.Revision.Comment, "")
+		page.Revision.Contributor.Username = reg.ReplaceAllString(page.Revision.Contributor.Username, "")
 
 		u1, _ := uuid.NewRandom()
-		u2, _ := uuid.NewRandom()
-		id := u1.String() + "-" + u2.String() + "-" + page.Id
+		docCount++
+		id := fmt.Sprintf("%s-%d", u1.String(), docCount)
 		doc := NewWikiPagesDocument(id, page)
 		documents = append(documents, doc)
 		if len(page.Revision.Contributor.Username) > 2 {
 			editors = append(editors, page.Revision.Contributor.Username)
 		}
 
-		docCount++
 		if debug > 0 {
 			if docCount%1000 == 0 {
 				fmt.Fprintln(os.Stderr, "At document "+strconv.Itoa(int(docCount)))

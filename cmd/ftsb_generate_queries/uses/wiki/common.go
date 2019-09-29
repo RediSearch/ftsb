@@ -70,12 +70,9 @@ type AggAproximateAllTimeTop10EditorByNamespaceFiller interface {
 	AggAproximateAllTimeTop10EditorByNamespace(query.Query)
 }
 
-
 type AggTop10EditorByAvgRevisionContentFiller interface {
 	AggTop10EditorByAvgRevisionContent(query.Query)
 }
-
-
 
 // TwoWordUnionQueryFiller is a type that can fill in a single query
 type TwoWordUnionQueryFiller interface {

@@ -38,7 +38,7 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
-      -batch-size 1000 -pipeline $PIPELINE -debug $DEBUG
+      -batch-size 1000 -pipeline $PIPELINE -debug=$DEBUG
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi

@@ -28,7 +28,7 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	},
 	"enwiki-pages": {
 		wiki.LabeAggAproximateAllTimeTop10EditorByNamespace: wiki.NewAggAproximateAllTimeTop10EditorByNamespaceQuery(),
-		wiki.LabelAggTop10EditorByAvgRevisionContent: wiki.NewAggTop10EditorByAvgRevisionContentQuery(),
+		wiki.LabelAggTop10EditorByAvgRevisionContent:        wiki.NewAggTop10EditorByAvgRevisionContentQuery(),
 		wiki.LabelAggAproximateAvgEditorContributionsByYear: wiki.NewAggAproximateAvgEditorContributionsByYearQuery(),
 	},
 }

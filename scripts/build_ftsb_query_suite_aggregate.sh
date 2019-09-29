@@ -1,36 +1,28 @@
 #!/bin/bash
 
 DATASET="enwiki-latest-pages-articles-multistream"
-PRINT_INTERVAL=10000
-MAX_QUERIES=10000
+PRINT_INTERVAL=100000
+MAX_QUERIES=100000
 WORKERS=8
-DEBUG=2
-
-REGENERATE_QUERIES="false"
-if [[ "${1}" == "true" ]]; then
-  REGENERATE_QUERIES="true"
-fi
+DEBUG=0
 
 if [ ! -f /tmp/$DATASET.xml ]; then
-  echo "Dataset not found locally. Aborting."
+  echo "Dataset not found locally at /tmp/$DATASET.xml. Aborting."
   exit 1
 else
   echo "Dataset found locally at /tmp/$DATASET.xml."
   for queryName in "agg-*-aproximate-top10-editor-usernames-by-namespace" "agg-*-avg-revision-content-length-by-editor-username" "agg-editor-1year-exact-page-contributions-by-day"; do
     echo "generating query: $queryName"
-    if [ -f /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz ]; then
-      echo "Issuing ftsb_generate_queries."
-      ftsb_generate_queries -query-type=$queryName \
-        -queries $MAX_QUERIES -input-file /tmp/$DATASET.xml \
-        -debug $DEBUG \
-        -seed 12345 \
-        -use-case="enwiki-pages" \
-        -output-file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0
 
-      cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 |
-        gzip >/tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz
-    else
-      echo "query file for $queryName found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz."
-    fi
+    ftsb_generate_queries -query-type=$queryName \
+      -queries $MAX_QUERIES -input-file /tmp/$DATASET.xml \
+      -debug $DEBUG \
+      -seed 12345 \
+      -use-case="enwiki-pages" \
+      -output-file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0
+
+    cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 |
+      gzip >/tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz
+
   done
 fi

@@ -20,7 +20,7 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
 
 	// Make a Regex to say we only want letters and numbers
-	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+	reg, err := regexp.Compile("[^a-zA-Z0-9 ]+")
 	if err != nil {
 		log.Fatal(err)
 	}

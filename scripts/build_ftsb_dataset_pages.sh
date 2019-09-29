@@ -1,11 +1,12 @@
 #!/bin/bash
 #https://dumps.wikimedia.org/enwiki/latest/
-#Current revisions only, no talk or user pages; this is probably what you want, and is approximately 14 GB compressed (expands to over 58 GB when decompressed).
+#Current revisions only, no talk or user pages;
+# this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASET="enwiki-latest-pages-articles-multistream"
 DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926864p5040435"
-MAX_QUERIES=100
+MAX_QUERIES=0
 WORKERS=8
-DEBUG=0
+DEBUG=3
 
 echo ""
 echo "---------------------------------------------------------------------------------"

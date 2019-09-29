@@ -2,8 +2,8 @@
 
 DATASET="enwiki-latest-pages-articles-multistream"
 PIPELINE=1
-DEBUG=3
-PRINT_INTERVAL=10000
+DEBUG=0
+PRINT_INTERVAL=100
 MAX_QUERIES=100
 WORKERS=8
 IDX="pages-meta-idx1"

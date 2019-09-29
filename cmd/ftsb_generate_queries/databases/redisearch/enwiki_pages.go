@@ -14,9 +14,11 @@ type EnWikiPages struct {
 
 // NewEnWikiPages
 // makes an EnWikiPages
-// object ready to generate TwoWordIntersectionQueries.
+// object ready to generate Queries.
 func NewEnWikiPages(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int) *EnWikiPages {
-	return &EnWikiPages{wiki.NewWikiPagesReader(filename, stopwordsbl, seed, maxQueries, debug)}
+	return &EnWikiPages{
+		wiki.NewWikiPagesReader(filename, stopwordsbl, seed, maxQueries, debug),
+	}
 }
 
 // GenerateEmptyQuery returns an empty query.RediSearch
