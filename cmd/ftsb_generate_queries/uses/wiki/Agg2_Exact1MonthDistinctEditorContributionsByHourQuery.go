@@ -18,7 +18,7 @@ func NewAgg2_Exact1MonthDistinctEditorContributionsByHourQuery() utils.QueryFill
 }
 
 // Fill fills in the query.Query with query details
-func (d *Agg2_) Fill(q query.Query) query.Query {
+func (d *Agg2_Exact1MonthDistinctEditorContributionsByHourQuery) Fill(q query.Query) query.Query {
 	fc, ok := d.core.(Agg2_Exact1MonthDistinctEditorContributionsByHourQueryFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)

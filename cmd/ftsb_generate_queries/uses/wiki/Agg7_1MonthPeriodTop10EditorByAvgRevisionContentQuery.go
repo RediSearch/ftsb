@@ -19,7 +19,7 @@ func NewAgg7_1MonthPeriodTop10EditorByAvgRevisionContentQuery() utils.QueryFille
 
 // Fill fills in the query.Query with query details
 func (d *Agg7_1MonthPeriodTop10EditorByAvgRevisionContentQuery) Fill(q query.Query) query.Query {
-	fc, ok := d.core.(Agg7_1MonthPeriodTop10EditorByAvgRevisionContentFiller)
+	fc, ok := d.core.(Agg7_1MonthPeriodTop10EditorByAvgRevisionContentQueryFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)
 	}

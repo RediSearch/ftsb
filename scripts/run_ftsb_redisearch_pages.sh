@@ -3,13 +3,14 @@
 DATASET="enwiki-latest-pages-articles-multistream"
 PIPELINE=1
 DEBUG=0
-PRINT_INTERVAL=100
-MAX_QUERIES=100
+PRINT_INTERVAL=100000
+MAX_QUERIES=100000
 WORKERS=8
 IDX="pages-meta-idx1"
 
 echo "Benchmarking query execution performance"
-for queryName in "agg-*-aproximate-top10-editor-usernames-by-namespace" "agg-*-avg-revision-content-length-by-editor-username" "agg-editor-1year-exact-page-contributions-by-day"; do
+#"agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1month-exact-distinct-editors-by-hour" "agg-3-*-1month-approximate-distinct-editors-by-hour" "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username" "agg-5-*-1month-approximate-top10-editor-usernames" "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace" "agg-7-*-1month-avg-revision-content-length-by-editor-username" "agg-8-editor-approximate-avg-editor-contributions-by-year"
+for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" ; do
   echo "Benchmarking query: $queryName"
   redis-cli config resetstat
 

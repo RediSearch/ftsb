@@ -19,7 +19,7 @@ func NewAgg1_Exact1YearPageContributionsByDayQuery() utils.QueryFillerMaker {
 
 // Fill fills in the query.Query with query details
 func (d *Agg1_Exact1YearPageContributionsByDayQuery) Fill(q query.Query) query.Query {
-	fc, ok := d.core.(Agg1_Exact1YearPageContributionsByDayFiller)
+	fc, ok := d.core.(Agg1_Exact1YearPageContributionsByDayQueryFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)
 	}

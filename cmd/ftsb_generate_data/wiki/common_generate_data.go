@@ -2,13 +2,18 @@ package wiki
 
 import (
 	"github.com/RediSearch/redisearch-go/redisearch"
+	"math/rand"
 )
 
-func NewCore(pagesEditors []string) *Core {
+func NewCore(pagesEditors []string, seed int64, inferiorLimit int64, superiorLimit int64 ) *Core {
+	rand.Seed(seed)
 	return &Core{
-		PagesEditors:              pagesEditors,
-		PagesEditorsIndexPosition: 0,
-		PagesEditorsQueryIndex:    uint64(len(pagesEditors)),
+		PagesEditors:                  pagesEditors,
+		PagesEditorsIndexPosition:     0,
+		PagesEditorsQueryIndex:        uint64(len(pagesEditors)),
+		SuperiorTimeLimitPagesRecords: superiorLimit,
+		InferiorTimeLimitPagesRecords: inferiorLimit,
+		MaxRandomInterval:             superiorLimit - inferiorLimit,
 	}
 }
 
@@ -26,6 +31,9 @@ type Core struct {
 	PagesEditors                          []string
 	PagesEditorsIndexPosition             uint64
 	PagesEditorsQueryIndex                uint64
+	SuperiorTimeLimitPagesRecords         int64
+	InferiorTimeLimitPagesRecords         int64
+	MaxRandomInterval                     int64
 }
 
 type commonFTSSimulatorConfig struct {

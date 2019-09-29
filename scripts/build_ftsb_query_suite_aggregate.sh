@@ -11,7 +11,8 @@ if [ ! -f /tmp/$DATASET.xml ]; then
   exit 1
 else
   echo "Dataset found locally at /tmp/$DATASET.xml."
-  for queryName in "agg-*-aproximate-top10-editor-usernames-by-namespace" "agg-*-avg-revision-content-length-by-editor-username" "agg-editor-1year-exact-page-contributions-by-day"; do
+
+  for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1month-exact-distinct-editors-by-hour" "agg-3-*-1month-approximate-distinct-editors-by-hour" "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username" "agg-5-*-1month-approximate-top10-editor-usernames" "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace" "agg-7-*-1month-avg-revision-content-length-by-editor-username" "agg-8-editor-approximate-avg-editor-contributions-by-year"; do
     echo "generating query: $queryName"
 
     ftsb_generate_queries -query-type=$queryName \

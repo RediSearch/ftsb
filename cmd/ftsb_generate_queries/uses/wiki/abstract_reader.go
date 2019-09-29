@@ -182,5 +182,8 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 		nil,
 		0,
 		0,
+		0,
+		0,
+		0,
 	}
 }

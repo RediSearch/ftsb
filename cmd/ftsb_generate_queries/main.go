@@ -27,9 +27,14 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 		wiki.LabelSimple1WordSpellCheck:    wiki.NewSimple1WordSpellCheck(),
 	},
 	"enwiki-pages": {
-		wiki.LabeAggAproximateAllTimeTop10EditorByNamespace: wiki.NewAggAproximateAllTimeTop10EditorByNamespaceQuery(),
-		wiki.LabelAggTop10EditorByAvgRevisionContent:        wiki.NewAggTop10EditorByAvgRevisionContentQuery(),
-		wiki.LabelAggAproximateAvgEditorContributionsByYear: wiki.NewAggAproximateAvgEditorContributionsByYearQuery(),
+		wiki.Label1AggExact1YearPageContributionsByDay:                     wiki.NewAgg1_Exact1YearPageContributionsByDayQuery(),
+		wiki.Label2AggExact1MonthDistinctEditorContributionsByHour:         wiki.NewAgg2_Exact1MonthDistinctEditorContributionsByHourQuery(),
+		wiki.Label3AggApproximate1MonthDistinctEditorContributionsByHour:   wiki.NewAgg3_Approximate1MonthDistinctEditorContributionsByHourQuery(),
+		wiki.Label4AggApproximate1DayEditorContributionsBy5minutes:         wiki.NewAgg4_Approximate1DayEditorContributionsBy5minutesQuery(),
+		wiki.Label5AggApproximate1MonthPeriodTop10EditorByNumContributions: wiki.NewAgg5_Approximate1MonthPeriodTop10EditorByNumContributionsQuery(),
+		wiki.Label6AggApproximate1MonthPeriodTop10EditorByNamespace:        wiki.NewAgg6_AproximateAllTimeTop10EditorByNamespaceQuery(),
+		wiki.Label7Agg1MonthPeriodTop10EditorByAvgRevisionContent:          wiki.NewAgg7_1MonthPeriodTop10EditorByAvgRevisionContentQuery(),
+		wiki.Label8AggApproximateAvgEditorContributionsByYear:              wiki.NewAgg8_ApproximateAvgEditorContributionsByYearQuery(),
 	},
 }
 

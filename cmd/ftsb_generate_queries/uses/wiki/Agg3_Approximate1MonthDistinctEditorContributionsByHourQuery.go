@@ -9,7 +9,7 @@ type Agg3_Approximate1MonthDistinctEditorContributionsByHourQuery struct {
 	core utils.EnWikiAbstractGenerator
 }
 
-func NewNewAgg3_Approximate1MonthDistinctEditorContributionsByHourQuery() utils.QueryFillerMaker {
+func NewAgg3_Approximate1MonthDistinctEditorContributionsByHourQuery() utils.QueryFillerMaker {
 	return func(core utils.EnWikiAbstractGenerator) utils.QueryFiller {
 		return &Agg3_Approximate1MonthDistinctEditorContributionsByHourQuery{
 			core: core,

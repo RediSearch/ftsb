@@ -21,7 +21,7 @@ func NewAgg6_AproximateAllTimeTop10EditorByNamespaceQuery() utils.QueryFillerMak
 
 // Fill fills in the query.Query with query details
 func (d *Agg6_Approximate1MonthPeriodTop10EditorByNamespaceQuery) Fill(q query.Query) query.Query {
-	fc, ok := d.core.(Agg6_Approximate1MonthPeriodTop10EditorByNamespaceFiller)
+	fc, ok := d.core.(Agg6_Approximate1MonthPeriodTop10EditorByNamespaceQueryFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)
 	}

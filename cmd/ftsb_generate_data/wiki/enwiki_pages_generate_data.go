@@ -7,6 +7,7 @@ import (
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/google/uuid"
 	"log"
+	"math"
 	"regexp"
 
 	//"io"
@@ -23,7 +24,7 @@ type WikiPagesSimulatorConfig commonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
 func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int, stopwords []string, seed int64) common.Simulator {
-	documents, _, maxPoints := WikiPagesParseXml(inputFilename, limit, debug, stopwords, seed)
+	documents, _, maxPoints, _, _ := WikiPagesParseXml(inputFilename, limit, debug, stopwords, seed)
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "pages read %d ", maxPoints)
 	}
@@ -78,11 +79,11 @@ type Contributor struct {
 
 // NewWikiAbrastractReader returns a new Core for the given input filename, seed, and maxQueries
 func NewWikiPagesReader(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int) *Core {
-	_, editors, _ := WikiPagesParseXml(filename, uint64(maxQueries), debug, stopwordsbl, seed)
-	return NewCore(editors)
+	_, editors, _, inferiorLimit, superiorLimit  := WikiPagesParseXml(filename, uint64(maxQueries), debug, stopwordsbl, seed)
+	return NewCore(editors, seed, inferiorLimit, superiorLimit)
 }
 
-func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsbl []string, seed int64) ([]redisearch.Document, []string, uint64) {
+func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsbl []string, seed int64) ([]redisearch.Document, []string, uint64, int64, int64) {
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
@@ -112,6 +113,9 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 	maxPoints := limit
 	//
 	layout := "2006-01-02T15:04:05Z"
+	var inferiorLimit int64 = math.MaxInt64
+	var superiorLimit int64 = math.MinInt64
+
 	//props := map[string]string{}
 	//var currentText string
 	if debug > 0 {
@@ -126,7 +130,14 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 
 		page.Revision.Timestamp = strings.TrimSpace(page.Revision.Timestamp)
 		t, _ := time.Parse(layout, page.Revision.Timestamp)
-		page.Revision.Timestamp = fmt.Sprintf("%d", t.Unix())
+		ts := t.Unix()
+		if inferiorLimit > ts {
+			inferiorLimit = ts
+		}
+		if superiorLimit < ts {
+			superiorLimit = ts
+		}
+		page.Revision.Timestamp = fmt.Sprintf("%d", ts)
 		page.Title = reg.ReplaceAllString(page.Title, "")
 		page.Revision.Comment = reg.ReplaceAllString(page.Revision.Comment, "")
 		page.Revision.Contributor.Username = reg.ReplaceAllString(page.Revision.Contributor.Username, "")
@@ -148,15 +159,16 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 
 	}
 
-	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "finished reading "+inputFilename)
-	}
+
 	maxPoints = uint64(len(documents))
 	if limit > 0 && limit < uint64(len(documents)) {
 		// Set specified points number limit
 		maxPoints = limit
 	}
-	return documents, editors, maxPoints
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("finished reading %s. Total documents %d Time interval [ %d , %d ]", inputFilename,maxPoints,inferiorLimit,superiorLimit  ) )
+	}
+	return documents, editors, maxPoints, inferiorLimit, superiorLimit
 }
 
 func NewWikiPagesDocument(id string, page Page) redisearch.Document {
