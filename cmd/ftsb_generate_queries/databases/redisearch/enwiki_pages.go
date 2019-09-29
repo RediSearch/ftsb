@@ -20,9 +20,9 @@ var (
 	AggregateQuery1HumanLabel       = "1 - One year period, Exact Number of contributions by day, ordered chronologically, for a given editor."
 	AggregateQuery2HumanLabel       = "2 - One month period, Exact Number of distinct editors contributions by hour, ordered chronologically."
 	AggregateQuery3HumanLabel       = "3 - One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically."
-	AggregateQuery4HumanLabel       = "4 -  One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username."
-	AggregateQuery5HumanLabel       = "5 -  One month period, Approximate All time Top 10 Revision editor usernames."
-	AggregateQuery6HumanLabel       = "6 - Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)."
+	AggregateQuery4HumanLabel       = "4 - One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username."
+	AggregateQuery5HumanLabel       = "5 - One month period, Approximate All time Top 10 Revision editor usernames."
+	AggregateQuery6HumanLabel       = "6 - One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)."
 	AggregateQuery7HumanLabel       = "7 - One month period, Top 10 editor username by average revision content."
 	AggregateQuery8HumanLabel       = "8 - Approximate average number of contributions by year each editor makes."
 )

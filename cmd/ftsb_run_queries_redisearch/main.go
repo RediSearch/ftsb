@@ -108,7 +108,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		case "1":
 			//1) One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
 
-			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf( "@CURRENT_REVISION_EDITOR_USERNAME:%s @CURRENT_REVISION_TIMESTAMP:[%s %s]",t[2],t[3],t[4] ))).
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_EDITOR_USERNAME:%s @CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3], t[4]))).
 				SetMax(365).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
 				GroupBy(*redisearch.NewGroupBy("@day").
@@ -118,7 +118,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 		case "2":
 			//2) One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
-			query = query.
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(720).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)", "hour")).
 				GroupBy(*redisearch.NewGroupBy("@hour").
@@ -128,7 +128,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 		case "3":
 			//3) One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
-			query = query.
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(720).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)", "hour")).
 				GroupBy(*redisearch.NewGroupBy("@hour").
@@ -138,7 +138,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 		case "4":
 			//4) One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
-			query = query.
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(288).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 300)", "fiveMinutes")).
 				GroupBy(*redisearch.NewGroupByFields([]string{"@fiveMinutes", "@CURRENT_REVISION_EDITOR_USERNAME"}).
@@ -148,8 +148,8 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 				Apply(*redisearch.NewProjection("timefmt(@fiveMinutes)", "fiveMinutes"))
 
 		case "5":
-			//5) Aproximate All time Top 10 Revision editor usernames
-			query = query.
+			//5) One month period, Approximate All time Top 10 Revision editor usernames
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				GroupBy(*redisearch.NewGroupBy("@CURRENT_REVISION_EDITOR_USERNAME").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
 				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
@@ -157,23 +157,25 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 				Limit(0, 10)
 
 		case "6":
-			//6) Aproximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)
-			query = query.GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
-				Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
+			//6) One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field).
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
+				GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
 				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@NAMESPACE", true), *redisearch.NewSortingKeyDir("@num_contributions", true)}).
 				Limit(0, 10)
 
 		case "7":
-			//7) Top 10 editor username by average revision content
-			query = query.GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
-				Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerAvg, []string{"@CURRENT_REVISION_CONTENT_LENGTH"}, "avg_rcl"))).
+			//7) One month period, Top 10 editor username by average revision content.
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
+				GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerAvg, []string{"@CURRENT_REVISION_CONTENT_LENGTH"}, "avg_rcl"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@avg_rcl", false)}).
 				Limit(0, 10)
 
 		case "8":
-			//8) Approximate average number of contributions a specific each editor makes
-			query = query.SetQuery(redisearch.NewQuery("@CURRENT_REVISION_EDITOR_USERNAME:" + t[2])).
+			//8) Approximate average number of contributions by year each editor makes
+			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_EDITOR_USERNAME:%s", t[2]))).
 				SetMax(365).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
 				GroupBy(*redisearch.NewGroupBy("@day").

@@ -5,7 +5,7 @@ import (
 	"math/rand"
 )
 
-func NewCore(pagesEditors []string, seed int64, inferiorLimit int64, superiorLimit int64 ) *Core {
+func NewCore(pagesEditors []string, seed int64, inferiorLimit int64, superiorLimit int64) *Core {
 	rand.Seed(seed)
 	return &Core{
 		PagesEditors:                  pagesEditors,

@@ -79,7 +79,7 @@ type Contributor struct {
 
 // NewWikiAbrastractReader returns a new Core for the given input filename, seed, and maxQueries
 func NewWikiPagesReader(filename string, stopwordsbl []string, seed int64, maxQueries int, debug int) *Core {
-	_, editors, _, inferiorLimit, superiorLimit  := WikiPagesParseXml(filename, uint64(maxQueries), debug, stopwordsbl, seed)
+	_, editors, _, inferiorLimit, superiorLimit := WikiPagesParseXml(filename, uint64(maxQueries), debug, stopwordsbl, seed)
 	return NewCore(editors, seed, inferiorLimit, superiorLimit)
 }
 
@@ -159,14 +159,13 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 
 	}
 
-
 	maxPoints = uint64(len(documents))
 	if limit > 0 && limit < uint64(len(documents)) {
 		// Set specified points number limit
 		maxPoints = limit
 	}
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, fmt.Sprintf("finished reading %s. Total documents %d Time interval [ %d , %d ]", inputFilename,maxPoints,inferiorLimit,superiorLimit  ) )
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("finished reading %s. Total documents %d Time interval [ %d , %d ]", inputFilename, maxPoints, inferiorLimit, superiorLimit))
 	}
 	return documents, editors, maxPoints, inferiorLimit, superiorLimit
 }
