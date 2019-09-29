@@ -238,7 +238,7 @@ echo "--------------------------------------------------------------------------
 echo "7) Top 10 editor username by average revision content"
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[{start} {stop}]" \
   GROUPBY 1 @CURRENT_REVISION_EDITOR_USERNAME \
   REDUCE AVG 1 @CURRENT_REVISION_CONTENT_LENGTH AS avg_rcl \
   SORTBY 2 @avg_rcl DESC \

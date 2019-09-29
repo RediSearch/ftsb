@@ -7,6 +7,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
 	"strconv"
@@ -190,7 +191,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		start := time.Now()
 		res, total, err := client.Aggregate(query)
 		took = float64(time.Since(start).Nanoseconds()) / 1e6
-		timedOut = p.handleResponseAggregate(err, timedOut, t, res, total)
+		timedOut = p.handleResponseAggregate(err, timedOut, t, res, total, query.AggregatePlan)
 
 	case "FT.SPELLCHECK":
 		rediSearchQuery := redisearch.NewQuery(t[1])
@@ -253,13 +254,13 @@ func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []strin
 	return timedOut
 }
 
-func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int) bool {
+func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int, args redis.Args) bool {
 	if err != nil {
 		if err.Error() == "Command timed out" {
 			timedOut = true
 			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
 		} else {
-			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", aggs, err, err.Error())
+			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", args, err, err.Error() )
 		}
 	} else {
 		if p.opts.printResponse {

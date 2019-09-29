@@ -139,8 +139,11 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 		}
 		page.Revision.Timestamp = fmt.Sprintf("%d", ts)
 		page.Title = reg.ReplaceAllString(page.Title, "")
+		page.Title = strings.TrimSpace(page.Title)
 		page.Revision.Comment = reg.ReplaceAllString(page.Revision.Comment, "")
+		page.Revision.Comment = strings.TrimSpace(page.Revision.Comment)
 		page.Revision.Contributor.Username = reg.ReplaceAllString(page.Revision.Contributor.Username, "")
+		page.Revision.Contributor.Username = strings.TrimSpace(page.Revision.Contributor.Username)
 
 		u1, _ := uuid.NewRandom()
 		docCount++
