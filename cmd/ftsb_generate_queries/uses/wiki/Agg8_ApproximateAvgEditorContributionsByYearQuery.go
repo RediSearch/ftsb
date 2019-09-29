@@ -6,27 +6,25 @@ import (
 )
 
 // TwoWordIntersectionQuery contains info for filling in simple 2 word queries
-type AggTop10EditorByAvgRevisionContentQuery struct {
+type Agg8_ApproximateAvgEditorContributionsByYearQuery struct {
 	core utils.EnWikiAbstractGenerator
 }
 
 // NewTwoWordIntersectionQuery produces a new function that produces a new TwoWordIntersectionQuery
-func NewAggTop10EditorByAvgRevisionContentQuery() utils.QueryFillerMaker {
+func NewAgg8_ApproximateAvgEditorContributionsByYearQuery() utils.QueryFillerMaker {
 	return func(core utils.EnWikiAbstractGenerator) utils.QueryFiller {
-		return &AggTop10EditorByAvgRevisionContentQuery{
+		return &Agg8_ApproximateAvgEditorContributionsByYearQuery{
 			core: core,
 		}
 	}
 }
 
 // Fill fills in the query.Query with query details
-func (d *AggTop10EditorByAvgRevisionContentQuery) Fill(q query.Query) query.Query {
-	fc, ok := d.core.(AggTop10EditorByAvgRevisionContentFiller)
+func (d *Agg8_ApproximateAvgEditorContributionsByYearQuery) Fill(q query.Query) query.Query {
+	fc, ok := d.core.(Agg8_ApproximateAvgEditorContributionsByYearQueryFiller)
 	if !ok {
 		panicUnimplementedQuery(d.core)
 	}
-	fc.AggTop10EditorByAvgRevisionContent(q)
+	fc.Agg8_ApproximateAvgEditorContributionsByYear(q)
 	return q
 }
-
-//wiki.LabelAggTop10EditorByAvgRevisionContent: wiki.NewAggTop10EditorByAvgRevisionContentQuery()
