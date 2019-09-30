@@ -33,6 +33,6 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
   echo "Query $queryName Redis Command Statistics"
   redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_commandstats.txt
 
-  redis-cli -h $IP -p $PORT ft.info $IDX 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
+  redis-cli -h $IP -p $PORT ft.info $IDX > ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
 
 done

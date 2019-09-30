@@ -48,4 +48,4 @@ else
 fi
 
 redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_commandstats.txt
-redis-cli -h $IP -p $PORT ft.info $IDX 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt
+redis-cli -h $IP -p $PORT ft.info $IDX > ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt
