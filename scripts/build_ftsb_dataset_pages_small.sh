@@ -16,7 +16,8 @@ echo "--------------------------------------------------------------------------
 if [ ! -f /tmp/$DATASET.xml ]; then
   echo "Dataset not found locally. Retrieving from wikimedia."
   curl -O https://dumps.wikimedia.org/enwiki/latest/$DATASETIN.bz2
-  gunzip -c $DATASETIN.bz2 >/tmp/$DATASET.xml
+  bzip2 -d $DATASETIN.bz2
+  mv $DATASETIN /tmp/$DATASET.xml
 else
   echo "Dataset found locally at /tmp/$DATASET.xml. No need to retrieve again from from wikimedia."
 fi
