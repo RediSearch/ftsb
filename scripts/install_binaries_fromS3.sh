@@ -15,6 +15,6 @@ for BINARY in ftsb_generate_data ftsb_generate_queries ftsb_load_redisearch ftsb
   wget https://$BUCKET.s3.amazonaws.com/$BUCKETPATH/$FULLBINARY
   mv $FULLBINARY $BINARY
   chmod 755 $BINARY
-  cp $BINARY "${INSTALLPATH}/${BINARY}"
+  mv $BINARY "${INSTALLPATH}/${BINARY}"
   echo "Installing Binary: $BINARY in ${INSTALLPATH}/${BINARY}"
 done
