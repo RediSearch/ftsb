@@ -1,16 +1,32 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
 DATASET="enwiki-latest-abstract1"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
-MAX_QUERIES=100000
 PIPELINE=100
 DEBUG=0
-WORKERS=32
+
 PRINT_INTERVAL=100000
-IP="10.3.0.30"
-PORT=12000
+
+# DB IP
+IP=${IP:-"10.3.0.30"}
+
+# DB PORT
+PORT=${IP:-12000}
+
 HOST="$IP:$PORT"
-IDX="pages-meta-idx1"
+
+# Index to load the data into
+IDX=${IDX:-"pages-meta-idx1"}
+
+# How many queries would be run
+MAX_QUERIES=${MAX_QUERIES:-100000}
+
+# How many concurrent worker would run queries - match num of cores, or default to 8
+WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2> /dev/null || echo 8)}
+
 
 # flush the database
 redis-cli -h $IP -p $PORT flushall

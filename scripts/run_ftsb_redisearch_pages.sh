@@ -5,10 +5,24 @@ PIPELINE=1
 DEBUG=0
 PRINT_INTERVAL=100000
 MAX_QUERIES=100000
-WORKERS=32
-IP="10.3.0.30"
-PORT=12000
+SLEEP_BETWEEN_RUNS=60
+
+# DB IP
+IP=${IP:-"10.3.0.30"}
+
+# DB PORT
+PORT=${IP:-12000}
+
 HOST="$IP:$PORT"
+
+# Index to load the data into
+IDX=${IDX:-"pages-meta-idx1"}
+
+# How many queries would be run
+MAX_QUERIES=${MAX_QUERIES:-100000}
+
+# How many concurrent worker would run queries - match num of cores, or default to 8
+WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2> /dev/null || echo 8)}
 
 IDX="pages-meta-idx1"
 
@@ -34,5 +48,7 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
   redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_commandstats.txt
 
   redis-cli -h $IP -p $PORT ft.info $IDX > ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
+
+  sleep $SLEEP_BETWEEN_RUNS
 
 done
