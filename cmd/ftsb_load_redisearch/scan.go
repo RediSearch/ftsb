@@ -21,7 +21,7 @@ func (d *decoder) Decode(_ *bufio.Reader) *load.Point {
 	} else if !ok {
 		log.Fatalf("scan error: %v", d.scanner.Err())
 	}
-	return load.NewPoint(d.scanner.Text())
+	return load.NewDocument(d.scanner.Text())
 }
 
 type eventsBatch struct {

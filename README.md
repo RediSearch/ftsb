@@ -111,8 +111,10 @@ ftsb_generate_queries -query-type="2word-intersection-query" \
     -queries 100000 -input-file /tmp/enwiki-latest-abstract1.xml \
     -seed 12345 \
     -output-file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0
+
 cat /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0 \
     | gzip > /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0.gz
+
 # 2 Word Union query
 ```
 
@@ -273,7 +275,7 @@ Took:  226.577 sec
 
 ## Appendix I: Query types <a name="appendix-i-query-types"></a>
 
-### English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
+### Appendix I.I - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
 #### Full text search queries
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
@@ -302,8 +304,12 @@ For each edit a random type of edit (delete, insert random char, replace with ra
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
 
+
 #### Aggregate queries
-|Query type|Description|Example|Status|
+
+Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
+
+|Query type|Description|Clauses included|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
 
@@ -311,3 +317,25 @@ For each edit a random type of edit (delete, insert random char, replace with ra
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
 | |  | `` | :heavy_multiplication_x:
+
+
+### Appendix I.II - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page metadata.
+
+#### Aggregate queries
+
+Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
+
+|Query #|Query type|Description|Clauses included| Example | Status|
+|:---|:---|:---|:---|:---|:---|
+| 1 | agg-1-editor-1year-exact-page-contributions-by-day |  One year period, Exact Number of contributions by day, ordered chronologically, for a given editor | `-APPLY` <br/>`-GROUPBY`<br/>`--REDUCE` <br/>`-SORTBY`<br/>`-APPLY` <br/> | [Follow link](scripts/test_agg.sh#L159) | :heavy_check_mark:
+| 2 | agg-2-*-1month-exact-distinct-editors-by-hour | One month period, Exact Number of distinct editors contributions by hour, ordered chronologically | `-APPLY`<br/>`-GROUPBY`<br/>`--REDUCE`<br/>`-SORTBY`<br/>`-APPLY` <br/> |  [Follow link](scripts/test_agg.sh#L174) |:heavy_check_mark:
+| 3 | agg-3-*-1month-approximate-distinct-editors-by-hour | One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically |`-APPLY` <br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-SORTBY` <br/>`-APPLY` <br/> |  [Follow link](scripts/test_agg.sh#L189) | :heavy_check_mark:
+| 4 | agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username | One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username |  `-APPLY`<br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-APPLY` <br/> | [Follow link](scripts/test_agg.sh#L204) |:heavy_check_mark:
+| 5 | agg-5-*-1month-approximate-top10-editor-usernames | One month period, Approximate All time Top 10 Revision editor usernames. | `-GROUPBY` <br/>   `--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L220) | :heavy_check_mark:
+| 6 | agg-6-*-1month-approximate-top10-editor-usernames-by-namespace |  One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field) |`-GROUPBY` <br/>`--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L234) | :heavy_check_mark:
+| 7 | agg-7-*-1month-avg-revision-content-length-by-editor-username |  One month period, Top 10 editor username by average revision content | `-GROUPBY` <br/>`--REDUCE` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L249) | :heavy_check_mark:
+| 8 | agg-8-editor-approximate-avg-editor-contributions-by-year |  Approximate average number of contributions by year each editor makes |`-APPLY` <br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-APPLY`<br/>`-SORTBY` <br/> |  [Follow link](scripts/test_agg.sh#L262) | :heavy_check_mark:
+
+
+
+    

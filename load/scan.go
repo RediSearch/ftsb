@@ -50,8 +50,8 @@ type Point struct {
 	Data interface{}
 }
 
-// NewPoint creates a Point with the provided data as the internal representation
-func NewPoint(data interface{}) *Point {
+// NewDocument creates a Document with the provided data as the internal representation
+func NewDocument(data interface{}) *Point {
 	return &Point{Data: data}
 }
 

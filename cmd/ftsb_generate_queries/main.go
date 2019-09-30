@@ -22,8 +22,19 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 	"enwiki-abstract": {
 		wiki.LabelSimple1WordQuery:         wiki.NewSimple1WordQuery(),
 		wiki.LabelTwoWordIntersectionQuery: wiki.NewTwoWordIntersectionQuery(),
-		wiki.LabelSimple2WordUnionQuery: wiki.NewTwoWordUnionQuery(),
+		wiki.LabelSimple2WordUnionQuery:    wiki.NewTwoWordUnionQuery(),
 		wiki.LabelSimple2WordBarackObama:   wiki.NewSimple2WordBarackObama(),
+		wiki.LabelSimple1WordSpellCheck:    wiki.NewSimple1WordSpellCheck(),
+	},
+	"enwiki-pages": {
+		wiki.Label1AggExact1YearPageContributionsByDay:                     wiki.NewAgg1_Exact1YearPageContributionsByDayQuery(),
+		wiki.Label2AggExact1MonthDistinctEditorContributionsByHour:         wiki.NewAgg2_Exact1MonthDistinctEditorContributionsByHourQuery(),
+		wiki.Label3AggApproximate1MonthDistinctEditorContributionsByHour:   wiki.NewAgg3_Approximate1MonthDistinctEditorContributionsByHourQuery(),
+		wiki.Label4AggApproximate1DayEditorContributionsBy5minutes:         wiki.NewAgg4_Approximate1DayEditorContributionsBy5minutesQuery(),
+		wiki.Label5AggApproximate1MonthPeriodTop10EditorByNumContributions: wiki.NewAgg5_Approximate1MonthPeriodTop10EditorByNumContributionsQuery(),
+		wiki.Label6AggApproximate1MonthPeriodTop10EditorByNamespace:        wiki.NewAgg6_AproximateAllTimeTop10EditorByNamespaceQuery(),
+		wiki.Label7Agg1MonthPeriodTop10EditorByAvgRevisionContent:          wiki.NewAgg7_1MonthPeriodTop10EditorByAvgRevisionContentQuery(),
+		wiki.Label8AggApproximateAvgEditorContributionsByYear:              wiki.NewAgg8_ApproximateAvgEditorContributionsByYearQuery(),
 	},
 }
 
@@ -48,9 +59,16 @@ var (
 	interleavedGenerationGroups  uint
 )
 
-func getGenerator(format string, inputfile string, stopwordsbl []string, seed int64, maxQueries int) utils.EnWikiAbstractGenerator {
+func getGenerator(format string, usecase string, inputfile string, stopwordsbl []string, seed int64, maxQueries int, debug int) utils.EnWikiAbstractGenerator {
 	if format == "redisearch" {
-		return redisearch.NewEnWikiAbstract(inputfile, stopwordsbl, seed, maxQueries)
+		switch usecase {
+		case wiki.LabelEnWikiAbstract:
+			return redisearch.NewEnWikiAbstract(inputfile, stopwordsbl, seed, maxQueries, debug)
+		case wiki.LabelEnWikiPages:
+			return redisearch.NewEnWikiPages(inputfile, stopwordsbl, seed, maxQueries, debug)
+		default:
+			panic(fmt.Sprintf("no document generator specified for format '%s'", format))
+		}
 	}
 
 	panic(fmt.Sprintf("no document generator specified for format '%s'", format))
@@ -97,7 +115,7 @@ func init() {
 	flag.StringVar(&queryType, "query-type", "", "Query type. (Choices are in the use case matrix.)")
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 	flag.IntVar(&queryCount, "queries", 1000, "Number of queries to generate.")
-	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1) (default 0).")
+	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2) (default 0).")
 
 	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0, "Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
 	flag.UintVar(&interleavedGenerationGroups, "interleaved-generation-groups", 1, "The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
@@ -129,7 +147,7 @@ func init() {
 	// sort the stopwords for faster search
 	sort.Strings(stopWords)
 	// Make the query generator:
-	generator = getGenerator(format, inputfileName, stopWords, seed, queryCount)
+	generator = getGenerator(format, useCase, inputfileName, stopWords, seed, queryCount, debug)
 	filler = useCaseMatrix[useCase][queryType](generator)
 }
 

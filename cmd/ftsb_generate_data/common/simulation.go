@@ -1,17 +1,16 @@
 package common
 
 import (
-	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/serialize"
+	"github.com/RediSearch/redisearch-go/redisearch"
 )
 
 // SimulatorConfig is an interface to create a Simulator
 type SimulatorConfig interface {
-	NewSimulator(uint64, string, int ) Simulator
+	NewSimulator(uint64, string, int, []string, int64) Simulator
 }
 
 // Simulator simulates a use case.
 type Simulator interface {
 	Finished() bool
-	Next(*serialize.Document) bool
-	//Fields() map[string][][]byte
+	Next(document *redisearch.Document) bool
 }

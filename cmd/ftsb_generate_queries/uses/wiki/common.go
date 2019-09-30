@@ -1,24 +1,19 @@
 package wiki
 
 import (
-	"encoding/xml"
 	"fmt"
 	"github.com/RediSearch/ftsb/cmd/ftsb_generate_queries/utils"
 	"github.com/RediSearch/ftsb/query"
-	"io"
 	"log"
-	"math/rand"
-	"os"
 	"reflect"
-	"regexp"
-	"sort"
-	"strings"
 )
 
 const (
-
-	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
-	LabelSimple2WordBarackObama = "simple-2word-barack-obama"
+	LabelEnWikiAbstract = "enwiki-abstract"
+	LabelEnWikiPages    = "enwiki-pages"
+	//////////////////////////
+	// Full text search queries
+	//////////////////////////
 	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
 	LabelSimple1WordQuery = "simple-1word-query"
 	// LabelTwoWordIntersectionQuery is the label prefix for queries of the Simple 2 Word Intersection Query
@@ -29,165 +24,48 @@ const (
 	LabelExact3WordMatch = "exact-3word-match"
 	// LabelAutocomplete1100Top3 is the label prefix for queries of the max all variety
 	LabelAutocomplete1100Top3 = "autocomplete-1100-top3"
+	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Query
+	LabelSimple2WordBarackObama = "simple-2word-barack-obama"
+
+	//////////////////////////
+	// Spell Check queries
+	//////////////////////////
+
+	// LabelSimple1WordQuery is the label prefix for queries of the Simple 1 Word Spell Check
+	LabelSimple1WordSpellCheck = "simple-1word-spellcheck"
+
+	//////////////////////////
+	// Autocomplete queries
+	//////////////////////////
+
+	//////////////////////////
+	// Synonym queries
+	//////////////////////////
+
+	//////////////////////////
+	// Aggregation queries
+	//////////////////////////
+
+	//1
+	Label1AggExact1YearPageContributionsByDay = "agg-1-editor-1year-exact-page-contributions-by-day"
+	//2
+	Label2AggExact1MonthDistinctEditorContributionsByHour = "agg-2-*-1month-exact-distinct-editors-by-hour"
+	//3
+	Label3AggApproximate1MonthDistinctEditorContributionsByHour = "agg-3-*-1month-approximate-distinct-editors-by-hour"
+	//4
+	Label4AggApproximate1DayEditorContributionsBy5minutes = "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username"
+	//5
+	Label5AggApproximate1MonthPeriodTop10EditorByNumContributions = "agg-5-*-1month-approximate-top10-editor-usernames"
+	//6
+	Label6AggApproximate1MonthPeriodTop10EditorByNamespace = "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace"
+	//7
+	Label7Agg1MonthPeriodTop10EditorByAvgRevisionContent = "agg-7-*-1month-avg-revision-content-length-by-editor-username"
+	//8
+	Label8AggApproximateAvgEditorContributionsByYear = "agg-8-editor-approximate-avg-editor-contributions-by-year"
 )
 
 // for ease of testing
 var fatal = log.Fatalf
-
-// Core is the common component of all generators for all systems
-type Core struct {
-	TwoWordIntersectionQueryIndexPosition uint64
-	TwoWordIntersectionQueryIndex         uint64
-	TwoWordIntersectionQueries            []string
-	TwoWordUnionQueryIndexPosition        uint64
-	TwoWordUnionQueryIndex                uint64
-	TwoWordUnionQueries                   []string
-	OneWordQueryIndexPosition             uint64
-	OneWordQueryIndex                     uint64
-	OneWordQueries                        []string
-}
-
-// NewCore returns a new Core for the given input filename, seed, and maxQueries
-func NewCore(filename string, stopwordsbl []string, seed int64, maxQueries int) *Core {
-	//https://github.com/RediSearch/RediSearch/issues/307
-	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
-	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
-
-	// Make a Regex to say we only want letters and numbers
-	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rand.Seed(seed)
-	var twoWordIntersectionQuery []string
-	var twoWordUnionQuery []string
-	var oneWordQuery []string
-	if filename == "" {
-		fmt.Println("No input file provided. skipping input reading ")
-	} else {
-		fmt.Println("Reading " + filename)
-		xmlFile, err := os.Open(filename)
-		if err != nil {
-			log.Fatal("Error while opening input file ", err)
-		}
-		dec := xml.NewDecoder(xmlFile)
-
-		tok, err := dec.RawToken()
-
-		props := map[string]string{}
-		var currentText string
-		queryCount := 0
-		oneWordQueryCount := 0
-		twoWordUnionQueryCount := 0
-
-		for err != io.EOF && maxQueries > queryCount {
-			used_field := rand.Intn(2)
-
-			switch t := tok.(type) {
-
-			case xml.CharData:
-				if len(t) > 1 {
-					currentText += string(t)
-				}
-
-			case xml.EndElement:
-				name := t.Name.Local
-				if name == "title" || name == "url" || name == "abstract" {
-					props[name] = currentText
-				} else if name == "doc" {
-					props["title"] = strings.TrimPrefix(strings.TrimSpace(props["title"]), "Wikipedia: ")
-					props["abstract"] = strings.TrimSpace(props["abstract"])
-					props["url"] = strings.TrimSpace(props["url"])
-					props["title"] = strings.ReplaceAll(props["title"], "\"", "\\\"")
-					props["abstract"] = strings.ReplaceAll(props["abstract"], "\"", "\\\"")
-					props["url"] = strings.ReplaceAll(props["url"], "\"", "\\\"")
-					props["title"] = strings.TrimSpace(props["title"])
-					props["abstract"] = strings.TrimSpace(props["abstract"])
-					props["url"] = strings.TrimSpace(props["url"])
-					var source []string
-					first_word := ""
-					second_word := ""
-					switch used_field {
-					case 0:
-						source = strings.Split(props["title"], " ")
-					case 1:
-						source = strings.Split(props["abstract"], " ")
-					}
-					if len(source)-1 >= 1 {
-						suffixPrefixDiff := false
-						// try out 10 times prior to passing up to next two word combination
-						for stemRetry := 0; stemRetry < 10 && suffixPrefixDiff == false; stemRetry++ {
-
-							second_word_pos := rand.Intn(len(source)-1) + 1
-							second_word = strings.TrimSpace(source[second_word_pos])
-							second_word = reg.ReplaceAllString(second_word, "")
-
-							first_word_pos := rand.Intn(second_word_pos)
-							first_word = strings.TrimSpace(source[first_word_pos])
-							first_word = reg.ReplaceAllString(first_word, "")
-
-							if len(first_word) > 0 && len(second_word) > 0 {
-
-								containsStopWord := false
-								i := sort.SearchStrings(stopwordsbl, strings.ToLower(first_word))
-								j := sort.SearchStrings(stopwordsbl, strings.ToLower(second_word))
-								if i < len(stopwordsbl) && stopwordsbl[i] == strings.ToLower(first_word) {
-									containsStopWord = true
-								}
-
-								if j < len(stopwordsbl) && stopwordsbl[j] == strings.ToLower(second_word) {
-									containsStopWord = true
-								}
-								// avoid having stopwords on the query
-								// avoid having two equal words to be used on the same 2 word combination
-								// avoid words with equal sufixes and prefixes ( prevent two equal words after stemming )
-								if containsStopWord == false && first_word != second_word && first_word[0] != second_word[0] && first_word[len(first_word)-1] != second_word[len(second_word)-1] {
-									suffixPrefixDiff = true
-								}
-							}
-						}
-
-						if len(first_word) > 0 {
-							oneWordQuery = append(oneWordQuery, first_word)
-							oneWordQueryCount++
-						}
-
-						if len(second_word) > 0 {
-							oneWordQuery = append(oneWordQuery, second_word)
-							oneWordQueryCount++
-						}
-
-						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
-							twoWordIntersectionQuery = append(twoWordIntersectionQuery, first_word+" "+second_word)
-							queryCount++
-						}
-
-						if len(first_word) > 0 && len(second_word) > 0 && suffixPrefixDiff == true {
-							twoWordUnionQuery = append(twoWordUnionQuery, first_word+"|"+second_word)
-							twoWordUnionQueryCount++
-						}
-					}
-					props = map[string]string{}
-				}
-				currentText = ""
-			}
-
-			tok, err = dec.RawToken()
-		}
-	}
-	return &Core{
-		0,
-		uint64(len(twoWordIntersectionQuery)),
-		twoWordIntersectionQuery,
-		0,
-		uint64(len(twoWordUnionQuery)),
-		twoWordUnionQuery,
-		0,
-		uint64(len(oneWordQuery)),
-		oneWordQuery,
-	}
-}
 
 // TwoWordIntersectionQueryFiller is a type that can fill in a single query
 type TwoWordIntersectionQueryFiller interface {
@@ -207,6 +85,52 @@ type Simple1WordQueryFiller interface {
 // SimpleTwoWordBarackObamaQueryFiller is a type that can fill in a single  query
 type Simple2WordBarackObamaFiller interface {
 	Simple2WordBarackObama(query.Query)
+}
+
+// OneWordQueryFiller is a type that can fill in a single query
+type Simple1WordSpellCheckQueryFiller interface {
+	Simple1WordSpellCheck(query.Query)
+}
+
+// 1 One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
+
+type Agg1_Exact1YearPageContributionsByDayQueryFiller interface {
+	Agg1_Exact1YearPageContributionsByDay(query.Query)
+}
+
+// 2 One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
+type Agg2_Exact1MonthDistinctEditorContributionsByHourQueryFiller interface {
+	Agg2_Exact1MonthDistinctEditorContributionsByHour(query.Query)
+}
+
+// 3 One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
+type Agg3_Approximate1MonthDistinctEditorContributionsByHourQueryFiller interface {
+	Agg3_Approximate1MonthDistinctEditorContributionsByHour(query.Query)
+}
+
+// 4 One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
+type Agg4_Approximate1DayEditorContributionsBy5minutesQueryFiller interface {
+	Agg4_Approximate1DayEditorContributionsBy5minutes(query.Query)
+}
+
+// 5 Approximate All time Top 10 Revision editor usernames
+type Agg5_Approximate1MonthPeriodTop10EditorByNumContributionsQueryFiller interface {
+	Agg5_Approximate1MonthPeriodTop10EditorByNumContributions(query.Query)
+}
+
+// 6 Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)
+type Agg6_Approximate1MonthPeriodTop10EditorByNamespaceQueryFiller interface {
+	Agg6_Approximate1MonthPeriodTop10EditorByNamespace(query.Query)
+}
+
+// 7 Top 10 editor username by average revision content
+type Agg7_1MonthPeriodTop10EditorByAvgRevisionContentQueryFiller interface {
+	Agg7_1MonthPeriodTop10EditorByAvgRevisionContent(query.Query)
+}
+
+// 8 Approximate average number of contributions a specific each editor makes
+type Agg8_ApproximateAvgEditorContributionsByYearQueryFiller interface {
+	Agg8_ApproximateAvgEditorContributionsByYear(query.Query)
 }
 
 func panicUnimplementedQuery(dg utils.EnWikiAbstractGenerator) {

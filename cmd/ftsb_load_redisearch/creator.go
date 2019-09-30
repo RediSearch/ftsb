@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/gomodule/redigo/redis"
 	"log"
 	"time"
@@ -8,6 +9,7 @@ import (
 
 type dbCreator struct {
 	pool *redis.Pool
+	c    *redisearch.Client
 }
 
 func (d *dbCreator) Init() {

@@ -84,12 +84,12 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	// fill flag fields of BenchmarkRunner struct
 	flag.StringVar(&loader.dbName, "db-name", "benchmark", "Name of database")
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
-	flag.UintVar(&loader.workers, "workers", 1, "Number of parallel clients inserting")
+	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
 	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")
 	flag.BoolVar(&loader.doLoad, "do-load", true, "Whether to write data. Set this flag to false to check input read speed.")
 	flag.BoolVar(&loader.doCreateDB, "do-create-db", true, "Whether to create the database. Disable on all but one client if running on a multi client setup.")
 	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
-	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 10*time.Second, "Period to report write stats")
+	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read data from")
 
 	return loader
@@ -269,7 +269,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 func (l *BenchmarkRunner) summary(took time.Duration) {
 	metricRate := float64(l.metricCnt) / float64(took.Seconds())
 	printFn("\nSummary:\n")
-	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f metrics/sec)\n", l.metricCnt, took.Seconds(), l.workers, metricRate)
+	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f docs/sec)\n", l.metricCnt, took.Seconds(), l.workers, metricRate)
 }
 
 // report handles periodic reporting of loading stats
