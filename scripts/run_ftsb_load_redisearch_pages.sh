@@ -13,7 +13,7 @@ HOST="$IP:$PORT"
 IDX="pages-meta-idx1"
 
 # flush the database
-redis-cli flushall
+redis-cli -h $IP -p $PORT flushall
 
 echo ""
 echo "---------------------------------------------------------------------------------"
