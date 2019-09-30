@@ -260,7 +260,7 @@ func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string
 			timedOut = true
 			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
 		} else {
-			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", args, err, err.Error() )
+			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", args, err, err.Error())
 		}
 	} else {
 		if p.opts.printResponse {

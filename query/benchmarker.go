@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,16 +36,19 @@ type BenchmarkRunner struct {
 	latencySlowlog                      uint64
 	outputFileStatsResponseLatencyHist  string
 	outputFileStatsResponseDocCountHist string
+	enableFileStats                     bool
+	reportingPeriod                     time.Duration
 
 	// non-flag fields
-	br      *bufio.Reader
-	sp      *statProcessor
-	scanner *scanner
-	ch      chan Query
+	br       *bufio.Reader
+	sp       *statProcessor
+	scanner  *scanner
+	ch       chan Query
+	opsCount uint64
 }
 
 // NewBenchmarkRunner creates a new instance of BenchmarkRunner which is
-// common functionality to be used by query benchmarker programs
+// common functionality to be used by query benchmarking programs
 func NewBenchmarkRunner() *BenchmarkRunner {
 	runner := &BenchmarkRunner{}
 	runner.scanner = newScanner(&runner.limit)
@@ -64,6 +68,8 @@ func NewBenchmarkRunner() *BenchmarkRunner {
 	flag.Uint64Var(&runner.latencySlowlog, "latency-slowlog", 500, "Consider slow queries the ones with response latency bigger than this defined value")
 	flag.StringVar(&runner.outputFileStatsResponseLatencyHist, "output-file-stats-response-latency-hist", "stats-response-latency-hist.txt", "File name to output the response latency histogram to")
 	flag.StringVar(&runner.outputFileStatsResponseDocCountHist, "output-file-stats-response-doccount-hist", "stats-response-doccount-hist.txt", "File name to output the response document count histogram to")
+	flag.BoolVar(&runner.enableFileStats, "enable-file-stats", false, "Enable file stats saving (default false).")
+	flag.DurationVar(&runner.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 
 	return runner
 }
@@ -143,6 +149,12 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Read in jobs, closing the job channel when done:
 	// Wall clock start time
 	wallStart := time.Now()
+
+	// Start background reporting process
+	if b.reportingPeriod.Nanoseconds() > 0 {
+		go b.report(b.reportingPeriod, wallStart)
+	}
+
 	br := b.scanner.setReader(b.GetBufferedReader())
 	_ = br.scan(queryPool, b.ch)
 	close(b.ch)
@@ -158,28 +170,29 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	if err != nil {
 		log.Fatal(err)
 	}
+	if b.enableFileStats {
+		_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt")
 
-	_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt")
+		d0 := []byte(b.sp.StatsMapping[labelAllQueries].StringDocCountDebug())
+		fErr := ioutil.WriteFile("debug-query-doc-count.txt", d0, 0644)
+		if fErr != nil {
+			log.Fatal(err)
+		}
 
-	d0 := []byte(b.sp.StatsMapping[labelAllQueries].StringDocCountDebug())
-	fErr := ioutil.WriteFile("debug-query-doc-count.txt", d0, 0644)
-	if fErr != nil {
-		log.Fatal(err)
-	}
+		_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n", b.outputFileStatsResponseLatencyHist)
 
-	_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n", b.outputFileStatsResponseLatencyHist)
+		d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
+		fErr = ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
+		if fErr != nil {
+			log.Fatal(err)
+		}
+		_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n", b.outputFileStatsResponseDocCountHist)
 
-	d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
-	fErr = ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
-	if fErr != nil {
-		log.Fatal(err)
-	}
-	_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n", b.outputFileStatsResponseDocCountHist)
-
-	d2 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryResponseSizeFullHistogram())
-	fErr = ioutil.WriteFile(b.outputFileStatsResponseDocCountHist, d2, 0644)
-	if fErr != nil {
-		log.Fatal(err)
+		d2 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryResponseSizeFullHistogram())
+		fErr = ioutil.WriteFile(b.outputFileStatsResponseDocCountHist, d2, 0644)
+		if fErr != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// (Optional) create a memory profile:
@@ -208,6 +221,7 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 			panic(err)
 		}
 		b.sp.sendStats(stats)
+		atomic.AddUint64(&b.opsCount, 1)
 
 		// If PrewarmQueries is set, we run the query as 'cold' first (see above),
 		// then we immediately run it a second time and report that as the 'warm' stat.
@@ -228,4 +242,27 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 	close(responseSizesChan)
 
 	wg.Done()
+}
+
+// report handles periodic reporting of loading stats
+func (b *BenchmarkRunner) report(period time.Duration, start time.Time) {
+	prevTime := start
+	prevOpsCount := uint64(0)
+
+	fmt.Printf("time (ns),total queries,instantaneous queries/s,overall queries/s,overall avg lat(ms),overall q50 lat(ms),overall q90 lat(ms),overall q95 lat(ms),overall q99 lat(ms)\n")
+	for now := range time.NewTicker(period).C {
+		opsCount := atomic.LoadUint64(&b.opsCount)
+
+		sinceStart := now.Sub(start)
+		took := now.Sub(prevTime)
+		instantInfRate := float64(opsCount-prevOpsCount) / float64(took.Seconds())
+		overallInfRate := float64(opsCount) / float64(sinceStart.Seconds())
+		mean := b.sp.StatsMapping[labelAllQueries].mean
+		statHist := b.sp.StatsMapping[labelAllQueries].latencyStatisticalHistogram
+
+		fmt.Printf("%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n", now.UnixNano(), opsCount, instantInfRate, overallInfRate, mean, statHist.Quantile(0.50), statHist.Quantile(0.90), statHist.Quantile(0.95), statHist.Quantile(0.99))
+
+		prevOpsCount = opsCount
+		prevTime = now
+	}
 }
