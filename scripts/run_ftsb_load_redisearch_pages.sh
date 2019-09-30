@@ -42,7 +42,7 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
       -host=$HOST \
-      -batch-size 1000 -pipeline $PIPELINE -debug=$DEBUG
+      -batch-size 1000 -pipeline $PIPELINE -debug=$DEBUG ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi
