@@ -3,7 +3,7 @@
 #Current revisions only, no talk or user pages;
 # this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASET="enwiki-latest-pages-articles-multistream"
-DATASETIN="enwiki-latest-pages-articles-multistream.xml"
+DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926864p5040435"
 MAX_QUERIES=0
 WORKERS=8
 DEBUG=3
@@ -16,8 +16,7 @@ echo "--------------------------------------------------------------------------
 if [ ! -f /tmp/$DATASET.xml ]; then
   echo "Dataset not found locally. Retrieving from wikimedia."
   curl -O https://dumps.wikimedia.org/enwiki/latest/$DATASETIN.bz2
-  bzip2 -d $DATASETIN.bz2
-  mv $DATASETIN /tmp/$DATASET.xml
+  gunzip -c $DATASETIN.bz2 >/tmp/$DATASET.xml
 else
   echo "Dataset found locally at /tmp/$DATASET.xml. No need to retrieve again from from wikimedia."
 fi
