@@ -2,11 +2,14 @@
 
 DATASET="enwiki-latest-abstract1"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
-MAX_QUERIES=10000
-PIPELINE=1
+MAX_QUERIES=100000
+PIPELINE=100
 DEBUG=0
 WORKERS=1
-PRINT_INTERVAL=10000
+PRINT_INTERVAL=100000
+IP="10.3.0.30"
+PORT=12000
+HOST="$IP:$PORT"
 IDX="pages-meta-idx1"
 
 # flush the database
@@ -18,7 +21,7 @@ echo "2) $PAGES_DATASET_OUTPUT"
 echo "---------------------------------------------------------------------------------"
 
 # create the index
-redis-cli ft.create $IDX SCHEMA \
+redis-cli -h $IP -p $PORT ft.create $IDX SCHEMA \
   TITLE TEXT SORTABLE \
   NAMESPACE TAG SORTABLE \
   ID NUMERIC SORTABLE \
@@ -31,17 +34,18 @@ redis-cli ft.create $IDX SCHEMA \
   CURRENT_REVISION_EDITOR_COMMENT TEXT \
   CURRENT_REVISION_CONTENT_LENGTH NUMERIC SORTABLE
 
-redis-cli config resetstat
+redis-cli -h $IP -p $PORT config resetstat
 
 if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
   cat /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz |
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
+      -host=$HOST \
       -batch-size 1000 -pipeline $PIPELINE -debug=$DEBUG
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi
 
-redis-cli info commandstats
-redis-cli ft.info $IDX
+redis-cli -h $IP -p $PORT info commandstats
+redis-cli -h $IP -p $PORT ft.info $IDX
