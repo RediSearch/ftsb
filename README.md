@@ -23,8 +23,13 @@ database in the FTSB, feel free to open a pull request to add it!
 
 ## Current use cases
 
-Currently, FTSB supports one use case -- enwiki-abstract, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates
-3 Text fields per document.
+Currently, FTSB supports two use cases:
+ - enwiki-abstract, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates
+3 TEXT fields per document.
+ - enwiki-pages, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions, containing processed metadata  extracted from the full Wikipedia XML dump.
+ This use case generates 4 TEXT fields ( 2 sortable ), 1 sortable TAG field, and 6 sortable NUMERIC fields per document.
+                                                                                                                                                                                                                   
+              
 
 
 ## What the FTSB tests
@@ -319,22 +324,22 @@ Aggregations are a way to process the results of a search query, group, sort and
 | |  | `` | :heavy_multiplication_x:
 
 
-### Appendix I.II - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page metadata.
+### Appendix I.II - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions.
 
 #### Aggregate queries
 
 Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
 
-|Query #|Query type|Description|Clauses included| Example | Status|
-|:---|:---|:---|:---|:---|:---|
-| 1 | agg-1-editor-1year-exact-page-contributions-by-day |  One year period, Exact Number of contributions by day, ordered chronologically, for a given editor | `-APPLY` <br/>`-GROUPBY`<br/>`--REDUCE` <br/>`-SORTBY`<br/>`-APPLY` <br/> | [Follow link](scripts/test_agg.sh#L159) | :heavy_check_mark:
-| 2 | agg-2-*-1month-exact-distinct-editors-by-hour | One month period, Exact Number of distinct editors contributions by hour, ordered chronologically | `-APPLY`<br/>`-GROUPBY`<br/>`--REDUCE`<br/>`-SORTBY`<br/>`-APPLY` <br/> |  [Follow link](scripts/test_agg.sh#L174) |:heavy_check_mark:
-| 3 | agg-3-*-1month-approximate-distinct-editors-by-hour | One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically |`-APPLY` <br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-SORTBY` <br/>`-APPLY` <br/> |  [Follow link](scripts/test_agg.sh#L189) | :heavy_check_mark:
-| 4 | agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username | One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username |  `-APPLY`<br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-APPLY` <br/> | [Follow link](scripts/test_agg.sh#L204) |:heavy_check_mark:
-| 5 | agg-5-*-1month-approximate-top10-editor-usernames | One month period, Approximate All time Top 10 Revision editor usernames. | `-GROUPBY` <br/>   `--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L220) | :heavy_check_mark:
-| 6 | agg-6-*-1month-approximate-top10-editor-usernames-by-namespace |  One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field) |`-GROUPBY` <br/>`--REDUCE` <br/>`-FILTER` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L234) | :heavy_check_mark:
-| 7 | agg-7-*-1month-avg-revision-content-length-by-editor-username |  One month period, Top 10 editor username by average revision content | `-GROUPBY` <br/>`--REDUCE` <br/>`-SORTBY` <br/>`-LIMIT` <br/> |  [Follow link](scripts/test_agg.sh#L249) | :heavy_check_mark:
-| 8 | agg-8-editor-approximate-avg-editor-contributions-by-year |  Approximate average number of contributions by year each editor makes |`-APPLY` <br/>`-GROUPBY` <br/>`--REDUCE` <br/>`-APPLY`<br/>`-SORTBY` <br/> |  [Follow link](scripts/test_agg.sh#L262) | :heavy_check_mark:
+|Query #|Query type|Description| Status|
+|:---|:---|:---|:---|
+| 1 | agg-1-editor-1year-exact-page-contributions-by-day |  One year period, Exact Number of contributions by day, ordered chronologically, for a given editor [(supplemental docs)](docs/redisearch.md#Q1) | :heavy_check_mark:
+| 2 | agg-2-*-1month-exact-distinct-editors-by-hour | One month period, Exact Number of distinct editors contributions by hour, ordered chronologically  [(supplemental docs)](docs/redisearch.md#Q2) |:heavy_check_mark:
+| 3 | agg-3-*-1month-approximate-distinct-editors-by-hour | One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically  [(supplemental docs)](docs/redisearch.md#Q3) | :heavy_check_mark:
+| 4 | agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username | One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username  [(supplemental docs)](docs/redisearch.md#Q4) |:heavy_check_mark:
+| 5 | agg-5-*-1month-approximate-top10-editor-usernames | One month period, Approximate All time Top 10 Revision editor usernames. [(supplemental docs)](docs/redisearch.md#Q5) | :heavy_check_mark:
+| 6 | agg-6-*-1month-approximate-top10-editor-usernames-by-namespace |  One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field) [(supplemental docs)](docs/redisearch.md#Q6) | :heavy_check_mark:
+| 7 | agg-7-*-1month-avg-revision-content-length-by-editor-username |  One month period, Top 10 editor username by average revision content [(supplemental docs)](docs/redisearch.md#Q7) | :heavy_check_mark:
+| 8 | agg-8-editor-approximate-avg-editor-contributions-by-year |  Approximate average number of contributions by year each editor makes [(supplemental docs)](docs/redisearch.md#Q8) | :heavy_check_mark:
 
 
 

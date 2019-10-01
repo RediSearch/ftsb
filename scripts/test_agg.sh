@@ -151,9 +151,9 @@ redis-cli FT.ADD $IDX $DOCPREFIX-3 1.0 FIELDS \
 # agg-(apply-groupby1-reduce1-sortby1-apply)-1year-exact-page-contributions-by-day
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "1) One year period, Exact Number of contributions by day, ordered chronologically"
+echo "1) One year period, Exact Number of contributions by day, ordered chronologically, for a given editor"
 echo "---------------------------------------------------------------------------------"
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_EDITOR_USERNAME: <username> @CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)" AS day \
   GROUPBY 1 @day \
   REDUCE COUNT 1 @ID AS num_contributions \
@@ -164,10 +164,10 @@ redis-cli FT.AGGREGATE $IDX "*" \
 # agg-(apply-groupby1-reduce1-sortby1-apply)-1month-exact-distinct-editors-by-hour
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "2) One month period, Exact Number of distinct editors contributions by hour, ordered chronologically"
+echo "2)  One month period, Exact Number of distinct editors contributions by hour, ordered chronologically"
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)" AS hour \
   GROUPBY 1 @hour \
   REDUCE COUNT 1 @CURRENT_REVISION_EDITOR_USERNAME AS num_distinct_editors \
@@ -181,7 +181,7 @@ echo "--------------------------------------------------------------------------
 echo "3) One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically"
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)" AS hour \
   GROUPBY 1 @hour \
   REDUCE COUNT_DISTINCTISH 1 @CURRENT_REVISION_EDITOR_USERNAME AS num_distinct_editors \
@@ -195,7 +195,7 @@ echo "--------------------------------------------------------------------------
 echo "4) One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username"
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   APPLY "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 300)" AS fiveMinutes \
   GROUPBY 2 @fiveMinutes @CURRENT_REVISION_EDITOR_USERNAME \
   REDUCE COUNT_DISTINCTISH 1 @ID AS num_contributions \
@@ -203,55 +203,55 @@ redis-cli FT.AGGREGATE $IDX "*" \
   SORTBY 4 @fiveMinutes ASC @CURRENT_REVISION_EDITOR_USERNAME DESC MAX 288 \
   APPLY "timefmt(@fiveMinutes)" AS fiveMinutes
 
-# 5) Aproximate All time Top 10 Revision editor usernames
+# 5) One month period, Approximate Top 10 Revision editor usernames
 # agg-(groupby1-aprox.reduce1-filter1-sortby1-limit1)-aproximate-top10-editor-usernames
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "5) Aproximate All time Top 10 Revision editor usernames of all namespaces"
+echo "5) One month period, Approximate Top 10 Revision editor usernames
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   GROUPBY 1 "@CURRENT_REVISION_EDITOR_USERNAME" \
   REDUCE COUNT_DISTINCTISH 1 "@ID" AS num_contributions \
   FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""' \
   SORTBY 2 @num_contributions ASC \
   LIMIT 0 10
 
-# 6) Aproximate All time Top 10 Revision editor usernames by namespace (TAG field)
+# 6) One month period, Approximate Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field).
 # agg-(groupby2-aprox.reduce1-filter1-sortby2-limit1)-aproximate-top10-editor-usernames-by-namespace
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "6) Aproximate All time Top 10 Revision editor usernames by namespace (TAG field)"
+echo "6) One month period, Approximate Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field)."
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   GROUPBY 2 "@NAMESPACE" "@CURRENT_REVISION_EDITOR_USERNAME" \
   REDUCE COUNT_DISTINCTISH 1 "@ID" AS num_contributions \
   FILTER '@CURRENT_REVISION_EDITOR_USERNAME != ""' \
   SORTBY 4 @NAMESPACE ASC @num_contributions ASC \
   LIMIT 0 10
 
-# 7) Top 10 editor username by average revision content
+# 7) One month period, Top 10 editor username by average revision content.
 # agg-(groupby1-reduce-sortby1-limit1)-avg-revision-content-length-by-editor-username
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "7) Top 10 editor username by average revision content"
+echo "7) One month period, Top 10 editor username by average revision content."
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[{start} {stop}]" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   GROUPBY 1 @CURRENT_REVISION_EDITOR_USERNAME \
   REDUCE AVG 1 @CURRENT_REVISION_CONTENT_LENGTH AS avg_rcl \
   SORTBY 2 @avg_rcl DESC \
-  LIMIT 0 1
+  LIMIT 0 10
 
-# 8) Aproximate average number of contributions by year each editor makes
+# 8) Approximate average number of contributions by year each editor makes
 # agg-(apply-groupby1-reduce2-apply-sortby1)-aproximate-avg-editor-contributions-by-year
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "8) Aproximate average number of contributions by year each editor makes"
+echo "8) Approximate average number of contributions by year each editor makes"
 echo "---------------------------------------------------------------------------------"
 
-redis-cli FT.AGGREGATE $IDX "*" \
+redis-cli FT.AGGREGATE $IDX "@CURRENT_REVISION_EDITOR_USERNAME: <username> @CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
   APPLY "year(@CURRENT_REVISION_TIMESTAMP)" AS year \
   GROUPBY 1 @year \
   REDUCE COUNT 1 @ID AS num_contributions \

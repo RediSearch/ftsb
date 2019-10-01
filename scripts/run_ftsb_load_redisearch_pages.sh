@@ -11,10 +11,10 @@ DEBUG=0
 PRINT_INTERVAL=100000
 
 # DB IP
-IP=${IP:-"10.3.0.30"}
+IP=${IP:-"localhost"}
 
 # DB PORT
-PORT=${PORT:-12000}
+PORT=${PORT:-6379}
 
 HOST="$IP:$PORT"
 
