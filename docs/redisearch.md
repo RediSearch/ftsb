@@ -1,11 +1,11 @@
 # FTSB Supplemental Guide: RediSearch
 
-##Aggregation Queries Detail
+## Aggregation Queries Detail
 
 Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries.
 
-###Q1
-####One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
+### Q1
+#### One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_EDITOR_USERNAME: <username> @CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -22,8 +22,8 @@ FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_EDITOR_USERNAME:Sgeureka @CUR
 
 
 
-###Q2
-####One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
+### Q2
+#### One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
 
 ```
  FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -37,8 +37,8 @@ Real monitor example:
 ```
 "FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_TIMESTAMP:[1224484759 1227076759]" "APPLY" "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)" "AS" "hour" "GROUPBY" "1" "@hour" "REDUCE" "COUNT" "1" "@CURRENT_REVISION_EDITOR_USERNAME" "AS" "num_distinct_editors" "SORTBY" "2" "@hour" "DESC" "MAX" "720" "APPLY" "timefmt(@hour)" "AS" "hour"
 ```
-###Q3
-####One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
+### Q3
+#### One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically
 
 ```
  FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -53,8 +53,8 @@ Real monitor example:
 "FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_TIMESTAMP:[1224484759 1227076759]" "APPLY" "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)" "AS" "hour" "GROUPBY" "1" "@hour" "REDUCE" "COUNT_DISTINCTISH" "1" "@CURRENT_REVISION_EDITOR_USERNAME" "AS" "num_distinct_editors" "SORTBY" "2" "@hour" "DESC" "MAX" "720" "APPLY" "timefmt(@hour)" "AS" "hour"
 ```
 
-###Q4
-####One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
+### Q4
+#### One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -70,8 +70,8 @@ Real monitor example:
 "FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_TIMESTAMP:[1216967959 1217054359]" "APPLY" "@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 300)" "AS" "fiveMinutes" "GROUPBY" "2" "@fiveMinutes" "@CURRENT_REVISION_EDITOR_USERNAME" "REDUCE" "COUNT_DISTINCTISH" "1" "@ID" "AS" "num_contributions" "FILTER" "@CURRENT_REVISION_EDITOR_USERNAME !=\"\"" "SORTBY" "4" "@fiveMinutes" "ASC" "@CURRENT_REVISION_EDITOR_USERNAME" "DESC" "MAX" "288" "APPLY" "timefmt(@fiveMinutes)" "AS" "fiveMinutes"
 ```
 
-###Q5
-####One month period, Approximate Top 10 Revision editor usernames
+### Q5
+#### One month period, Approximate Top 10 Revision editor usernames
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -87,8 +87,8 @@ Real monitor example:
 ```
 
 
-###Q6
-####One month period, Approximate Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field).
+### Q6
+#### One month period, Approximate Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field).
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -103,8 +103,8 @@ Real monitor example:
 "FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_TIMESTAMP:[1224484759 1227076759]" "GROUPBY" "2" "@NAMESPACE" "@CURRENT_REVISION_EDITOR_USERNAME" "REDUCE" "COUNT_DISTINCTISH" "1" "@ID" "AS" "num_contributions" "FILTER" "@CURRENT_REVISION_EDITOR_USERNAME !=\"\"" "SORTBY" "4" "@NAMESPACE" "ASC" "@num_contributions" "ASC"
 ```
 
-###Q7
-####One month period, Top 10 editor username by average revision content.
+### Q7
+#### One month period, Top 10 editor username by average revision content.
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
@@ -119,8 +119,8 @@ Real monitor example:
 ```
 
 
-###Q8
-####One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
+### Q8
+#### One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
 
 ```
 FT.AGGREGATE $IDX "@CURRENT_REVISION_EDITOR_USERNAME: <username> @CURRENT_REVISION_TIMESTAMP:[<interval_start> <interval_end>]" \
