@@ -25,8 +25,7 @@ IDX=${IDX:-"pages-meta-idx1"}
 MAX_QUERIES=${MAX_QUERIES:-100000}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
-WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2> /dev/null || echo 8)}
-
+WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 # flush the database
 redis-cli -h $IP -p $PORT flushall
@@ -64,4 +63,4 @@ else
 fi
 
 redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_commandstats.txt
-redis-cli -h $IP -p $PORT ft.info $IDX > ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt
+redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt

@@ -10,7 +10,6 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +88,9 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 	total := 0
 	took := 0.0
 	timedOut := false
+	var err error = nil
+	var res [][]string = nil
+	var docs []redisearch.Document = nil
 
 	qry := string(tq.RedisQuery)
 
@@ -112,7 +114,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_EDITOR_USERNAME:%s @CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3], t[4]))).
 				SetMax(365).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
-				GroupBy(*redisearch.NewGroupBy("@day").
+				GroupBy(*redisearch.NewGroupBy().AddFields("@day").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCount, []string{"@ID"}, "num_contributions"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@day", false)}).
 				Apply(*redisearch.NewProjection("timefmt(@day)", "day"))
@@ -122,7 +124,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(720).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)", "hour")).
-				GroupBy(*redisearch.NewGroupBy("@hour").
+				GroupBy(*redisearch.NewGroupBy().AddFields("@hour").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCount, []string{"@CURRENT_REVISION_EDITOR_USERNAME"}, "num_distinct_editors"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@hour", false)}).
 				Apply(*redisearch.NewProjection("timefmt(@hour)", "hour"))
@@ -132,7 +134,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(720).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 3600)", "hour")).
-				GroupBy(*redisearch.NewGroupBy("@hour").
+				GroupBy(*redisearch.NewGroupBy().AddFields("@hour").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@CURRENT_REVISION_EDITOR_USERNAME"}, "num_distinct_editors"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@hour", false)}).
 				Apply(*redisearch.NewProjection("timefmt(@hour)", "hour"))
@@ -142,7 +144,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
 				SetMax(288).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 300)", "fiveMinutes")).
-				GroupBy(*redisearch.NewGroupByFields([]string{"@fiveMinutes", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+				GroupBy(*redisearch.NewGroupBy().AddFields([]string{"@fiveMinutes", "@CURRENT_REVISION_EDITOR_USERNAME"}).
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
 				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@fiveMinutes", true), *redisearch.NewSortingKeyDir("@CURRENT_REVISION_EDITOR_USERNAME", false)}).
@@ -151,7 +153,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		case "5":
 			//5) One month period, Approximate Top 10 Revision editor usernames
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
-				GroupBy(*redisearch.NewGroupBy("@CURRENT_REVISION_EDITOR_USERNAME").
+				GroupBy(*redisearch.NewGroupBy().AddFields("@CURRENT_REVISION_EDITOR_USERNAME").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
 				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@num_contributions", true)}).
@@ -160,7 +162,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		case "6":
 			//6) One month period, Approximate Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field).
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
-				GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+				GroupBy(*redisearch.NewGroupBy().AddFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCountDistinctish, []string{"@ID"}, "num_contributions"))).
 				Filter("@CURRENT_REVISION_EDITOR_USERNAME !=\"\"").
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@NAMESPACE", true), *redisearch.NewSortingKeyDir("@num_contributions", true)}).
@@ -169,7 +171,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		case "7":
 			//7) One month period, Top 10 editor username by average revision content.
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_TIMESTAMP:[%s %s]", t[2], t[3]))).
-				GroupBy(*redisearch.NewGroupByFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
+				GroupBy(*redisearch.NewGroupBy().AddFields([]string{"@NAMESPACE", "@CURRENT_REVISION_EDITOR_USERNAME"}).
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerAvg, []string{"@CURRENT_REVISION_CONTENT_LENGTH"}, "avg_rcl"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@avg_rcl", false)}).
 				Limit(0, 10)
@@ -179,7 +181,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 			query = query.SetQuery(redisearch.NewQuery(fmt.Sprintf("@CURRENT_REVISION_EDITOR_USERNAME:%s", t[2]))).
 				SetMax(365).
 				Apply(*redisearch.NewProjection("@CURRENT_REVISION_TIMESTAMP - (@CURRENT_REVISION_TIMESTAMP % 86400)", "day")).
-				GroupBy(*redisearch.NewGroupBy("@day").
+				GroupBy(*redisearch.NewGroupBy().AddFields("@day").
 					Reduce(*redisearch.NewReducerAlias(redisearch.GroupByReducerCount, []string{"@ID"}, "num_contributions"))).
 				SortBy([]redisearch.SortingKey{*redisearch.NewSortingKeyDir("@day", false)}).
 				Apply(*redisearch.NewProjection("timefmt(@day)", "day"))
@@ -189,26 +191,26 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 		}
 
 		start := time.Now()
-		res, total, err := client.Aggregate(query)
+		res, total, err = client.Aggregate(query)
 		took = float64(time.Since(start).Nanoseconds()) / 1e6
 		timedOut = p.handleResponseAggregate(err, timedOut, t, res, total, query.AggregatePlan)
 
-	case "FT.SPELLCHECK":
-		rediSearchQuery := redisearch.NewQuery(t[1])
-		distance, err := strconv.Atoi(t[2])
-		if err != nil {
-			log.Fatalf("Error converting distance. Error message:|%s|\n", err)
-		}
-		rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
-		start := time.Now()
-		suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
-		took = float64(time.Since(start).Nanoseconds()) / 1e6
-		timedOut = p.handleResponseSpellCheck(err, timedOut, t, suggs, total)
+	//case "FT.SPELLCHECK":
+	//	rediSearchQuery := redisearch.NewQuery(t[1])
+	//	distance, err := strconv.Atoi(t[2])
+	//	if err != nil {
+	//		log.Fatalf("Error converting distance. Error message:|%s|\n", err)
+	//	}
+	//	rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
+	//	start := time.Now()
+	//	suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
+	//	took = float64(time.Since(start).Nanoseconds()) / 1e6
+	//	timedOut = p.handleResponseSpellCheck(err, timedOut, t, suggs, total)
 
 	case "FT.SEARCH":
 		rediSearchQuery := redisearch.NewQuery(t[1])
 		start := time.Now()
-		docs, total, err := client.Search(rediSearchQuery)
+		docs, total, err = client.Search(rediSearchQuery)
 		took = float64(time.Since(start).Nanoseconds()) / 1e6
 		timedOut = p.handleResponseDocs(err, timedOut, t, docs, total)
 
@@ -218,7 +220,6 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, err
 
 	stat := query.GetStat()
 	stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1])
-
 	return []*query.Stat{stat}, nil
 }
 
@@ -238,21 +239,22 @@ func (p *Processor) handleResponseDocs(err error, timedOut bool, t []string, doc
 	return timedOut
 }
 
-func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []redisearch.MisspelledTerm, total int) bool {
-	if err != nil {
-		if err.Error() == "Command timed out" {
-			timedOut = true
-			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
-		} else {
-			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", suggs, err, err.Error())
-		}
-	} else {
-		if p.opts.printResponse {
-			fmt.Println("\nRESPONSE: ", total)
-		}
-	}
-	return timedOut
-}
+//
+//func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []redisearch.MisspelledTerm, total int) bool {
+//	if err != nil {
+//		if err.Error() == "Command timed out" {
+//			timedOut = true
+//			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
+//		} else {
+//			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", suggs, err, err.Error())
+//		}
+//	} else {
+//		if p.opts.printResponse {
+//			fmt.Println("\nRESPONSE: ", total)
+//		}
+//	}
+//	return timedOut
+//}
 
 func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int, args redis.Args) bool {
 	if err != nil {
