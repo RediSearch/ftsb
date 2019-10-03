@@ -4,7 +4,6 @@ DATASET="enwiki-latest-pages-articles-multistream"
 PIPELINE=1
 DEBUG=0
 PRINT_INTERVAL=100000
-SLEEP_BETWEEN_RUNS=0
 
 # DB IP
 IP=${IP:-"localhost"}
@@ -19,6 +18,9 @@ IDX=${IDX:-"pages-meta-idx1"}
 
 # How many queries would be run
 MAX_QUERIES=${MAX_QUERIES:-100000}
+
+# How many queries would be run
+SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}

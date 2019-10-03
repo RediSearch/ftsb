@@ -8,6 +8,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"sync/atomic"
 )
 
 // Stat represents one statistical measurement, typically used to store the
@@ -130,8 +131,7 @@ func (s *statGroup) push(n float64, totalResults uint64, timedOut bool, query st
 
 	s.docCountValues = append(s.docCountValues, totalResults)
 	s.queryDocCountValues = append(s.queryDocCountValues, query)
-
-	s.sumTotalResults += totalResults
+	atomic.AddUint64(&s.sumTotalResults, totalResults)
 	if timedOut == true {
 		s.timedOutCount++
 	}
@@ -139,7 +139,8 @@ func (s *statGroup) push(n float64, totalResults uint64, timedOut bool, query st
 		s.min = n
 		s.max = n
 		s.mean = n
-		s.count = 1
+		atomic.AddInt64(&s.count, 1)
+
 		s.sum = n
 
 		s.m = n
@@ -159,7 +160,6 @@ func (s *statGroup) push(n float64, totalResults uint64, timedOut bool, query st
 	if n > s.max {
 		s.max = n
 	}
-
 	s.sum += n
 
 	// constant-space mean update:
@@ -170,8 +170,7 @@ func (s *statGroup) push(n float64, totalResults uint64, timedOut bool, query st
 	} else {
 		s.values[s.count] = n
 	}
-
-	s.count++
+	atomic.AddInt64(&s.count, 1)
 
 	oldM := s.m
 	s.m += (n - oldM) / float64(s.count)
