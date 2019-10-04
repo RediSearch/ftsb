@@ -21,7 +21,6 @@ FT.AGGREGATE" "pages-meta-idx1" "@CURRENT_REVISION_EDITOR_USERNAME:Sgeureka @CUR
 ```
 
 
-
 ### Q2
 #### One month period, Exact Number of distinct editors contributions by hour, ordered chronologically
 
