@@ -61,6 +61,7 @@ func (d *EnWikiPages) Agg1_Exact1YearPageContributionsByDay(qi query.Query) {
 	humanLabel := "RediSearch - Aggregate query # " + AggregateQuery1HumanLabel
 	humanDesc := fmt.Sprintf("%s Used editor: %s, Unix Timeframe Limits [%d,%d]", humanLabel, value, inferiorLimit, superiorLimit)
 	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
+	d.Core.PagesEditorsIndexPosition++
 }
 
 // 2 ) AggExact1MonthDistinctEditorContributionsByHour does a aggregation for the following
