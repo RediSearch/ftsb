@@ -28,7 +28,7 @@ MAX_QUERIES=${MAX_QUERIES:-100000}
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 # flush the database
-redis-cli -h $IP -p $PORT flushall
+#redis-cli -h $IP -p $PORT flushall
 
 echo ""
 echo "---------------------------------------------------------------------------------"
@@ -49,9 +49,10 @@ redis-cli -h $IP -p $PORT ft.create $IDX SCHEMA \
   CURRENT_REVISION_EDITOR_COMMENT TEXT \
   CURRENT_REVISION_CONTENT_LENGTH NUMERIC SORTABLE
 
-redis-cli -h $IP -p $PORT config resetstat
+#redis-cli -h $IP -p $PORT config resetstat
 
 if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
+  echo "Using ${WORKERS} WORKERS"
   cat /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz |
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
