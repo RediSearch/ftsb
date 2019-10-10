@@ -5,8 +5,10 @@ set -e
 
 DATASET="enwiki-latest-abstract1"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
-PIPELINE=100
 DEBUG=0
+MAX_INSERTS=${MAX_INSERTS:-0}
+BATCH_SIZE=${BATCH_SIZE:-1000}
+PIPELINE=${PIPELINE:-100}
 
 PRINT_INTERVAL=100000
 
@@ -57,8 +59,8 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
-      -host=$HOST \
-      -batch-size 1000 -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -host=$HOST -limit=${MAX_INSERTS} \
+      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi

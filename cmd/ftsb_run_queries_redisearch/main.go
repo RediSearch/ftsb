@@ -262,15 +262,17 @@ func (p *Processor) handleResponseDocs(err error, timedOut bool, t []string, doc
 
 func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int, args redis.Args) bool {
 	if err != nil {
-		if err.Error() == "Command timed out" {
+		switch err.Error() {
+		case "Command timed out":
 			timedOut = true
 			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
-		} else {
+		case "Query matches no results":
+		default:
 			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", args, err, err.Error())
 		}
 	} else {
 		if p.opts.printResponse {
-			fmt.Println("\nRESPONSE: ", total)
+			fmt.Println(fmt.Sprintf("\nRESPONSE: \n\t#results %d\n\tAggregate: %s", total, aggs))
 		}
 	}
 	return timedOut

@@ -26,7 +26,6 @@ SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 IDX="pages-meta-idx1"
-# "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1month-exact-distinct-editors-by-hour" "agg-3-*-1month-approximate-distinct-editors-by-hour" "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username" "agg-5-*-1month-approximate-top10-editor-usernames" "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace" "agg-7-*-1month-avg-revision-content-length-by-editor-username" "agg-8-editor-approximate-avg-editor-contributions-by-year"
 
 echo "Benchmarking query execution performance"
 echo "Using ${WORKERS} WORKERS"
@@ -48,10 +47,10 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
   fi
 
   echo "Query $queryName Redis Command Statistics"
-  redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_commandstats.txt
+  # redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_commandstats.txt
 
-  redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
+  #redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
 
-  sleep $SLEEP_BETWEEN_RUNS
+  #sleep $SLEEP_BETWEEN_RUNS
 
 done

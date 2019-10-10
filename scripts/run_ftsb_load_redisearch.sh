@@ -2,11 +2,14 @@
 
 DATASET="enwiki-latest-abstract1"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream1"
-MAX_QUERIES=10000
+MAX_INSERTS=${MAX_INSERTS:-0}
+
 IDX="idx1"
 DEBUG=0
-WORKERS=8
 PRINT_INTERVAL=10000
+
+# How many concurrent worker would run queries - match num of cores, or default to 8
+WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 # flush the database
 redis-cli flushall
@@ -65,7 +68,7 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
   cat /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz |
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
-      -batch-size 1000 -pipeline 100 -debug $DEBUG
+      -batch-size 1000 -pipeline 100 -debug $DEBUG -limit ${MAX_INSERTS}
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi
