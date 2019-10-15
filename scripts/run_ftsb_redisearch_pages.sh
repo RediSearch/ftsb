@@ -76,9 +76,9 @@ for queryName in "agg-0-*"; do
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi
+  sleep ${SLEEP_BETWEEN_RUNS}
 done
 
-done
 echo "Benchmarking WITH_CURSOR false query execution performance"
 
 MAX_QUERIES=1000
