@@ -78,3 +78,28 @@ for queryName in "agg-0-*"; do
   fi
 done
 
+done
+echo "Benchmarking WITH_CURSOR false query execution performance"
+
+MAX_QUERIES=1000
+WITH_CURSOR=false
+
+for queryName in "agg-0-*"; do
+  echo "Benchmarking query: $queryName"
+
+  if [ -f /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz ]; then
+    cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz |
+      gunzip >/tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0
+
+    ftsb_run_queries_redisearch \
+      -file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 \
+      -index=${IDX} \
+      -host=${HOST} \
+      -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/WITH_CURSOR-false-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
+  else
+    echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
+  fi
+done
+
+
