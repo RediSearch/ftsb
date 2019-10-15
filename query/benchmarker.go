@@ -103,7 +103,7 @@ type Processor interface {
 	Init(workerNum int, wg *sync.WaitGroup, m chan uint64, rs chan uint64)
 
 	// ProcessQuery handles a given query and reports its stats
-	ProcessQuery(q Query, isWarm bool) ([]*Stat, error)
+	ProcessQuery(q Query, isWarm bool) ([]*Stat, uint64, error)
 }
 
 // GetBufferedReader returns the buffered Reader that should be used by the loader
@@ -216,22 +216,23 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 	processor.Init(workerNum, pwg, metricsChan, responseSizesChan)
 
 	for query := range b.ch {
-		stats, err := processor.ProcessQuery(query, false)
+		stats, queryCount, err := processor.ProcessQuery(query, false)
 		if err != nil {
 			panic(err)
 		}
 		b.sp.sendStats(stats)
-		atomic.AddUint64(&b.opsCount, 1)
+		atomic.AddUint64(&b.opsCount, queryCount)
 
 		// If PrewarmQueries is set, we run the query as 'cold' first (see above),
 		// then we immediately run it a second time and report that as the 'warm' stat.
 		// This guarantees that the warm stat will reflect optimal cache performance.
 		if b.sp.prewarmQueries {
 			// Warm run
-			stats, err = processor.ProcessQuery(query, true)
+			stats, queryCount, err = processor.ProcessQuery(query, true)
 			if err != nil {
 				panic(err)
 			}
+			atomic.AddUint64(&b.opsCount, queryCount)
 			b.sp.sendStatsWarm(stats)
 		}
 		queryPool.Put(query)

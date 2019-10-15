@@ -17,6 +17,7 @@ var (
 	OneDaySeconds             int64 = 24 * 60 * 60
 	OneMonthSecods            int64 = 30 * OneDaySeconds
 	OneYearSeconds            int64 = 365 * OneDaySeconds
+	AggregateQuery0HumanLabel       = "0 - Perf * Filter Query (get all records)."
 	AggregateQuery1HumanLabel       = "1 - One year period, Exact Number of contributions by day, ordered chronologically, for a given editor."
 	AggregateQuery2HumanLabel       = "2 - One month period, Exact Number of distinct editors contributions by hour, ordered chronologically."
 	AggregateQuery3HumanLabel       = "3 - One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically."
@@ -46,6 +47,15 @@ func (d *EnWikiPages) getTimeFrame(minMaxInterval int64) (int64, int64) {
 // GenerateEmptyQuery returns an empty query.RediSearch
 func (d *EnWikiPages) GenerateEmptyQuery() query.Query {
 	return query.NewRediSearch()
+}
+
+// 0 ) Agg0_PerfQuery does a aggregation for the following
+// *
+func (d *EnWikiPages) Agg0_PerfQuery(qi query.Query) {
+	redisQuery := fmt.Sprintf(`FT.AGGREGATE,0,"*"`)
+	humanLabel := "RediSearch - Aggregate query # " + AggregateQuery0HumanLabel
+	humanDesc := fmt.Sprintf("%s", humanLabel)
+	d.fillInQuery(qi, humanLabel, humanDesc, redisQuery)
 }
 
 // 1 ) AggExact1YearPageContributionsByDay does a aggregation for the following

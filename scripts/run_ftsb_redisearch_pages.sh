@@ -3,7 +3,8 @@
 DATASET="enwiki-latest-pages-articles-multistream"
 PIPELINE=1
 DEBUG=0
-PRINT_INTERVAL=100000
+
+PRINT_INTERVAL=${PRINT_INTERVAL:-100000}
 
 # DB IP
 IP=${IP:-"localhost"}
@@ -20,16 +21,18 @@ IDX=${IDX:-"pages-meta-idx1"}
 MAX_QUERIES=${MAX_QUERIES:-100000}
 
 # How many queries would be run
+WITH_CURSOR=${WITH_CURSOR:-false}
+
+# How many queries would be run
 SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
-IDX="pages-meta-idx1"
-
 echo "Benchmarking query execution performance"
 echo "Using ${WORKERS} WORKERS"
-for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1month-exact-distinct-editors-by-hour" "agg-3-*-1month-approximate-distinct-editors-by-hour" "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username" "agg-5-*-1month-approximate-top10-editor-usernames" "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace" "agg-7-*-1month-avg-revision-content-length-by-editor-username" "agg-8-editor-approximate-avg-editor-contributions-by-year"; do
+#for queryName in  "agg-0-*" "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1month-exact-distinct-editors-by-hour" "agg-3-*-1month-approximate-distinct-editors-by-hour" "agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username" "agg-5-*-1month-approximate-top10-editor-usernames" "agg-6-*-1month-approximate-top10-editor-usernames-by-namespace" "agg-7-*-1month-avg-revision-content-length-by-editor-username" "agg-8-editor-approximate-avg-editor-contributions-by-year"; do
+for queryName in "agg-0-*"; do
   echo "Benchmarking query: $queryName"
   #redis-cli -h $IP -p $PORT config resetstat
 
@@ -39,9 +42,10 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
 
     ftsb_run_queries_redisearch \
       -file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 \
-      -index=$IDX \
-      -host=$HOST \
-      -max-queries $MAX_QUERIES -workers $WORKERS -print-interval $PRINT_INTERVAL 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
+      -index=${IDX} \
+      -host=${HOST} \
+      -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi

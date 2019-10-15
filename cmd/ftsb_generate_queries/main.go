@@ -27,6 +27,7 @@ var useCaseMatrix = map[string]map[string]utils.QueryFillerMaker{
 		wiki.LabelSimple1WordSpellCheck:    wiki.NewSimple1WordSpellCheck(),
 	},
 	"enwiki-pages": {
+		wiki.Label0AggStar: wiki.NewAgg0_PerfQuery(),
 		wiki.Label1AggExact1YearPageContributionsByDay:                     wiki.NewAgg1_Exact1YearPageContributionsByDayQuery(),
 		wiki.Label2AggExact1MonthDistinctEditorContributionsByHour:         wiki.NewAgg2_Exact1MonthDistinctEditorContributionsByHourQuery(),
 		wiki.Label3AggApproximate1MonthDistinctEditorContributionsByHour:   wiki.NewAgg3_Approximate1MonthDistinctEditorContributionsByHourQuery(),

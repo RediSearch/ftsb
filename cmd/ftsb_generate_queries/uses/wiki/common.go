@@ -45,7 +45,8 @@ const (
 	//////////////////////////
 	// Aggregation queries
 	//////////////////////////
-
+	//0 This is a extremely expensive query in terms of IO and should be used only for internal perf analysis/improvements
+	Label0AggStar = "agg-0-*"
 	//1
 	Label1AggExact1YearPageContributionsByDay = "agg-1-editor-1year-exact-page-contributions-by-day"
 	//2
@@ -90,6 +91,10 @@ type Simple2WordBarackObamaFiller interface {
 // OneWordQueryFiller is a type that can fill in a single query
 type Simple1WordSpellCheckQueryFiller interface {
 	Simple1WordSpellCheck(query.Query)
+}
+
+type Agg0_PerfQueryFiller interface {
+	Agg0_PerfQuery(query.Query)
 }
 
 // 1 One year period, Exact Number of contributions by day, ordered chronologically, for a given editor
