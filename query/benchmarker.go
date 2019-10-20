@@ -66,9 +66,9 @@ func NewBenchmarkRunner() *BenchmarkRunner {
 	flag.StringVar(&runner.fileName, "file", "", "File name to read queries from")
 	flag.StringVar(&runner.outputFileLatencySlowlog, "output-file-latency-slowlog", "", "File name to output slow queries to")
 	flag.Uint64Var(&runner.latencySlowlog, "latency-slowlog", 500, "Consider slow queries the ones with response latency bigger than this defined value")
-	flag.StringVar(&runner.outputFileStatsResponseLatencyHist, "output-file-stats-response-latency-hist", "stats-response-latency-hist.txt", "File name to output the response latency histogram to")
+	flag.StringVar(&runner.outputFileStatsResponseLatencyHist, "output-file-stats-hdr-response-latency-hist", "stats-response-latency-hist.txt", "File name to output the hdr response latency histogram to")
 	flag.StringVar(&runner.outputFileStatsResponseDocCountHist, "output-file-stats-response-doccount-hist", "stats-response-doccount-hist.txt", "File name to output the response document count histogram to")
-	flag.BoolVar(&runner.enableFileStats, "enable-file-stats", false, "Enable file stats saving (default false).")
+	flag.BoolVar(&runner.enableFileStats, "enable-file-stats", true, "Enable file stats saving (default true).")
 	flag.DurationVar(&runner.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 
 	return runner
@@ -171,22 +171,14 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 		log.Fatal(err)
 	}
 	if b.enableFileStats {
-		_, _ = fmt.Printf("Saving Debug Info with query and doc count to %s\n", "debug-query-doc-count.txt")
-
-		d0 := []byte(b.sp.StatsMapping[labelAllQueries].StringDocCountDebug())
-		fErr := ioutil.WriteFile("debug-query-doc-count.txt", d0, 0644)
-		if fErr != nil {
-			log.Fatal(err)
-		}
-
-		_, _ = fmt.Printf("Saving Query Latencies Full Histogram to %s\n", b.outputFileStatsResponseLatencyHist)
+		_, _ = fmt.Printf("Saving Query Latencies HDR Histogram to %s\n", b.outputFileStatsResponseLatencyHist)
 
 		d1 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryLatencyFullHistogram())
-		fErr = ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
+		fErr := ioutil.WriteFile(b.outputFileStatsResponseLatencyHist, d1, 0644)
 		if fErr != nil {
 			log.Fatal(err)
 		}
-		_, _ = fmt.Printf("Saving Query response Document Count Full Histogram to %s\n", b.outputFileStatsResponseDocCountHist)
+		_, _ = fmt.Printf("Saving Query response Document Count HDR Histogram to %s\n", b.outputFileStatsResponseDocCountHist)
 
 		d2 := []byte(b.sp.StatsMapping[labelAllQueries].stringQueryResponseSizeFullHistogram())
 		fErr = ioutil.WriteFile(b.outputFileStatsResponseDocCountHist, d2, 0644)
@@ -250,7 +242,7 @@ func (b *BenchmarkRunner) report(period time.Duration, start time.Time) {
 	prevTime := start
 	prevOpsCount := uint64(0)
 
-	fmt.Printf("time (ns),total queries,instantaneous queries/s,overall queries/s,overall avg lat(ms),overall q50 lat(ms),overall q90 lat(ms),overall q95 lat(ms),overall q99 lat(ms)\n")
+	fmt.Printf("time (ms),total queries,instantaneous queries/s,overall queries/s,overall q50 lat(ms),overall q90 lat(ms),overall q95 lat(ms),overall q99 lat(ms),overall q99.999 lat(ms)\n")
 	for now := range time.NewTicker(period).C {
 		opsCount := atomic.LoadUint64(&b.opsCount)
 
@@ -258,10 +250,19 @@ func (b *BenchmarkRunner) report(period time.Duration, start time.Time) {
 		took := now.Sub(prevTime)
 		instantInfRate := float64(opsCount-prevOpsCount) / float64(took.Seconds())
 		overallInfRate := float64(opsCount) / float64(sinceStart.Seconds())
-		mean := b.sp.StatsMapping[labelAllQueries].mean
-		statHist := b.sp.StatsMapping[labelAllQueries].latencyStatisticalHistogram
+		statHist := b.sp.StatsMapping[labelAllQueries].latencyHDRHistogram
 
-		fmt.Printf("%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n", now.UnixNano(), opsCount, instantInfRate, overallInfRate, mean, statHist.Quantile(0.50), statHist.Quantile(0.90), statHist.Quantile(0.95), statHist.Quantile(0.99))
+		fmt.Printf("%d,%d,%0.0f,%0.0f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n",
+			now.UnixNano()/10e6,
+			opsCount,
+			instantInfRate,
+			overallInfRate,
+			float64(statHist.ValueAtQuantile(50.0))/10e3,
+			float64(statHist.ValueAtQuantile(90.00))/10e3,
+			float64(statHist.ValueAtQuantile(95.00))/10e3,
+			float64(statHist.ValueAtQuantile(99.00))/10e3,
+			float64(statHist.ValueAtQuantile(99.999))/10e3,
+		)
 
 		prevOpsCount = opsCount
 		prevTime = now

@@ -82,7 +82,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 	}
 	tq := q.(*query.RediSearch)
 	total := 0
-	took := 0.0
+	var took int64 = 0
 	timedOut := false
 	var err error = nil
 	var res [][]string = nil
@@ -206,7 +206,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 		start := time.Now()
 
 		res, total, err = client.Aggregate(agg)
-		took = float64(time.Since(start).Nanoseconds()) / 1e6
+		took = time.Since(start).Microseconds()
 		timedOut = p.handleResponseAggregate(err, timedOut, t, res, total, agg.AggregatePlan)
 		stat.Init(label, took, uint64(total), timedOut, t[1])
 		queries = append(queries, []*query.Stat{stat}...)
@@ -216,7 +216,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 				cursorStat := query.GetStat()
 				start := time.Now()
 				res, total, err = client.Aggregate(agg)
-				took = float64(time.Since(start).Nanoseconds()) / 1e6
+				took = time.Since(start).Microseconds()
 				timedOut = p.handleResponseAggregate(err, timedOut, t, res, total, agg.AggregatePlan)
 				cursorStat.Init(label, took, uint64(total), timedOut, t[1])
 				queries = append(queries, []*query.Stat{cursorStat}...)
@@ -240,7 +240,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 		rediSearchQuery := redisearch.NewQuery(t[1])
 		start := time.Now()
 		docs, total, err = client.Search(rediSearchQuery)
-		took = float64(time.Since(start).Nanoseconds()) / 1e6
+		took = time.Since(start).Microseconds()
 		timedOut = p.handleResponseDocs(err, timedOut, t, docs, total)
 		queryCount = 1
 		stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1])

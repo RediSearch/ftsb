@@ -38,7 +38,10 @@ for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-qu
 
     ftsb_run_queries_redisearch \
       -file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 \
-      -max-queries $MAX_QUERIES -workers $WORKERS -print-interval $PRINT_INTERVAL
+      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
+      -max-queries $MAX_QUERIES \
+      -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
+
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi

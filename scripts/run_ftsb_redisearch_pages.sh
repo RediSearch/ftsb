@@ -44,6 +44,7 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
       -index=${IDX} \
       -host=${HOST} \
       -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
@@ -72,6 +73,7 @@ for queryName in "agg-0-*"; do
       -index=${IDX} \
       -host=${HOST} \
       -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -output-file-stats-hdr-response-latency-hist ~/HDR-WITH_CURSOR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/WITH_CURSOR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
@@ -96,10 +98,9 @@ for queryName in "agg-0-*"; do
       -index=${IDX} \
       -host=${HOST} \
       -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -output-file-stats-hdr-response-latency-hist ~/HDR-WITH_CURSOR-false-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/WITH_CURSOR-false-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi
 done
-
-
