@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"golang.org/x/time/rate"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"runtime/pprof"
 	"sync"
@@ -17,6 +19,7 @@ const (
 	labelAllQueries  = "All queries"
 	labelColdQueries = "Cold queries"
 	labelWarmQueries = "Warm queries"
+	Inf              = rate.Limit(math.MaxFloat64)
 
 	defaultReadSize = 4 << 20 // 4 MB
 )
@@ -27,6 +30,7 @@ type BenchmarkRunner struct {
 	// flag fields
 	dbName                              string
 	limit                               uint64
+	limitrps                            uint64
 	memProfile                          string
 	workers                             uint
 	printResponses                      bool
@@ -60,6 +64,7 @@ func NewBenchmarkRunner() *BenchmarkRunner {
 	flag.Uint64Var(&runner.sp.printInterval, "print-interval", 100, "Print timing stats to stderr after this many queries (0 to disable)")
 	flag.StringVar(&runner.memProfile, "memprofile", "", "Write a memory profile to this file.")
 	flag.UintVar(&runner.workers, "workers", 1, "Number of concurrent requests to make.")
+	flag.Uint64Var(&runner.limitrps, "limit-rps", 0, "Limit overall RPS. 0 disables limit.")
 	flag.BoolVar(&runner.sp.prewarmQueries, "prewarm-queries", false, "Run each query twice in a row so the warm query is guaranteed to be a cache hit")
 	flag.BoolVar(&runner.printResponses, "print-responses", false, "Pretty print response bodies for correctness checking (default false).")
 	flag.IntVar(&runner.debug, "debug", 0, "Whether to print debug messages.")
@@ -139,11 +144,20 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	// Launch the stats processor:
 	go b.sp.process(b.workers, b.outputFileStatsResponseLatencyHist, b.outputFileStatsResponseDocCountHist)
 
+	var requestRate = Inf
+	var requestBurst = 0
+	if b.limitrps != 0 {
+		requestRate = rate.Limit(b.limitrps)
+		requestBurst = int(b.workers)
+	}
+
+	var rateLimiter *rate.Limiter = rate.NewLimiter(requestRate, requestBurst)
+
 	// Launch query processors
 	var wg sync.WaitGroup
 	for i := 0; i < int(b.workers); i++ {
 		wg.Add(1)
-		go b.processorHandler(&wg, queryPool, processorCreateFn(), i)
+		go b.processorHandler(rateLimiter, &wg, queryPool, processorCreateFn(), i)
 	}
 
 	// Read in jobs, closing the job channel when done:
@@ -198,7 +212,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	}
 }
 
-func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.Pool, processor Processor, workerNum int) {
+func (b *BenchmarkRunner) processorHandler(rateLimiter *rate.Limiter, wg *sync.WaitGroup, queryPool *sync.Pool, processor Processor, workerNum int) {
 	buflen := uint64(len(b.ch))
 	metricsChan := make(chan uint64, buflen)
 	pwg := &sync.WaitGroup{}
@@ -208,6 +222,9 @@ func (b *BenchmarkRunner) processorHandler(wg *sync.WaitGroup, queryPool *sync.P
 	processor.Init(workerNum, pwg, metricsChan, responseSizesChan)
 
 	for query := range b.ch {
+		for rateLimiter.Allow() == false {
+		}
+
 		stats, queryCount, err := processor.ProcessQuery(query, false)
 		if err != nil {
 			panic(err)

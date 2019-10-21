@@ -23,6 +23,9 @@ MAX_QUERIES=${MAX_QUERIES:-100000}
 # How many queries would be run
 WITH_CURSOR=${WITH_CURSOR:-false}
 
+# Rate limit? if greater than 0 rate is limited.
+RATE_LIMIT=${RATE_LIMIT:-0}
+
 # How many queries would be run
 SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 
@@ -43,6 +46,7 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
       -file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 \
       -index=${IDX} \
       -host=${HOST} \
+      -limit-rps=${RATE_LIMIT} \
       -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
       -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
