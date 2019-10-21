@@ -3,7 +3,7 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-DATASET="enwiki-latest-abstract1"
+DATASET="enwiki-latest-pages"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
 DEBUG=0
 MAX_INSERTS=${MAX_INSERTS:-0}
@@ -28,9 +28,6 @@ MAX_QUERIES=${MAX_QUERIES:-100000}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
-
-# flush the database
-#redis-cli -h $IP -p $PORT flushall
 
 echo ""
 echo "---------------------------------------------------------------------------------"
@@ -65,5 +62,4 @@ else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi
 
-redis-cli -h $IP -p $PORT info commandstats 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_commandstats.txt
 redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt

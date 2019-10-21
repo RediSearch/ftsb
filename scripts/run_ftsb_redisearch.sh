@@ -1,36 +1,37 @@
 #!/bin/bash
 
 DATASET="enwiki-latest-abstract1"
-MAX_QUERIES=10000
-WORKERS=8
-PRINT_INTERVAL=10000
 
-# flush the database
-redis-cli flushall
+PIPELINE=${PIPELINE:-1}
+DEBUG=${DEBUG:-0}
+PRINT_INTERVAL=${PRINT_INTERVAL:-100000}
 
-# create the index
-redis-cli ft.create idx1 SCHEMA \
-  TITLE TEXT WEIGHT 5 \
-  URL TEXT WEIGHT 5 \
-  ABSTRACT TEXT WEIGHT 1
+# DB IP
+IP=${IP:-"localhost"}
 
-redis-cli config resetstat
+# DB PORT
+PORT=${PORT:-6379}
 
-if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
-  cat /tmp/ftsb_generate_data-$DATASET-redisearch.gz |
-    gunzip |
-    ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
-      -batch-size 1000 -pipeline 100
-else
-  echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
-fi
+HOST="$IP:$PORT"
 
-redis-cli info commandstats
+# Index to load/query data to/from
+IDX=${IDX:-"idx1"}
+
+# How many queries would be run
+MAX_QUERIES=${MAX_QUERIES:-100000}
+
+# How many queries would be run
+WITH_CURSOR=${WITH_CURSOR:-false}
+
+# How many queries would be run
+SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
+
+# How many concurrent worker would run queries - match num of cores, or default to 8
+WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 echo "Benchmarking query execution performance"
 for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-query" "simple-1word-spellcheck"; do
   echo "Benchmarking query: $queryName"
-  redis-cli config resetstat
 
   if [ -f /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz ]; then
     cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz |
@@ -42,10 +43,11 @@ for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-qu
       -max-queries $MAX_QUERIES \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
 
+    echo "HDR Latency Histogram for Query $queryName saved at ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt"
+    sleep ${SLEEP_BETWEEN_RUNS}
+
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi
 
-  echo "Query $queryName Redis Command Statistics"
-  redis-cli info commandstats
 done

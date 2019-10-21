@@ -74,11 +74,11 @@ type statGroup struct {
 func newStatGroup(size uint64) *statGroup {
 	// This latency Histogram could be used to track and analyze the counts of
 	// observed integer values between 0 us and 1000000 us ( 1 sec )
-	// while maintaining a value precision of 3 significant digits across that range,
+	// while maintaining a value precision of 4 significant digits across that range,
 	// translating to a value resolution of :
-	//   - 1 microsecond up to 1 millisecond,
-	//   - 1 millisecond (or better) up to one second,
-	lH := hdrhistogram.New(1, 1000000, 3)
+	//   - 1 microsecond up to 10 millisecond,
+	//   - 100 microsecond (or better) up to one second,
+	lH := hdrhistogram.New(1, 1000000, 4)
 	return &statGroup{
 		count:                            0,
 		timedOutCount:                    0,
@@ -104,14 +104,14 @@ func (s *statGroup) push(latency_us int64, totalResults uint64, timedOut bool, q
 // string makes a simple description of a statGroup.
 func (s *statGroup) stringQueryLatencyStatistical() string {
 	return fmt.Sprintf("+ Query execution latency (statistical histogram):\n\tmin: %8.2f ms,  mean: %8.2f ms, q25: %8.2f ms, med(q50): %8.2f ms, q75: %8.2f ms, q99: %8.2f ms, max: %8.2f ms, stddev: %8.2f ms, count: %d, timedOut count: %d\n",
-		float64(s.latencyHDRHistogram.Min())/10e3,
-		s.latencyHDRHistogram.Mean()/10e3,
-		float64(s.latencyHDRHistogram.ValueAtQuantile(25.0))/10e3,
-		float64(s.latencyHDRHistogram.ValueAtQuantile(50.0))/10e3,
-		float64(s.latencyHDRHistogram.ValueAtQuantile(75.0))/10e3,
-		float64(s.latencyHDRHistogram.ValueAtQuantile(99.0))/10e3,
-		float64(s.latencyHDRHistogram.Max())/10e3,
-		s.latencyHDRHistogram.StdDev()/10e3,
+		float64(s.latencyHDRHistogram.Min())/10e2,
+		s.latencyHDRHistogram.Mean()/10e2,
+		float64(s.latencyHDRHistogram.ValueAtQuantile(25.0))/10e2,
+		float64(s.latencyHDRHistogram.ValueAtQuantile(50.0))/10e2,
+		float64(s.latencyHDRHistogram.ValueAtQuantile(75.0))/10e2,
+		float64(s.latencyHDRHistogram.ValueAtQuantile(99.0))/10e2,
+		float64(s.latencyHDRHistogram.Max())/10e2,
+		s.latencyHDRHistogram.StdDev()/10e2,
 		s.count, s.timedOutCount)
 
 }
@@ -135,7 +135,7 @@ func (s *statGroup) stringQueryResponseSizeFullHistogram() string {
 
 // stringQueryLatencyFullHistogram returns a string histogram of Query Response Latency in ms
 func (s *statGroup) stringQueryLatencyFullHistogram() string {
-	return s.latencyHDRHistogram.PercentilesPrint(10, 1000.0)
+	return s.latencyHDRHistogram.PercentilesPrint(1000, 1000.0)
 }
 
 var FormatString1 = "%s,%d\n"

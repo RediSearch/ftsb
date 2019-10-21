@@ -257,11 +257,11 @@ func (b *BenchmarkRunner) report(period time.Duration, start time.Time) {
 			opsCount,
 			instantInfRate,
 			overallInfRate,
-			float64(statHist.ValueAtQuantile(50.0))/10e3,
-			float64(statHist.ValueAtQuantile(90.00))/10e3,
-			float64(statHist.ValueAtQuantile(95.00))/10e3,
-			float64(statHist.ValueAtQuantile(99.00))/10e3,
-			float64(statHist.ValueAtQuantile(99.999))/10e3,
+			float64(statHist.ValueAtQuantile(50.0))/10e2,
+			float64(statHist.ValueAtQuantile(90.00))/10e2,
+			float64(statHist.ValueAtQuantile(95.00))/10e2,
+			float64(statHist.ValueAtQuantile(99.00))/10e2,
+			float64(statHist.ValueAtQuantile(99.999))/10e2,
 		)
 
 		prevOpsCount = opsCount

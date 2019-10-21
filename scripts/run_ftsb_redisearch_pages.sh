@@ -1,9 +1,9 @@
 #!/bin/bash
 
 DATASET="enwiki-latest-pages-articles-multistream"
-PIPELINE=1
-DEBUG=0
 
+PIPELINE=${PIPELINE:-1}
+DEBUG=${DEBUG:-0}
 PRINT_INTERVAL=${PRINT_INTERVAL:-100000}
 
 # DB IP
@@ -46,14 +46,15 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
       -max-queries ${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
       -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
       -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
+
+    redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
+    echo "HDR Latency Histogram for Query $queryName saved at ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt"
+
+    sleep ${SLEEP_BETWEEN_RUNS}
+
   else
     echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
   fi
-
-  echo "Query $queryName Redis Command Statistics"
-  redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0_ft.info.txt
-
-  sleep ${SLEEP_BETWEEN_RUNS}
 
 done
 echo "Benchmarking WITH_CURSOR query execution performance"
