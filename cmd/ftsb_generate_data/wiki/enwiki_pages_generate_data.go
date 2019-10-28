@@ -40,16 +40,13 @@ func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename stri
 }
 
 // our struct which contains the complete
-// array of all Users in the file
+// array of all Pages in the file
 type Mediawiki struct {
 	XMLName xml.Name `xml:"mediawiki"`
 	Pages   []Page   `xml:"page"`
 }
 
-// the user struct, this contains our
-// Type attribute, our user's name and
-// a social struct which will contain all
-// our social links
+// the Page struct
 type Page struct {
 	XMLName  xml.Name `xml:"page"`
 	Title    string   `xml:"title"`
@@ -58,8 +55,7 @@ type Page struct {
 	Revision Revision `xml:"revision"`
 }
 
-// a simple struct which contains all our
-// social links
+// a Revision struct
 type Revision struct {
 	XMLName     xml.Name    `xml:"revision"`
 	Id          int         `xml:"id"`
@@ -70,7 +66,7 @@ type Revision struct {
 }
 
 // a simple struct which contains all our
-// social links
+// Contributor info
 type Contributor struct {
 	XMLName  xml.Name `xml:"contributor"`
 	Username string   `xml:"username"`
@@ -103,10 +99,10 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 	// read our opened xmlFile as a byte array.
 	byteValue, _ := ioutil.ReadAll(xmlFile)
 
-	// we initialize our Users array
+	// we initialize our pages array
 	var pages Mediawiki
 	// we unmarshal our byteArray which contains our
-	// xmlFiles content into 'users' which we defined above
+	// xmlFiles content into 'pages' which we defined above
 	xml.Unmarshal(byteValue, &pages)
 
 	//dec := xml.NewDecoder(xmlFile)

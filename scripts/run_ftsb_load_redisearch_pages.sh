@@ -5,7 +5,7 @@ set -e
 
 DATASET="enwiki-latest-pages"
 PAGES_DATASET_OUTPUT="enwiki-latest-pages-articles-multistream"
-DEBUG=0
+DEBUG=${DEBUG:-0}
 MAX_INSERTS=${MAX_INSERTS:-0}
 BATCH_SIZE=${BATCH_SIZE:-1000}
 PIPELINE=${PIPELINE:-100}

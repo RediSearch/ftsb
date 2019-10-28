@@ -10,6 +10,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -224,17 +225,20 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 			}
 		}
 
-	//case "FT.SPELLCHECK":
-	//	rediSearchQuery := redisearch.NewQuery(t[1])
-	//	distance, err := strconv.Atoi(t[2])
-	//	if err != nil {
-	//		log.Fatalf("Error converting distance. Error message:|%s|\n", err)
-	//	}
-	//	rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
-	//	start := time.Now()
-	//	suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
-	//	took = float64(time.Since(start).Nanoseconds()) / 1e6
-	//	timedOut = p.handleResponseSpellCheck(err, timedOut, t, suggs, total)
+	case "FT.SPELLCHECK":
+		rediSearchQuery := redisearch.NewQuery(t[1])
+		distance, err := strconv.Atoi(t[3])
+		if err != nil {
+			log.Fatalf("Error converting distance. Error message:|%s|\n", err)
+		}
+		rediSearchSpellCheckOptions := redisearch.NewSpellCheckOptions(distance)
+		start := time.Now()
+		suggs, total, err := client.SpellCheck(rediSearchQuery, rediSearchSpellCheckOptions)
+		took = time.Since(start).Microseconds()
+		timedOut = p.handleResponseSpellCheck(err, timedOut, t, suggs, total)
+		queryCount = 1
+		stat.Init(q.HumanLabelName(), took, uint64(total), timedOut, t[1])
+		queries = append(queries, []*query.Stat{stat}...)
 
 	case "FT.SEARCH":
 		rediSearchQuery := redisearch.NewQuery(t[1])
@@ -270,22 +274,21 @@ func (p *Processor) handleResponseDocs(err error, timedOut bool, t []string, doc
 	return timedOut
 }
 
-//
-//func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []redisearch.MisspelledTerm, total int) bool {
-//	if err != nil {
-//		if err.Error() == "Command timed out" {
-//			timedOut = true
-//			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
-//		} else {
-//			log.Fatalf("Command failed:%v\tError message:%v\tString Error message:|%s|\n", suggs, err, err.Error())
-//		}
-//	} else {
-//		if p.opts.printResponse {
-//			fmt.Println("\nRESPONSE: ", total)
-//		}
-//	}
-//	return timedOut
-//}
+func (p *Processor) handleResponseSpellCheck(err error, timedOut bool, t []string, suggs []redisearch.MisspelledTerm, total int) bool {
+	if err != nil {
+		if err.Error() == "Command timed out" {
+			timedOut = true
+			fmt.Fprintln(os.Stderr, "Command timed out. Used query: ", t)
+		} else {
+			log.Fatalf("Command (%s) failed:%v\n\tError message:%v\tString Error message:|%s|\n", t, suggs, err, err.Error())
+		}
+	} else {
+		if p.opts.printResponse {
+			fmt.Println("\nRESPONSE: ", total)
+		}
+	}
+	return timedOut
+}
 
 func (p *Processor) handleResponseAggregate(err error, timedOut bool, t []string, aggs [][]string, total int, args redis.Args) bool {
 	if err != nil {
