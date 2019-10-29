@@ -77,7 +77,7 @@ benchmarking phases.
 #### Data generation
 
 Variables needed:
-1. a use case. E.g., `enwiki-abstract` (currently only `enwiki-abstract`)
+1. a use case. E.g., `enwiki-abstract` (currently `enwiki-abstract` and `enwiki-pages`)
 1. the file from which to read the data from, compliant with the use case. E.g. `enwiki-latest-abstract1.xml.gz`
 1. and which database(s) you want to generate for. E.g., `redisearch` (currently only `redisearch`)
 
@@ -221,9 +221,20 @@ ftsb_run_queries_redisearch \
        -max-queries 100000 -workers 8 -print-interval 20000 
 ```
 
+#### Sustainable Throughput benchmark
+To really understand a system behavior we also cant relay solely on doing the full percentile analysis while stressing the system to it's maximum RPS. 
+
+We need to be able to compare the behavior under different throughput and/or configurations, to be able to get the best "Sustainable Throughput: The throughput achieved while safely maintaining service levels.
+ To enabling full percentile spectrum and Sustainable Throughput analysis you can use:
+- `--hdr-latencies` : enable writing the High Dynamic Range (HDR) Histogram of Response Latencies to the file with the name specified by this. By default no file will be saved.
+- `--max-rps` : enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal "modus operandi" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.
+
+#### Level of parallel queries 
 You can change the value of the `--workers` flag to
-control the level of parallel queries run at the same time. The
-resulting output will look similar to this:
+control the level of parallel queries run at the same time. 
+
+#### Understanding the output 
+The resulting stdout output will look similar to this:
 ```text
 (...)
 after 80000 queries with 16 workers:
@@ -302,7 +313,7 @@ For each edit a random type of edit (delete, insert random char, replace with ra
 
 |Query type|Description|Example|Status|
 |:---|:---|:---|:---|
-| simple-1word-spellcheck |  | `FT.SPELLCHECK {index} reids DISTANCE 1` | :heavy_multiplication_x:
+| simple-1word-spellcheck | Simple 1 Word Spell Check Query | `FT.SPELLCHECK {index} reids DISTANCE 1` | :heavy_check_mark:
 
 #### Autocomplete queries
 |Query type|Description|Example|Status|

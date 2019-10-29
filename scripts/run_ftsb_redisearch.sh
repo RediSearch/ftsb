@@ -33,8 +33,7 @@ SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 echo "Benchmarking query execution performance"
-#"simple-1word-query" "2word-union-query" "2word-intersection-query"
-for queryName in "simple-1word-spellcheck"; do
+for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-query" "simple-1word-spellcheck"; do
   echo "Benchmarking query: $queryName"
 
   if [ -f /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.gz ]; then
