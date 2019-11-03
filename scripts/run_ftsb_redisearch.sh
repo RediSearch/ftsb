@@ -23,6 +23,9 @@ MAX_QUERIES=${MAX_QUERIES:-100000}
 # How many queries would be run
 WITH_CURSOR=${WITH_CURSOR:-false}
 
+# Rate limit? if greater than 0 rate is limited.
+RATE_LIMIT=${RATE_LIMIT:-0}
+
 # How many queries would be run
 SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 
@@ -33,21 +36,22 @@ echo "Benchmarking query execution performance"
 for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-query" "simple-1word-spellcheck"; do
   echo "Benchmarking query: $queryName"
 
-  if [ -f /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz ]; then
-    cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz |
-      gunzip >/tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0
+  if [ -f /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.gz ]; then
+    cat /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.gz |
+      gunzip >/tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0
 
     ftsb_run_queries_redisearch \
-      -file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 \
-      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt \
-      -max-queries $MAX_QUERIES \
-      -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt
+      -file /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 \
+      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.txt \
+      -max-queries ${MAX_QUERIES} \
+      -limit-rps=${RATE_LIMIT} \
+      -workers ${WORKERS} -print-interval ${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt
 
-    echo "HDR Latency Histogram for Query $queryName saved at ~/HDR-redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.txt"
+    echo "HDR Latency Histogram for Query $queryName saved at ~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt"
     sleep ${SLEEP_BETWEEN_RUNS}
 
   else
-    echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz"
+    echo "query file for $queryName not found at /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.gz"
   fi
 
 done

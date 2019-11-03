@@ -265,15 +265,15 @@ func (b *BenchmarkRunner) report(period time.Duration, start time.Time) {
 
 		sinceStart := now.Sub(start)
 		took := now.Sub(prevTime)
-		instantInfRate := float64(opsCount-prevOpsCount) / float64(took.Seconds())
-		overallInfRate := float64(opsCount) / float64(sinceStart.Seconds())
+		instantRate := float64(opsCount-prevOpsCount) / float64(took.Seconds())
+		overallRate := float64(opsCount) / float64(sinceStart.Seconds())
 		statHist := b.sp.StatsMapping[labelAllQueries].latencyHDRHistogram
 
 		fmt.Printf("%d,%d,%0.0f,%0.0f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n",
 			now.UnixNano()/10e6,
 			opsCount,
-			instantInfRate,
-			overallInfRate,
+			instantRate,
+			overallRate,
 			float64(statHist.ValueAtQuantile(50.0))/10e2,
 			float64(statHist.ValueAtQuantile(90.00))/10e2,
 			float64(statHist.ValueAtQuantile(95.00))/10e2,
