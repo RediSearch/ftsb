@@ -222,8 +222,12 @@ func (b *BenchmarkRunner) processorHandler(rateLimiter *rate.Limiter, wg *sync.W
 	processor.Init(workerNum, pwg, metricsChan, responseSizesChan)
 
 	for query := range b.ch {
-		for rateLimiter.Allow() == false {
-		}
+		//for rateLimiter.Allow() == false {
+		//}
+
+		r := rateLimiter.ReserveN(time.Now(), 1)
+		time.Sleep(r.Delay())
+
 
 		stats, queryCount, err := processor.ProcessQuery(query, false)
 		if err != nil {
