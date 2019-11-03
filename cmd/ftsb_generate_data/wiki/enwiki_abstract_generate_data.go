@@ -345,7 +345,7 @@ func generateOneWordSpellCheckQuery(source []string, reg *regexp.Regexp, stopwor
 			}
 			if containsStopWord == false {
 				//if debug > 0 {
-				fmt.Fprintln(os.Stderr, "docs read %s ", newWord)
+				//fmt.Fprintln(os.Stderr, "docs read %s ", newWord)
 				//}
 				oneWordQuery = append(oneWordQuery, newWord)
 				oneWordSpellCheckQueryDistance = append(oneWordSpellCheckQueryDistance, effectiveChanges+1)
