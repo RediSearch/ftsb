@@ -32,7 +32,7 @@ echo "1) $DATASET"
 echo "---------------------------------------------------------------------------------"
 
 # create the index
-redis-cli ft.create idx1 SCHEMA \
+redis-cli -h ${IP} -p ${PORT} ft.create ${IDX} SCHEMA \
   TITLE TEXT WEIGHT 5 \
   URL TEXT WEIGHT 5 \
   ABSTRACT TEXT WEIGHT 1
@@ -48,4 +48,4 @@ else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi
 
-redis-cli ft.info $IDX
+redis-cli -h ${IP} -p ${PORT} ft.info ${IDX}
