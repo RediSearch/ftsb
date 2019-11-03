@@ -145,7 +145,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	go b.sp.process(b.workers, b.outputFileStatsResponseLatencyHist, b.outputFileStatsResponseDocCountHist)
 
 	var requestRate = Inf
-	var requestBurst = 0
+	var requestBurst = 1
 	if b.limitrps != 0 {
 		requestRate = rate.Limit(b.limitrps)
 		requestBurst = 1 //int(b.workers)
@@ -222,12 +222,8 @@ func (b *BenchmarkRunner) processorHandler(rateLimiter *rate.Limiter, wg *sync.W
 	processor.Init(workerNum, pwg, metricsChan, responseSizesChan)
 
 	for query := range b.ch {
-		//for rateLimiter.Allow() == false {
-		//}
-
 		r := rateLimiter.ReserveN(time.Now(), 1)
 		time.Sleep(r.Delay())
-
 
 		stats, queryCount, err := processor.ProcessQuery(query, false)
 		if err != nil {
