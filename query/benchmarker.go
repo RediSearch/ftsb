@@ -148,7 +148,7 @@ func (b *BenchmarkRunner) Run(queryPool *sync.Pool, processorCreateFn ProcessorC
 	var requestBurst = 0
 	if b.limitrps != 0 {
 		requestRate = rate.Limit(b.limitrps)
-		requestBurst = int(b.workers)
+		requestBurst = 1 //int(b.workers)
 	}
 
 	var rateLimiter *rate.Limiter = rate.NewLimiter(requestRate, requestBurst)
