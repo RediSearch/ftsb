@@ -43,7 +43,7 @@ for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-qu
 
     ftsb_run_queries_redisearch \
       -file /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 \
-      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.txt \
+      -output-file-stats-hdr-response-latency-hist ~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt \
       -max-queries ${MAX_QUERIES} \
       -index=${IDX} \
       -host=${HOST} \
