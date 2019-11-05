@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATASET="enwiki-latest-abstract"
+DATASET="enwiki-latest-abstract1"
 #Current revisions only, no talk or user pages; this is probably what you want, and is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 
 DEBUG=${DEBUG:-0}
