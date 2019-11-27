@@ -21,7 +21,6 @@ else
       -debug $DEBUG \
       -seed 12345 \
       -use-case="enwiki-pages" \
-
       -output-file /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0
 
     cat /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 |
