@@ -133,7 +133,10 @@ func (sp *statProcessor) process(workers uint, fullLatencyHistogramFilename stri
 	sinceStart := time.Now().Sub(start)
 	overallQueryRate := float64(sp.opsCount) / float64(sinceStart.Seconds())
 	// the final stats output goes to stdout:
-	_, err := fmt.Printf("Run complete after %d queries with %d workers (Overall query rate %0.2f queries/sec):\n", i-sp.burnIn, workers, overallQueryRate)
+	_, err := fmt.Printf("Run complete after %d queries with %d workers (Overall query rate %0.2f queries/sec):\n",
+		i-sp.burnIn,
+		workers,
+		overallQueryRate)
 	if err != nil {
 		log.Fatal(err)
 	}

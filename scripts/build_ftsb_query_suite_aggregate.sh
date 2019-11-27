@@ -21,10 +21,11 @@ else
       -debug $DEBUG \
       -seed 12345 \
       -use-case="enwiki-pages" \
-      -output-file /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0
 
-    cat /tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0 |
-      gzip >/tmp/redisearch-queries-$DATASET-$queryName-100K-queries-1-0-0.gz
+      -output-file /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0
+
+    cat /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 |
+      gzip >/tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.gz
 
   done
 fi
