@@ -43,9 +43,11 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
       -host=$HOST -limit=${MAX_INSERTS} \
-      -debug=$DEBUG 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -update-rate=${UPDATE_RATE} \
+      -delete-rate=${DELETE_RATE} \
+      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi
 
-redis-cli -h ${IP} -p ${PORT} ft.info ${IDX}
+redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt

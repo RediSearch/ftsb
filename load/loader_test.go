@@ -20,8 +20,8 @@ func (p *testProcessor) Init(workerNum int, _ bool) {
 	p.worker = workerNum
 }
 
-func (p *testProcessor) ProcessBatch(b Batch, doLoad bool) (metricCount, rowCount uint64) {
-	return 1, 0
+func (p *testProcessor) ProcessBatch(b Batch, doLoad bool) (metricCount, rowCount, updateCount, InsertCount uint64) {
+	return 1, 0, 0, 0
 }
 
 func (p *testProcessor) Close(_ bool) {
@@ -397,7 +397,7 @@ func TestWork(t *testing.T) {
 		t.Errorf("TestWork: processor 0 has wrong worker id: got %d want %d", got, 1)
 	}
 
-	if got := br.metricCnt; got != 2 {
+	if got := br.insertCount; got != 2 {
 		t.Errorf("TestWork: invalid metric count: got %d want %d", got, 2)
 	}
 
@@ -450,7 +450,7 @@ func TestSummary(t *testing.T) {
 
 	for _, c := range cases {
 		br := &BenchmarkRunner{}
-		br.metricCnt = c.metrics
+		br.insertCount = c.metrics
 		br.rowCnt = c.rows
 		var b bytes.Buffer
 		printFn = func(s string, args ...interface{}) (n int, err error) {
