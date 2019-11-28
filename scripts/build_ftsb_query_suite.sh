@@ -19,7 +19,7 @@ if [ ! -f /tmp/$DATASET.xml ]; then
 else
   echo "Dataset found locally at /tmp/$DATASET.xml"
   #"simple-1word-spellcheck"
-  for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-query" ; do
+  for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-query"; do
     echo "generating query: $queryName"
     if [ ! -f /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.gz ] || [[ "$REGENERATE_QUERIES" == "true" ]]; then
       echo "ftsb_generate_queries file for $queryName not found. Issuing ftsb_generate_queries."

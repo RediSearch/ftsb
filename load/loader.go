@@ -63,11 +63,28 @@ type BenchmarkRunner struct {
 	doAbortOnExist  bool
 	reportingPeriod time.Duration
 	fileName        string
+	insertRate      float64
+	updateRate      float64
+	deleteRate      float64
 
 	// non-flag fields
-	br        *bufio.Reader
-	metricCnt uint64
-	rowCnt    uint64
+	br          *bufio.Reader
+	insertCount uint64
+	updateCount uint64
+	deleteCount uint64
+	rowCnt      uint64
+}
+
+func (l *BenchmarkRunner) InsertRate() float64 {
+	return l.insertRate
+}
+
+func (l *BenchmarkRunner) DeleteRate() float64 {
+	return l.deleteRate
+}
+
+func (l *BenchmarkRunner) UpdateRate() float64 {
+	return l.updateRate
 }
 
 var loader = &BenchmarkRunner{}
@@ -91,7 +108,8 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read data from")
-
+	flag.Float64Var(&loader.updateRate, "update-rate", 0, "Set the update rate ( between 0-1 ) for Documents being ingested")
+	flag.Float64Var(&loader.deleteRate, "delete-rate", 0, "Set the delete rate ( between 0-1 ) for Documents being ingested")
 	return loader
 }
 
@@ -110,7 +128,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	defer cleanupFn()
 
 	channels := l.createChannels(workQueues)
-
+	l.insertRate = 1.0 - l.updateRate - l.deleteRate
 	// Launch all worker processes in background
 	var wg sync.WaitGroup
 	for i := 0; i < int(l.workers); i++ {
@@ -250,8 +268,10 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		metricCnt, rowCnt := proc.ProcessBatch(b, l.doLoad)
-		atomic.AddUint64(&l.metricCnt, metricCnt)
+		metricCnt, rowCnt, updateCount, deleteCount := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
+		atomic.AddUint64(&l.insertCount, metricCnt)
+		atomic.AddUint64(&l.updateCount, updateCount)
+		atomic.AddUint64(&l.deleteCount, deleteCount)
 		atomic.AddUint64(&l.rowCnt, rowCnt)
 		c.sendToScanner()
 	}
@@ -267,29 +287,38 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 
 // summary prints the summary of statistics from loading
 func (l *BenchmarkRunner) summary(took time.Duration) {
-	metricRate := float64(l.metricCnt) / float64(took.Seconds())
+	metricRate := float64(l.insertCount) / float64(took.Seconds())
 	printFn("\nSummary:\n")
-	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f docs/sec)\n", l.metricCnt, took.Seconds(), l.workers, metricRate)
+	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f docs/sec)\n", l.insertCount, took.Seconds(), l.workers, metricRate)
 }
 
 // report handles periodic reporting of loading stats
 func (l *BenchmarkRunner) report(period time.Duration) {
 	start := time.Now()
 	prevTime := start
-	prevDocumentCount := uint64(0)
+	prevInsertCount := uint64(0)
+	prevUpdateCount := uint64(0)
+	prevDeleteCount := uint64(0)
 
-	printFn("time,per. docs/s,docs total,overall docs/s\n")
+	printFn("%-12s , %-12s , %-12s , %-12s , %-15s , %-15s , %-15s\n", "time", "inserts/sec", "updates/sec", "deletes/sec", "current ops/sec", "docs total", "overall ops/sec")
 	for now := range time.NewTicker(period).C {
-		documentCount := atomic.LoadUint64(&l.metricCnt)
+		insertCount := atomic.LoadUint64(&l.insertCount)
+		updateCount := atomic.LoadUint64(&l.updateCount)
+		deleteCount := atomic.LoadUint64(&l.deleteCount)
 
 		sinceStart := now.Sub(start)
 		took := now.Sub(prevTime)
-		colrate := float64(documentCount-prevDocumentCount) / float64(took.Seconds())
-		overallColRate := float64(documentCount) / float64(sinceStart.Seconds())
+		insertRate := float64(insertCount-prevInsertCount) / float64(took.Seconds())
+		updateRate := float64(updateCount-prevUpdateCount) / float64(took.Seconds())
+		deleteRate := float64(deleteCount-prevDeleteCount) / float64(took.Seconds())
+		insertUpdateDeleteRate := insertRate + updateRate + deleteRate
+		overallOpsRate := float64(insertCount+updateCount+deleteCount) / float64(sinceStart.Seconds())
 
-		printFn("%d,%0.2f,%d,%0.2f\n", now.Unix(), colrate, documentCount, overallColRate)
+		printFn("%-12d , %-12.1f , %-12.1f , %-12.1f , %-15.1f , %-15d , %-15.1f\n", now.Unix(), insertRate, updateRate, deleteRate, insertUpdateDeleteRate, insertCount, overallOpsRate)
 
-		prevDocumentCount = documentCount
+		prevInsertCount = insertCount
+		prevUpdateCount = updateCount
+		prevDeleteCount = deleteCount
 		prevTime = now
 	}
 }

@@ -35,6 +35,8 @@ const (
 	useCaseEnWikiAbstract = "enwiki-abstract"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseEnWikiPages = "enwiki-pages"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseEcommerce = "ecommerce-electronic"
 
 	errTotalGroupsZero  = "incorrect interleaved groups configuration: total groups = 0"
 	errInvalidGroupsFmt = "incorrect interleaved groups configuration: id %d >= total groups %d"
@@ -51,6 +53,7 @@ var (
 	useCaseChoices = []string{
 		useCaseEnWikiAbstract,
 		useCaseEnWikiPages,
+		useCaseEcommerce,
 	}
 	// allows for testing
 	fatal = log.Fatalf
@@ -139,19 +142,14 @@ func GetBufferedWriter(fileName string) *bufio.Writer {
 func init() {
 
 	flag.StringVar(&format, "format", "redisearch", fmt.Sprintf("Format to emit. (choices: %s)", strings.Join(formatChoices, ", ")))
-
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
-
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
-
 	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0,
 		"Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
 	flag.UintVar(&interleavedGenerationGroupsNum, "interleaved-generation-groups", 1,
 		"The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
-
 	flag.StringVar(&profileFile, "profile-file", "", "File to which to write go profiling data")
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
-
 	flag.Uint64Var(&maxDataPoints, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")

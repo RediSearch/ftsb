@@ -9,6 +9,8 @@ DEBUG=${DEBUG:-0}
 MAX_INSERTS=${MAX_INSERTS:-0}
 BATCH_SIZE=${BATCH_SIZE:-1000}
 PIPELINE=${PIPELINE:-100}
+UPDATE_RATE=${UPDATE_RATE:-0.9}
+DELETE_RATE=${DELETE_RATE:-0.0}
 
 PRINT_INTERVAL=100000
 
@@ -34,6 +36,8 @@ echo "--------------------------------------------------------------------------
 echo "2) $PAGES_DATASET_OUTPUT"
 echo "---------------------------------------------------------------------------------"
 
+redis-cli -h $IP -p $PORT ft.drop $IDX
+
 # create the index
 redis-cli -h $IP -p $PORT ft.create $IDX SCHEMA \
   TITLE TEXT SORTABLE \
@@ -48,8 +52,6 @@ redis-cli -h $IP -p $PORT ft.create $IDX SCHEMA \
   CURRENT_REVISION_EDITOR_COMMENT TEXT \
   CURRENT_REVISION_CONTENT_LENGTH NUMERIC SORTABLE
 
-#redis-cli -h $IP -p $PORT config resetstat
-
 if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
   echo "Using ${WORKERS} WORKERS"
   cat /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz |
@@ -57,7 +59,9 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
       -host=$HOST -limit=${MAX_INSERTS} \
-      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -update-rate=${UPDATE_RATE} \
+      -delete-rate=${DELETE_RATE} \
+      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi

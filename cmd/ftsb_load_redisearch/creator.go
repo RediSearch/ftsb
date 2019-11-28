@@ -13,7 +13,6 @@ type dbCreator struct {
 }
 
 func (d *dbCreator) Init() {
-	//d.pool.writeBytes([]byte(""))
 
 	d.pool = &redis.Pool{
 		MaxIdle: 5,

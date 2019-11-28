@@ -7,6 +7,7 @@ import (
 	"github.com/RediSearch/ftsb/load"
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"log"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -65,7 +66,7 @@ func (b *benchmark) GetPointIndexer(maxPartitions uint) load.PointIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{b.dbc, nil, nil, nil, nil}
+	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{},}
 }
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
@@ -73,11 +74,16 @@ func (b *benchmark) GetDBCreator() load.DBCreator {
 }
 
 type processor struct {
-	dbc     *dbCreator
-	rows    chan string
-	metrics chan uint64
-	wg      *sync.WaitGroup
-	client  *redisearch.Client
+	dbc            *dbCreator
+	rows           chan string
+	insertsChan    chan uint64
+	updatesChan    chan uint64
+	deletesChan    chan uint64
+	wg             *sync.WaitGroup
+	client         *redisearch.Client
+	insertedDocIds []string
+	updatedDocIds  []string
+	deletedDocIds  []string
 }
 
 //, client* redisearch.Client,  pipelineSize int, documents []redisearch.Document
@@ -114,37 +120,91 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 	return document
 }
 
-func connectionProcessor(wg *sync.WaitGroup, rows chan string, metrics chan uint64, client *redisearch.Client, pipeline uint64) {
+func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64) {
 	var documents = make([]redisearch.Document, 0)
 
 	pipelinePos := uint64(0)
-	for row := range rows {
+	insertCount := uint64(0)
+	//updateCount := uint64(0)
+	//deleteCount := uint64(0)
+	// using random between [0,1) to determine wether it is an delete,update, or insert
+	// DELETE IF BETWEEN [0,deleteLimit)
+	// UPDATE IF BETWEEN [deleteLimit,updateLimit)
+	// INSERT IF BETWEEN [updateLimit,1)
+
+	deleteUpperLimit := 0.0
+	updateUpperLimit := deleteUpperLimit + updateRate
+
+	updateOpts := redisearch.IndexingOptions{
+		Language: "",
+		NoSave:   false,
+		Replace:  true,
+		Partial:  false,
+	}
+
+	for row := range p.rows {
 		doc := rowToRSDocument(row)
 		if doc != nil {
-			documents = append(documents, *doc)
-			pipelinePos++
-			if pipelinePos%pipeline == 0 {
-				// Index the document. The API accepts multiple documents at a time
-				if err := client.Index(documents...); err != nil {
+
+			val := rand.Float64()
+			////DELETE
+			//if val < deleteUpperLimit && ((len(p.insertedDocIds) - len(p.deletedDocIds) ) > 0) {
+			//	p.insertedDocIds = append(p.insertedDocIds, doc.Id)
+			//	deleteCount++
+			// UPDATE
+			// only possible if we already have something to update
+			if val >= deleteUpperLimit && val < updateUpperLimit && (len(p.insertedDocIds) > 0) {
+				p.insertedDocIds = append(p.insertedDocIds, doc.Id)
+				idToUdpdate := p.insertedDocIds[rand.Intn(len(p.insertedDocIds))]
+				doc.Id = idToUdpdate
+
+				// make sure we flush the pipeline prior than updating
+				if pipelinePos > 0 {
+					// Index the document. The API accepts multiple documents at a time
+					if err := p.client.Index(documents...); err != nil {
+						log.Fatalf("failed: %s\n", err)
+					}
+					p.insertsChan <- insertCount
+					documents = make([]redisearch.Document, 0)
+					pipelinePos = 0
+					insertCount = 0
+				}
+
+				if err := p.client.IndexOptions(updateOpts, *doc); err != nil {
 					log.Fatalf("failed: %s\n", err)
 				}
-				metrics <- pipelinePos
+				p.updatesChan <- 1
+				// INSERT
+			} else {
+				documents = append(documents, *doc)
+				p.insertedDocIds = append(p.insertedDocIds, doc.Id)
+				insertCount++
+				pipelinePos++
+			}
+			if pipelinePos%pipeline == 0 {
+				// Index the document. The API accepts multiple documents at a time
+				if err := p.client.Index(documents...); err != nil {
+					log.Fatalf("failed: %s\n", err)
+				}
+				p.insertsChan <- insertCount
 				documents = make([]redisearch.Document, 0)
 				pipelinePos = 0
+				insertCount = 0
 			}
 		}
 
 	}
 	if pipelinePos != 0 {
 		// Index the document. The API accepts multiple documents at a time
-		if err := client.Index(documents...); err != nil {
+		if err := p.client.Index(documents...); err != nil {
 			log.Fatalf("failed: %s\n", err)
 		}
-		metrics <- pipelinePos
+		p.insertsChan <- insertCount
 		documents = make([]redisearch.Document, 0)
 		pipelinePos = 0
+		insertCount = 0
 	}
-	wg.Done()
+	p.wg.Done()
 }
 
 func (p *processor) Init(_ int, _ bool) {
@@ -152,31 +212,45 @@ func (p *processor) Init(_ int, _ bool) {
 }
 
 // ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (uint64, uint64) {
+func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64) (uint64, uint64, uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	metricCnt := uint64(0)
+	updateCount := uint64(0)
+	deleteCount := uint64(0)
 	if doLoad {
 		buflen := rowCnt + 1
-		p.metrics = make(chan uint64, buflen)
+
+		p.insertsChan = make(chan uint64, buflen)
+		p.updatesChan = make(chan uint64, buflen)
+		p.deletesChan = make(chan uint64, buflen)
+
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p.wg, p.rows, p.metrics, p.client, pipeline)
+		go connectionProcessor(p, pipeline, updateRate, deleteRate)
 		for _, row := range events.rows {
 			p.rows <- row
 		}
 		close(p.rows)
 		p.wg.Wait()
-		close(p.metrics)
+		close(p.insertsChan)
+		close(p.updatesChan)
+		close(p.deletesChan)
 
-		for val := range p.metrics {
+		for val := range p.insertsChan {
 			metricCnt += val
+		}
+		for val := range p.updatesChan {
+			updateCount += val
+		}
+		for val := range p.deletesChan {
+			deleteCount += val
 		}
 	}
 	events.rows = events.rows[:0]
 	ePool.Put(events)
-	return metricCnt, rowCnt
+	return metricCnt, rowCnt, updateCount, deleteCount
 }
 
 func (p *processor) Close(_ bool) {
