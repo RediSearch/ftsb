@@ -4,9 +4,10 @@
 # this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASET="enwiki-latest-pages-articles-multistream"
 DATASETIN="enwiki-latest-pages-articles-multistream.xml"
-MAX_QUERIES=0
-WORKERS=8
-DEBUG=3
+
+SEED=${SEED:-12345}
+MAX_DOCS=${MAX_DOCS:-0}
+DEBUG=${DEBUG:-3}
 
 echo ""
 echo "---------------------------------------------------------------------------------"

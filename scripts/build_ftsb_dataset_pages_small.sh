@@ -4,9 +4,10 @@
 # this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASET="enwiki-latest-pages-articles-multistream"
 DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926864p5040435"
-MAX_QUERIES=0
-WORKERS=8
-DEBUG=3
+
+SEED=${SEED:-12345}
+MAX_DOCS=${MAX_DOCS:-0}
+DEBUG=${DEBUG:-3}
 
 echo ""
 echo "---------------------------------------------------------------------------------"
@@ -25,8 +26,10 @@ fi
 if [ -f /tmp/$DATASET.xml ]; then
   echo "Issuing ftsb_generate_data."
   ftsb_generate_data -input-file /tmp/$DATASET.xml \
+    -max-documents=${MAX_DOCS} \
+    -seed=${SEED} \
     -format="redisearch" \
-    -use-case="enwiki-pages" -debug=$DEBUG |
+    -use-case="enwiki-pages" -debug=${DEBUG} |
     gzip >/tmp/ftsb_generate_data-$DATASET-redisearch.gz
   echo "finished generating file /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 else

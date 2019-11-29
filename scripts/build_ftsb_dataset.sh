@@ -5,6 +5,7 @@ DATASET="enwiki-latest-abstract"
 
 DEBUG=${DEBUG:-0}
 MAX_DOCS=${MAX_DOCS:-0}
+SEED=${SEED:-12345}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
@@ -26,6 +27,7 @@ if [ -f /tmp/$DATASET.xml ]; then
   echo "Issuing ftsb_generate_data."
   ftsb_generate_data -input-file /tmp/$DATASET.xml \
     -format="redisearch" \
+    -seed=${SEED} \
     -max-documents=${MAX_DOCS} \
     -use-case="enwiki-abstract" -debug=${DEBUG} |
     gzip >/tmp/ftsb_generate_data-$DATASET-redisearch.gz
