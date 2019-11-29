@@ -111,18 +111,26 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 	layout := "2006-01-02T15:04:05Z"
 	var inferiorLimit int64 = math.MaxInt64
 	var superiorLimit int64 = math.MinInt64
+	len_pages := len(pages.Pages)
 
-	//props := map[string]string{}
-	//var currentText string
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "pages started reading "+inputFilename)
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Pages started reading %s.Total distinct documents: %d. Want to generate %d.", inputFilename, len_pages, limit))
+		if limit > uint64(len_pages) {
+			fmt.Fprintln(os.Stderr, "\tWill round robin on input file since limit is larger than dataset .")
+		}
 	}
 	docCount := uint64(0)
 	// we iterate through every user within our users array and
 	// print out the user Type, their name, and their facebook url
 	// as just an example
-	for i := 0; i < len(pages.Pages) && (uint64(i) < limit || limit == 0); i++ {
-		page := pages.Pages[i]
+	for i := 0;
+	// if there is a limit and it's lower than the total number of docs
+	// or the limit is 0 and we just iterate over the entire result-set once
+		(i < len_pages && (uint64(i) < limit || limit == 0)) ||
+			// if the limit is higher than the total number of docs
+			(uint64(i) < limit && limit > uint64(len_pages)) && limit != 0;
+	i++ {
+		page := pages.Pages[i%len_pages]
 
 		page.Revision.Timestamp = strings.TrimSpace(page.Revision.Timestamp)
 		t, _ := time.Parse(layout, page.Revision.Timestamp)
