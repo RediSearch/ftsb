@@ -287,7 +287,12 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 
 // summary prints the summary of statistics from loading
 func (l *BenchmarkRunner) summary(took time.Duration) {
-	metricRate := float64(l.insertCount) / float64(took.Seconds())
+
+	insertCount := atomic.LoadUint64(&l.insertCount)
+	updateCount := atomic.LoadUint64(&l.updateCount)
+	deleteCount := atomic.LoadUint64(&l.deleteCount)
+	metricRate := float64(insertCount+updateCount+deleteCount) / float64(took.Seconds())
+
 	printFn("\nSummary:\n")
 	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f docs/sec)\n", l.insertCount, took.Seconds(), l.workers, metricRate)
 }
