@@ -9,7 +9,7 @@ DEBUG=${DEBUG:-0}
 MAX_INSERTS=${MAX_INSERTS:-0}
 BATCH_SIZE=${BATCH_SIZE:-1000}
 PIPELINE=${PIPELINE:-100}
-UPDATE_RATE=${UPDATE_RATE:-0.9}
+UPDATE_RATE=${UPDATE_RATE:-0.0}
 DELETE_RATE=${DELETE_RATE:-0.0}
 
 PRINT_INTERVAL=100000
@@ -27,6 +27,9 @@ IDX=${IDX:-"pages-meta-idx1"}
 
 # How many queries would be run
 MAX_QUERIES=${MAX_QUERIES:-100000}
+
+# How many queries would be run
+REPORTING_PERIOD=${REPORTING_PERIOD:-"1s"}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
@@ -56,12 +59,13 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
   echo "Using ${WORKERS} WORKERS"
   cat /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz |
     gunzip |
-    ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
+    ftsb_load_redisearch -workers=$WORKERS \
+      -reporting-period=${REPORTING_PERIOD} \
       -index=$IDX \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
       -delete-rate=${DELETE_RATE} \
-      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz"
 fi
