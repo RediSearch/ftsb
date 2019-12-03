@@ -1,0 +1,46 @@
+version: '2'
+
+services:
+  redis-server:
+    image: redislabs/redisearch:edge
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+    labels:
+      kompose.service.type: nodeport
+    ports:
+      - '6379:6379'
+    volumes:
+      - ~/volumes/redis:/var/lib/redis
+
+  redisearch_exporter:
+    image: redisbench/redisearch_exporter:latest
+    ports:
+      - 9122:9122
+    entrypoint: /redisearch_exporter -static-index-list "idx" -redis.addr redis://redis-server:6379
+
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    links:
+      - redis-server:redis-server
+      - redisearch_exporter:redisearch_exporter
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    links:
+      - prometheus:prometheus
+    volumes:
+      #      - grafana-storage:/var/lib/grafana
+      - ./grafana-provisioning/:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+#volumes:
+#  grafana-storage:
