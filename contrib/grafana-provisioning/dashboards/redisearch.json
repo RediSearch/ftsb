@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 1,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -24,6 +24,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
+      "decimals": 0,
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -33,10 +34,13 @@
         "y": 0
       },
       "id": 36,
+      "interval": "",
       "legend": {
         "alignAsTable": true,
         "avg": false,
         "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
         "max": true,
         "min": false,
         "rightSide": false,
@@ -60,7 +64,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(redis_commands_total{}[1m])",
+          "expr": "rate(redis_commands_total{}[10s])",
+          "instant": false,
+          "interval": "2s",
           "legendFormat": "{{cmd}}",
           "refId": "A"
         }
@@ -72,7 +78,7 @@
       "title": "Redis Commands Processed Breakdown",
       "tooltip": {
         "shared": true,
-        "sort": 0,
+        "sort": 2,
         "value_type": "individual"
       },
       "type": "graph",
@@ -85,11 +91,12 @@
       },
       "yaxes": [
         {
+          "decimals": 0,
           "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
-          "min": null,
+          "min": "0",
           "show": true
         },
         {
@@ -98,7 +105,7 @@
           "logBase": 1,
           "max": null,
           "min": null,
-          "show": true
+          "show": false
         }
       ],
       "yaxis": {
@@ -208,31 +215,33 @@
     },
     {
       "aliasColors": {},
-      "bars": true,
+      "bars": false,
       "dashLength": 10,
       "dashes": false,
       "datasource": "Prometheus",
-      "fill": 1,
-      "fillGradient": 0,
+      "decimals": 1,
+      "description": "",
+      "fill": 10,
+      "fillGradient": 7,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 8
       },
-      "id": 33,
+      "id": 14,
       "interval": "",
       "legend": {
         "avg": false,
-        "current": false,
-        "max": false,
+        "current": true,
+        "max": true,
         "min": false,
         "show": true,
         "total": false,
-        "values": false
+        "values": true
       },
-      "lines": false,
-      "linewidth": 1,
+      "lines": true,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
@@ -243,23 +252,29 @@
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
-      "stack": false,
+      "stack": true,
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(redisearch_gc_stats_gc_blocks_denied{} [1m])",
-          "legendFormat": "Index - {{idx}} | Instance {{instance}}",
+          "expr": "irate(redis_cpu_user_seconds_total{}[10s])",
+          "interval": "",
+          "legendFormat": "CPU User",
           "refId": "A"
+        },
+        {
+          "expr": "irate(redis_cpu_sys_seconds_total{}[1m])",
+          "legendFormat": "CPU Sys",
+          "refId": "B"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "GC Blocks denied by Index In 1 Minute",
+      "title": "Overall Redis CPU Usage",
       "tooltip": {
         "shared": true,
-        "sort": 0,
+        "sort": 2,
         "value_type": "individual"
       },
       "type": "graph",
@@ -272,20 +287,22 @@
       },
       "yaxes": [
         {
-          "format": "short",
+          "decimals": null,
+          "format": "percentunit",
           "label": null,
           "logBase": 1,
-          "max": null,
+          "max": "1",
           "min": "0",
           "show": true
         },
         {
+          "decimals": null,
           "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
           "min": null,
-          "show": true
+          "show": false
         }
       ],
       "yaxis": {
@@ -307,7 +324,7 @@
         "x": 12,
         "y": 8
       },
-      "id": 14,
+      "id": 40,
       "interval": "",
       "legend": {
         "avg": false,
@@ -334,7 +351,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(redisearch_gc_stats_bytes_collected{}[1m])",
+          "expr": "irate(redisearch_gc_stats_total_ms_run{}[1m])",
           "legendFormat": "Index - {{idx}} | Instance {{instance}}",
           "refId": "A"
         }
@@ -343,7 +360,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "GC Bytes Collected by Index In 1 Minute",
+      "title": "GC Total Time By Minute by Index",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -359,7 +376,7 @@
       },
       "yaxes": [
         {
-          "format": "decbytes",
+          "format": "ms",
           "label": null,
           "logBase": 1,
           "max": null,
