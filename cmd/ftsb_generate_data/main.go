@@ -39,7 +39,7 @@ const (
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseEcommerce = "ecommerce-electronic"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
-	useCaseSyntheticTags = "synthetic-tags"
+	useCaseSyntheticTags = "synthetic-tag"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseSyntheticText = "synthetic-text"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
@@ -91,6 +91,7 @@ var (
 	fileName                       string
 	inputfileName                  string
 	syntheticsCardinality          uint64
+	syntheticsFieldDataSize        uint64
 	syntheticsNumberFields         uint64
 )
 
@@ -155,7 +156,6 @@ func GetBufferedWriter(fileName string) *bufio.Writer {
 
 // Parse args:
 func init() {
-
 	flag.StringVar(&format, "format", "redisearch", fmt.Sprintf("Format to emit. (choices: %s)", strings.Join(formatChoices, ", ")))
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
@@ -167,12 +167,11 @@ func init() {
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 	flag.Uint64Var(&maxDocuments, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
-	flag.Uint64Var(&syntheticsCardinality, "synthetics-max-field-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
-	flag.Uint64Var(&syntheticsNumberFields, "synthetics-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
+	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
+	flag.Uint64Var(&syntheticsFieldDataSize, "synthetic-field-datasize", 64, "Field data size specific to the synthetics use cases.")
+	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
-
 	flag.Parse()
-
 }
 
 func main() {
@@ -227,10 +226,8 @@ func runSimulator(sim common.Simulator, useCase string, serializer serialize.Doc
 				return
 			}
 		}
-
 		currGroupID = (currGroupID + 1) % totalGroups
 	}
-
 }
 
 func getSimulator(useCase string, config common.SimulatorConfig) common.Simulator {
@@ -241,7 +238,12 @@ func getSimulator(useCase string, config common.SimulatorConfig) common.Simulato
 	case useCaseEnWikiPages:
 		return config.NewSimulator(maxDocuments, inputfileName, debug, []string{}, seed)
 	case useCaseSyntheticNumericInt:
-		return config.NewSyntheticsSimulator(maxDocuments, debug, []string{}, syntheticsNumberFields, syntheticsCardinality, seed)
+		return config.NewSyntheticsSimulator(maxDocuments, debug, []string{}, syntheticsNumberFields, syntheticsFieldDataSize, syntheticsCardinality, seed)
+	case useCaseSyntheticText:
+		return config.NewSyntheticsSimulator(maxDocuments, debug, []string{}, syntheticsNumberFields, syntheticsFieldDataSize, syntheticsCardinality, seed)
+	case useCaseSyntheticTags:
+		return config.NewSyntheticsSimulator(maxDocuments, debug, []string{}, syntheticsNumberFields, syntheticsFieldDataSize, syntheticsCardinality, seed)
+
 	default:
 		fatal("unknown use case simulator: '%s'", useCase)
 		return nil
@@ -260,6 +262,14 @@ func getConfig(useCase string) common.SimulatorConfig {
 		}
 	case useCaseSyntheticNumericInt:
 		return &synthetic.SyntheticNumericSimulatorConfig{
+			fileName, 1, syntheticsCardinality, syntheticsNumberFields,
+		}
+	case useCaseSyntheticText:
+		return &synthetic.SyntheticTextSimulatorConfig{
+			fileName, 1, syntheticsCardinality, syntheticsNumberFields,
+		}
+	case useCaseSyntheticTags:
+		return &synthetic.SyntheticTextSimulatorConfig{
 			fileName, 1, syntheticsCardinality, syntheticsNumberFields,
 		}
 	default:

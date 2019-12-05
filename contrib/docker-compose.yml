@@ -5,7 +5,7 @@ services:
     image: redisbench/redisearch_exporter:latest
     ports:
       - 9122:9122
-    entrypoint: /redisearch_exporter -static-index-list "idx,idx1,pages-meta-idx1" -redis.addr redis://host.docker.internal:6379
+    entrypoint: /redisearch_exporter -static-index-list "idx,idx1,pages-meta-idx1,synthetic-tag-idx1,synthetic-text-idx1,synthetic-numeric-int-idx1" -redis.addr redis://host.docker.internal:6379
 
   redis_exporter:
     image: oliver006/redis_exporter

@@ -23,8 +23,8 @@ func (d *dbCreator) Init() {
 		MaxIdle: 5,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialConnectTimeout(1*time.Second),
-				redis.DialReadTimeout(3000*time.Millisecond),
-				redis.DialWriteTimeout(3000*time.Millisecond))
+				redis.DialReadTimeout(30000*time.Millisecond),
+				redis.DialWriteTimeout(30000*time.Millisecond))
 			if err != nil {
 				return nil, err
 			}
@@ -76,7 +76,15 @@ func (d *dbCreator) CreateDB(dbName string) (err error) {
 
 		// Create a schema
 		for i := 0; uint64(i) < d.syntheticsNumberFields; i++ {
-			sc.AddField(redisearch.NewNumericFieldOptions(fmt.Sprintf("field_%d", i+1), redisearch.NumericFieldOptions{Sortable: true}))
+			if d.syntheticsType == useCaseSyntheticNumericInt || d.syntheticsType == useCaseSyntheticNumericDouble {
+				sc.AddField(redisearch.NewNumericFieldOptions(fmt.Sprintf("field_%d", i+1), redisearch.NumericFieldOptions{Sortable: true}))
+			}
+			if d.syntheticsType == useCaseSyntheticText {
+				sc.AddField(redisearch.NewTextFieldOptions(fmt.Sprintf("field_%d", i+1), redisearch.TextFieldOptions{Weight: float32(i + 1), Sortable: true}))
+			}
+			if d.syntheticsType == useCaseSyntheticTags {
+				sc.AddField(redisearch.NewTagFieldOptions(fmt.Sprintf("field_%d", i+1), redisearch.TagFieldOptions{Sortable: true}))
+			}
 		}
 		err = d.c.CreateIndex(sc)
 	}
