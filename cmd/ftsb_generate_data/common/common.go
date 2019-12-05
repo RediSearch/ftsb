@@ -1,8 +1,11 @@
 package common
 
 import (
+	"code.cloudfoundry.org/bytefmt"
+	"fmt"
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"math/rand"
+	"os"
 )
 
 const (
@@ -49,6 +52,24 @@ type CommonFTSSimulator struct {
 // Finished tells whether we have simulated all the necessary documents
 func (s *CommonFTSSimulator) Finished() bool {
 	return s.MadeDocuments >= s.MaxDocuments
+}
+
+// Finished tells whether we have simulated all the necessary documents
+func (s *CommonFTSSimulator) Describe(file *os.File) {
+	fmt.Fprintf(file, "-------------- Dataset description --------------\n")
+	fmt.Fprintf(file, "Total Documents: %d\n", len(s.Records))
+	nfields := 0
+	for i := 0; i < len(s.Records); i++ {
+		nfields = nfields + len(s.Records[i].Properties)
+	}
+	fmt.Fprintf(file, "Avg. Number Fields per Document: %.1f\n", float64(nfields)/float64(len(s.Records)))
+	size := 0
+	for i := 0; i < len(s.Records); i++ {
+		size = size + s.Records[i].EstimateSize()
+	}
+	fmt.Fprintf(file, "Expected Documents Size: %s\n", bytefmt.ByteSize(uint64(size)))
+	fmt.Fprintf(file, "Expected Avg. Documents Size: %s\n", bytefmt.ByteSize(uint64(size/len(s.Records))))
+
 }
 
 // A FTSSimulator generates data similar to telemetry from Telegraf for only CPU metrics.
