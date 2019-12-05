@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/RediSearch/redisearch-go/redisearch"
+	"os"
 )
 
 // SimulatorConfig is an interface to create a Simulator
@@ -14,4 +15,5 @@ type SimulatorConfig interface {
 type Simulator interface {
 	Finished() bool
 	Next(document *redisearch.Document) bool
+	Describe(out *os.File)
 }

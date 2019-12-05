@@ -204,6 +204,12 @@ func main() {
 	sim := getSimulator(useCase, cfg)
 	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, useCase, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
+	describeDataset(sim)
+}
+
+func describeDataset(sim common.Simulator) {
+	sim.Describe(os.Stderr)
+
 }
 
 func runSimulator(sim common.Simulator, useCase string, serializer serialize.DocumentSerializer, out io.Writer, groupID, totalGroups uint) {
