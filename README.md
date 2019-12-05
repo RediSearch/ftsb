@@ -1,4 +1,14 @@
+[![license](https://img.shields.io/github/license/RediSearch/ftsb.svg)](https://github.com/RediSearch/ftsb)
+[![CircleCI](https://circleci.com/gh/RediSearch/ftsb/tree/master.svg?style=svg)](https://circleci.com/gh/RediSearch/ftsb/tree/master)
+[![GitHub issues](https://img.shields.io/github/release/RediSearch/ftsb.svg)](https://github.com/RediSearch/ftsb/releases/latest)
+[![Codecov](https://codecov.io/gh/RediSearch/ftsb/branch/master/graph/badge.svg)](https://codecov.io/gh/RediSearch/ftsb)
+[![Go Report Card](https://goreportcard.com/badge/github.com/RediSearch/ftsb)](https://goreportcard.com/report/github.com/RediSearch/ftsb)
+[![GoDoc](https://godoc.org/github.com/RediSearch/ftsb?status.svg)](https://godoc.org/github.com/RediSearch/ftsb)
+
 # Full-Text Search Benchmark (FTSB)
+[![Mailing List](https://img.shields.io/badge/Mailing%20List-RediSearch-blue)](https://groups.google.com/forum/#!forum/redisearch)
+[![Gitter](https://badges.gitter.im/RedisLabs/RediSearch.svg)](https://gitter.im/RedisLabs/RediSearch?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 This repo contains code for benchmarking full text search databases,
 including RediSearch.
 This code is based on a fork of work initially made public by TSBS
