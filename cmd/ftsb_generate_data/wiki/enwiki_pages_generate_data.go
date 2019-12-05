@@ -46,12 +46,13 @@ func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename stri
 }
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
-func (c *WikiPagesSimulatorConfig) NewSyntheticsSimulator(limit uint64, debug int, stopwords []string, numberFields uint64, maxCardinalityPerField uint64, seed int64) common.Simulator {
+func (c *WikiPagesSimulatorConfig) NewSyntheticsSimulator(limit uint64, debug int, stopwords []string, numberFields, syntheticsFieldDataSize, maxCardinalityPerField uint64, seed int64) common.Simulator {
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("Using random seed %d", seed))
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("stopwords being excluded from generation %s", stopwords))
-		fmt.Fprintln(os.Stderr, fmt.Sprintf("Preparing to simulate %d docs, with %d fields, and max cardinality per field of %d", limit, numberFields, maxCardinalityPerField))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Preparing to simulate %d docs, with %d fields, field size of %d, and max cardinality per field of %d", limit, numberFields, syntheticsFieldDataSize, maxCardinalityPerField))
 	}
+	rand.Seed(seed)
 	var documents []redisearch.Document
 	sim := &common.FTSSimulator{&common.CommonFTSSimulator{
 		MadeDocuments: 0,

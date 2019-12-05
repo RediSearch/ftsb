@@ -14,6 +14,14 @@ func RandomStringSliceChoice(s []string) string {
 	return s[rand.Intn(len(s))]
 }
 
+func RandomStringWithCharset(length int, charset string) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
 // RandomByteStringSliceChoice returns a random byte string slice from the provided slice of byte string slices.
 func RandomByteStringSliceChoice(s [][]byte) []byte {
 	return s[rand.Intn(len(s))]

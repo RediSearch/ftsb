@@ -33,7 +33,7 @@ const (
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseEcommerce = "ecommerce-electronic"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
-	useCaseSyntheticTags = "synthetic-tags"
+	useCaseSyntheticTags = "synthetic-tag"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseSyntheticText = "synthetic-text"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
@@ -62,8 +62,8 @@ func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
-	flag.Uint64Var(&syntheticsCardinality, "synthetics-max-field-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
-	flag.Uint64Var(&syntheticsNumberFields, "synthetics-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
+	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
+	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
