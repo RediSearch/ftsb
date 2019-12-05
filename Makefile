@@ -11,6 +11,9 @@ query: ftsb_run_queries_redisearch
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
+test:
+	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
 collect-detach:
 	docker-compose -f contrib/docker-compose.yml up --force-recreate -d
 	sleep 5

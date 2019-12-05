@@ -100,7 +100,7 @@ func NewWikiAbrastractReader(filename string, stopwordsbl []string, seed int64, 
 	return NewCoreFromAbstract(oneWordQuery, twoWordQuery, oneWordSpellCheckQuery, oneWordSpellCheckQueryDistance)
 }
 
-func WikiAbstractParseXml(inputFilename string, limit uint64, debug int, stopwordsbl []string, seed int64) ([]redisearch.Document) {
+func WikiAbstractParseXml(inputFilename string, limit uint64, debug int, stopwordsbl []string, seed int64) []redisearch.Document {
 
 	rand.Seed(seed)
 
@@ -181,14 +181,14 @@ func generateQueriesFromDocument(seed int64, limit int, Docs []redisearch.Docume
 	var source []string
 
 	rand.Seed(seed)
-	// Make a Regex to say we only want letters and numbers
+	// Make a Regex to say we only want common.Letters and numbers
 	reg, err := regexp.Compile("[^a-zA-Z0-9 ]+")
 	if err != nil {
 		log.Fatal(err)
 	}
 	nqueries := 0
 	i := 0
-	for (limit > nqueries || (limit == 0 && nqueries < len(Docs))) {
+	for limit > nqueries || (limit == 0 && nqueries < len(Docs)) {
 		d := Docs[i]
 		//fmt.Fprintln(os.Stderr, "At document %v",d)
 		used_field := rand.Intn(2)
@@ -212,7 +212,7 @@ func generateQueriesFromDocument(seed int64, limit int, Docs []redisearch.Docume
 	}
 	nqueries = 0
 	i = 0
-	for (limit > nqueries || (limit == 0 && nqueries < len(Docs))) {
+	for limit > nqueries || (limit == 0 && nqueries < len(Docs)) {
 
 		d := Docs[i]
 
@@ -245,14 +245,14 @@ func generateSpellCheckQueriesFromDocument(seed int64, limit int, Docs []redisea
 	var source []string
 
 	rand.Seed(seed)
-	// Make a Regex to say we only want letters and numbers
+	// Make a Regex to say we only want common.Letters and numbers
 	reg, err := regexp.Compile("[^a-zA-Z0-9 ]+")
 	if err != nil {
 		log.Fatal(err)
 	}
 	nqueries := 0
 	i := 0
-	for (limit > nqueries || (limit == 0 && nqueries < len(Docs))) {
+	for limit > nqueries || (limit == 0 && nqueries < len(Docs)) {
 		d := Docs[i]
 		//fmt.Fprintln(os.Stderr, "At document %v",d)
 		used_field := rand.Intn(2)
@@ -326,9 +326,9 @@ func generateOneWordSpellCheckQuery(source []string, reg *regexp.Regexp, stopwor
 						case 0:
 							newWord = newWord[:charPos] + newWord[charPos+1:]
 						case 1:
-							newWord = newWord[:charPos] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
+							newWord = newWord[:charPos] + string(common.Letters[rand.Intn(len(common.Letters))]) + newWord[charPos+1:]
 						case 2:
-							newWord = newWord[:charPos] + string(letters[rand.Intn(len(letters))]) + newWord[charPos+1:]
+							newWord = newWord[:charPos] + string(common.Letters[rand.Intn(len(common.Letters))]) + newWord[charPos+1:]
 						case 3:
 							adjacentPos := charPos + 1
 							newWord = newWord[:charPos] + newWord[adjacentPos:adjacentPos] + newWord[charPos:charPos] + newWord[adjacentPos+1:]
@@ -355,7 +355,7 @@ func generateOneWordSpellCheckQuery(source []string, reg *regexp.Regexp, stopwor
 	return oneWordQuery, oneWordSpellCheckQueryDistance
 }
 
-func generateOneWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []string, oneWordQuery []string) ( []string) {
+func generateOneWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []string, oneWordQuery []string) []string {
 	first_word := ""
 	if len(source)-1 >= 1 {
 		suffixPrefixDiff := false
@@ -388,7 +388,7 @@ func generateOneWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []str
 	return oneWordQuery
 }
 
-func generateTwoWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []string, TwoWordQuery [][]string) ([][]string) {
+func generateTwoWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []string, TwoWordQuery [][]string) [][]string {
 	first_word := ""
 	second_word := ""
 	if len(source)-1 >= 1 {
@@ -436,23 +436,47 @@ func generateTwoWordQuery(source []string, reg *regexp.Regexp, stopwordsbl []str
 }
 
 // WikiAbstractSimulatorConfig is used to create a FTSSimulator.
-type WikiAbstractSimulatorConfig commonFTSSimulatorConfig
+type WikiAbstractSimulatorConfig common.CommonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
 func (c *WikiAbstractSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int, stopwords []string, seed int64) common.Simulator {
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Using random seed %d", seed))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("stopwords being excluded from generation %s", stopwords))
+	}
 	documents := WikiAbstractParseXml(inputFilename, limit, debug, stopwords, seed)
 
-	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "docs read %d ", uint64(len(documents)))
-	}
-	sim := &FTSSimulator{&commonFTSSimulator{
-		madeDocuments: 0,
-		maxDocuments:  uint64(len(documents)),
+	sim := &common.FTSSimulator{&common.CommonFTSSimulator{
+		MadeDocuments: 0,
+		MaxDocuments:  uint64(len(documents)),
 
-		recordIndex: 0,
-		records:     documents,
+		RecordIndex: 0,
+		Records:     documents,
 	}}
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("docs generated %d ", uint64(len(documents))))
+	}
+	return sim
+}
 
+// NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
+func (c *WikiAbstractSimulatorConfig) NewSyntheticsSimulator(limit uint64, debug int, stopwords []string, numberFields uint64, maxCardinalityPerField uint64, seed int64) common.Simulator {
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Using random seed %d", seed))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("stopwords being excluded from generation %s", stopwords))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Preparing to simulate %d docs, with %d fields, and max cardinality per field of %d", limit, numberFields, maxCardinalityPerField))
+	}
+	var documents []redisearch.Document
+	sim := &common.FTSSimulator{&common.CommonFTSSimulator{
+		MadeDocuments: 0,
+		MaxDocuments:  0,
+
+		RecordIndex: 0,
+		Records:     documents,
+	}}
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("docs generated %d ", uint64(len(documents))))
+	}
 	return sim
 }
 

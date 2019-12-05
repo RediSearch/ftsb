@@ -16,27 +16,56 @@ import (
 
 // Program option vars:
 var (
-	host     string
-	index    string
-	pipeline uint64
-	debug    int
+	host                   string
+	pipeline               uint64
+	debug                  int
+	syntheticsCardinality  uint64
+	syntheticsNumberFields uint64
+	loader                 *load.BenchmarkRunner
+	useCase                string
 )
 
-// Global vars
+const (
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseEnWikiAbstract = "enwiki-abstract"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseEnWikiPages = "enwiki-pages"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseEcommerce = "ecommerce-electronic"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticTags = "synthetic-tags"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticText = "synthetic-text"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticNumericInt = "synthetic-numeric-int"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticNumericDouble = "synthetic-numeric-double"
+)
+
+// semi-constants
 var (
-	loader *load.BenchmarkRunner
-	//bufPool sync.Pool
+	useCaseChoices = []string{
+		useCaseEnWikiAbstract,
+		useCaseEnWikiPages,
+		useCaseEcommerce,
+		useCaseSyntheticTags,
+		useCaseSyntheticText,
+		useCaseSyntheticNumericInt,
+		useCaseSyntheticNumericDouble,
+	}
+	// allows for testing
+	fatal = log.Fatalf
 )
-
-// allows for testing
-var fatal = log.Fatal
 
 // Parse args:
 func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
-	flag.StringVar(&index, "index", "idx1", "RediSearch index")
+	flag.Uint64Var(&syntheticsCardinality, "synthetics-max-field-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
+	flag.Uint64Var(&syntheticsNumberFields, "synthetics-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
+	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
+
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.Parse()
 }
@@ -94,7 +123,7 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 	fieldSizesStr := strings.Split(row, ",")
 	// we need at least the id and score
 	if len(fieldSizesStr) >= 2 {
-		documentId := index + "-" + fieldSizesStr[0]
+		documentId := loader.DatabaseName() + "-" + fieldSizesStr[0]
 		documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
 		doc := redisearch.NewDocument(documentId, float32(documentScore))
 
@@ -208,7 +237,7 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 }
 
 func (p *processor) Init(_ int, _ bool) {
-	p.client = redisearch.NewClient(host, index)
+	p.client = redisearch.NewClient(host, loader.DatabaseName())
 }
 
 // ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
@@ -258,5 +287,19 @@ func (p *processor) Close(_ bool) {
 
 func main() {
 	//workQueues := uint(load.WorkerPerQueue)
-	loader.RunBenchmark(&benchmark{dbc: &dbCreator{}}, load.SingleQueue)
+	var isSynthethics bool
+	if (useCase == useCaseSyntheticText) ||
+		(useCase == useCaseSyntheticNumericInt) ||
+		(useCase == useCaseSyntheticNumericDouble) ||
+		(useCase == useCaseSyntheticTags) {
+		isSynthethics = true
+	}
+	creator := dbCreator{
+		nil, nil,
+		syntheticsCardinality,
+		syntheticsNumberFields,
+		isSynthethics,
+		useCase,
+	}
+	loader.RunBenchmark(&benchmark{dbc: &creator}, load.SingleQueue)
 }

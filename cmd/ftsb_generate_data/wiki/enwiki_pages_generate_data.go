@@ -20,22 +20,49 @@ import (
 )
 
 // WikiAbstractSimulatorConfig is used to create a FTSSimulator.
-type WikiPagesSimulatorConfig commonFTSSimulatorConfig
+type WikiPagesSimulatorConfig common.CommonFTSSimulatorConfig
 
 // NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
 func (c *WikiPagesSimulatorConfig) NewSimulator(limit uint64, inputFilename string, debug int, stopwords []string, seed int64) common.Simulator {
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Using random seed %d", seed))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("stopwords being excluded from generation %s", stopwords))
+	}
 	documents, _, maxPoints, _, _ := WikiPagesParseXml(inputFilename, limit, debug, stopwords, seed)
 	if debug > 0 {
-		fmt.Fprintln(os.Stderr, "pages read %d ", maxPoints)
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("pages read %d ", maxPoints))
 	}
-	sim := &FTSSimulator{&commonFTSSimulator{
-		madeDocuments: 0,
-		maxDocuments:  maxPoints,
+	sim := &common.FTSSimulator{&common.CommonFTSSimulator{
+		MadeDocuments: 0,
+		MaxDocuments:  maxPoints,
 
-		recordIndex: 0,
-		records:     documents,
+		RecordIndex: 0,
+		Records:     documents,
 	}}
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("docs generated %d ", uint64(len(documents))))
+	}
+	return sim
+}
 
+// NewSimulator produces a Simulator that conforms to the given SimulatorConfig over the specified interval
+func (c *WikiPagesSimulatorConfig) NewSyntheticsSimulator(limit uint64, debug int, stopwords []string, numberFields uint64, maxCardinalityPerField uint64, seed int64) common.Simulator {
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Using random seed %d", seed))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("stopwords being excluded from generation %s", stopwords))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Preparing to simulate %d docs, with %d fields, and max cardinality per field of %d", limit, numberFields, maxCardinalityPerField))
+	}
+	var documents []redisearch.Document
+	sim := &common.FTSSimulator{&common.CommonFTSSimulator{
+		MadeDocuments: 0,
+		MaxDocuments:  0,
+
+		RecordIndex: 0,
+		Records:     documents,
+	}}
+	if debug > 0 {
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("docs generated %d ", uint64(len(documents))))
+	}
 	return sim
 }
 
@@ -83,7 +110,7 @@ func WikiPagesParseXml(inputFilename string, limit uint64, debug int, stopwordsb
 	//https://github.com/RediSearch/RediSearch/issues/307
 	//prevent field tokenization ,.<>{}[]"':;!@#$%^&*()-+=~
 	//field_tokenization := ",.<>{}[]\"':;!@#$%^&*()-+=~"
-	// Make a Regex to say we only want letters and numbers
+	// Make a Regex to say we only want common.Letters and numbers
 	reg, err := regexp.Compile("[^a-zA-Z0-9 ]+")
 	if err != nil {
 		log.Fatal(err)
