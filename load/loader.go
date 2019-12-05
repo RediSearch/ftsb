@@ -99,7 +99,7 @@ func GetBenchmarkRunner() *BenchmarkRunner {
 // with specified batch size.
 func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	// fill flag fields of BenchmarkRunner struct
-	flag.StringVar(&loader.dbName, "db-name", "benchmark", "Name of database")
+	flag.StringVar(&loader.dbName, "index", "idx1", "Name of index")
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
 	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
 	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")

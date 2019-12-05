@@ -41,7 +41,7 @@ func init() {
 	flag.BoolVar(&withCursor, "with-cursor", false, "If the query is FT.AGGREGRATE wether to include the WITHCRUSOR argument and process all responses until cursor id = 0")
 
 	flag.Parse()
-	client = redisearch.NewClient(host, index)
+	client = redisearch.NewClient(host, "ftsb-run-queries-redisearch")
 }
 
 func main() {
@@ -95,7 +95,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 
 	t := strings.Split(qry, ",")
 	if len(t) < 2 {
-		log.Fatalf("The query has not the correct format ", qry)
+		log.Fatalf("The query has not the correct format %s", qry)
 	}
 	command := t[0]
 	if p.opts.debug {
@@ -196,7 +196,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 
 		default:
 			queryCount = 0
-			log.Fatalf("FT.AGGREGATE queryNum (%d) query not supported yet.", queryNum)
+			log.Fatalf("FT.AGGREGATE queryNum (%s) query not supported yet.", queryNum)
 		}
 		queryCount = 1
 		label := q.HumanLabelName()
@@ -252,7 +252,7 @@ func (p *Processor) ProcessQuery(q query.Query, isWarm bool) ([]*query.Stat, uin
 
 	default:
 		queryCount = 0
-		log.Fatalf("Command not supported yet.", command)
+		log.Fatalf("Command not supported yet. %s", command)
 	}
 
 	return queries, queryCount, nil

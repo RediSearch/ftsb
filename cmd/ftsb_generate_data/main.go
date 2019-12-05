@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/RediSearch/ftsb/cmd/ftsb_generate_data/synthetic"
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"io"
 	"log"
@@ -37,6 +38,14 @@ const (
 	useCaseEnWikiPages = "enwiki-pages"
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
 	useCaseEcommerce = "ecommerce-electronic"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticTags = "synthetic-tags"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticText = "synthetic-text"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticNumericInt = "synthetic-numeric-int"
+	// Use case choices (make sure to update TestGetConfig if adding a new one)
+	useCaseSyntheticNumericDouble = "synthetic-numeric-double"
 
 	errTotalGroupsZero  = "incorrect interleaved groups configuration: total groups = 0"
 	errInvalidGroupsFmt = "incorrect interleaved groups configuration: id %d >= total groups %d"
@@ -54,6 +63,10 @@ var (
 		useCaseEnWikiAbstract,
 		useCaseEnWikiPages,
 		useCaseEcommerce,
+		useCaseSyntheticTags,
+		useCaseSyntheticText,
+		useCaseSyntheticNumericInt,
+		useCaseSyntheticNumericDouble,
 	}
 	// allows for testing
 	fatal = log.Fatalf
@@ -74,9 +87,11 @@ var (
 	debug                          int
 	interleavedGenerationGroupID   uint
 	interleavedGenerationGroupsNum uint
-	maxDataPoints                  uint64
+	maxDocuments                   uint64
 	fileName                       string
 	inputfileName                  string
+	syntheticsCardinality          uint64
+	syntheticsNumberFields         uint64
 )
 
 // parseTimeFromString parses string-represented time of the format 2006-01-02T15:04:05Z07:00
@@ -150,8 +165,10 @@ func init() {
 		"The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
 	flag.StringVar(&profileFile, "profile-file", "", "File to which to write go profiling data")
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
-	flag.Uint64Var(&maxDataPoints, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
+	flag.Uint64Var(&maxDocuments, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
 	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
+	flag.Uint64Var(&syntheticsCardinality, "synthetics-max-field-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
+	flag.Uint64Var(&syntheticsNumberFields, "synthetics-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
 
 	flag.Parse()
@@ -185,7 +202,7 @@ func main() {
 	}()
 
 	cfg := getConfig(useCase)
-	sim := cfg.NewSimulator(maxDataPoints, inputfileName, debug, []string{}, seed)
+	sim := getSimulator(useCase, cfg)
 	serializer := getSerializer(sim, format, out)
 	runSimulator(sim, useCase, serializer, out, interleavedGenerationGroupID, interleavedGenerationGroupsNum)
 }
@@ -216,15 +233,34 @@ func runSimulator(sim common.Simulator, useCase string, serializer serialize.Doc
 
 }
 
+func getSimulator(useCase string, config common.SimulatorConfig) common.Simulator {
+	switch useCase {
+	case useCaseEnWikiAbstract:
+		//limit uint64, inputFilename string, debug int, stopwords []string, seed int64
+		return config.NewSimulator(maxDocuments, inputfileName, debug, []string{}, seed)
+	case useCaseEnWikiPages:
+		return config.NewSimulator(maxDocuments, inputfileName, debug, []string{}, seed)
+	case useCaseSyntheticNumericInt:
+		return config.NewSyntheticsSimulator(maxDocuments, debug, []string{}, syntheticsNumberFields, syntheticsCardinality, seed)
+	default:
+		fatal("unknown use case simulator: '%s'", useCase)
+		return nil
+	}
+}
+
 func getConfig(useCase string) common.SimulatorConfig {
 	switch useCase {
 	case useCaseEnWikiAbstract:
 		return &wiki.WikiAbstractSimulatorConfig{
-			fileName,
+			fileName, 1, 0, 0,
 		}
 	case useCaseEnWikiPages:
 		return &wiki.WikiPagesSimulatorConfig{
-			fileName,
+			fileName, 1, 0, 0,
+		}
+	case useCaseSyntheticNumericInt:
+		return &synthetic.SyntheticNumericSimulatorConfig{
+			fileName, 1, syntheticsCardinality, syntheticsNumberFields,
 		}
 	default:
 		fatal("unknown use case: '%s'", useCase)
