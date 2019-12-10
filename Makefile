@@ -1,3 +1,21 @@
+# Go parameters
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOINSTALL=$(GOCMD) install
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOMOD=$(GOCMD) mod
+
+# DOCKER
+DOCKER_APP_NAME=ftsb
+DOCKER_ORG=redisbench
+DOCKER_REPO:=${DOCKER_ORG}/${DOCKER_APP_NAME}
+#DOCKER_TAG:=$(shell git log -1 --pretty=format:"%h")
+DOCKER_TAG=edge
+DOCKER_IMG:="$(DOCKER_REPO):$(DOCKER_TAG)"
+DOCKER_LATEST:="${DOCKER_REPO}:latest"
+
 .PHONY: all dataset ingestion query
 all: dataset ingestion query
 
@@ -7,7 +25,19 @@ ingestion: ftsb_load_redisearch
 
 query: ftsb_run_queries_redisearch
 
-%: $(wildcard ./cmd/$@/*.go)
+ftsb_generate_data:
+	go build -o bin/$@ ./cmd/$@
+	go install ./cmd/$@
+
+ftsb_generate_queries:
+	go build -o bin/$@ ./cmd/$@
+	go install ./cmd/$@
+
+ftsb_load_redisearch:
+	go build -o bin/$@ ./cmd/$@
+	go install ./cmd/$@
+
+ftsb_run_queries_redisearch:
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
@@ -24,3 +54,41 @@ collect:
 
 collect-stop:
 	docker-compose -f contrib/docker-compose.yml down
+
+# DOCKER TASKS
+# Build the container
+docker-build:
+	docker build -t $(DOCKER_APP_NAME):latest -f  Dockerfile .
+
+# Build the container without caching
+docker-build-nc:
+	docker build --no-cache -t $(DOCKER_APP_NAME):latest -f  Dockerfile .
+
+# Make a release by building and publishing the `{version}` ans `latest` tagged containers to ECR
+docker-release: docker-build-nc docker-publish
+
+
+# Docker publish
+docker-publish: docker-publish-latest docker-publish-version ## Publish the `{version}` ans `latest` tagged containers to ECR
+
+docker-repo-login: ## login to DockerHub with credentials found in env
+	docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+
+docker-publish-latest: docker-tag-latest ## Publish the `latest` taged container to ECR
+	@echo 'publish latest to $(DOCKER_REPO)'
+	docker push $(DOCKER_LATEST)
+
+docker-publish-version: docker-tag-version ## Publish the `{version}` taged container to ECR
+	@echo 'publish $(DOCKER_IMG) to $(DOCKER_REPO)'
+	docker push $(DOCKER_IMG)
+
+# Docker tagging
+docker-tag: docker-tag-latest docker-tag-version ## Generate container tags for the `{version}` ans `latest` tags
+
+docker-tag-latest: ## Generate container `{version}` tag
+	@echo 'create tag latest'
+	docker tag $(DOCKER_APP_NAME) $(DOCKER_LATEST)
+
+docker-tag-version: ## Generate container `latest` tag
+	@echo 'create tag $(DOCKER_APP_NAME) $(DOCKER_REPO):$(DOCKER_IMG)'
+	docker tag $(DOCKER_APP_NAME) $(DOCKER_IMG)

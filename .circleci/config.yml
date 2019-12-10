@@ -5,7 +5,7 @@ version: 2
 jobs:
   build: # test with redisearch:latest
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.13
       - image: redislabs/redisearch:latest
 
     working_directory: /go/src/github.com/RediSearch/ftsb
@@ -17,7 +17,7 @@ jobs:
 
   build_nightly: # test nightly with redisearch:edge 
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.13
       - image: redislabs/redisearch:edge
 
     working_directory: /go/src/github.com/RediSearch/ftsb
@@ -26,18 +26,30 @@ jobs:
       - run: go get -v -t -d ./...
       - run: go test -v ./... -race #no need for codecov on nightly
 
+  build-multiarch-docker:
+    machine:
+      enabled: true
+    steps:
+      - checkout
+      - run: |
+          echo "$DOCKER_REDISBENCH_PWD" | base64 --decode | docker login --username $DOCKER_REDISBENCH_USER --password-stdin
+      - run:
+          name: Build
+          command: |
+            make docker-release
+          no_output_timeout: 20m
+
 workflows:
   version: 2
-  commit:
+  build_and_package:
     jobs:
-      - build
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
+      - build:
           filters:
+            tags:
+              only: /.*/
+      - build-multiarch-docker:
+          filters:
+            tags:
+              only: /.*/
             branches:
-              only:
-                - master
-    jobs:
-      - build_nightly
+              only: master
