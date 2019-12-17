@@ -17,13 +17,15 @@ import (
 
 // Program option vars:
 var (
-	host                   string
-	pipeline               uint64
-	debug                  int
-	syntheticsCardinality  uint64
-	syntheticsNumberFields uint64
-	loader                 *load.BenchmarkRunner
-	useCase                string
+	host                    string
+	pipeline                uint64
+	replacePartial          bool
+	replacePartialCondition string
+	debug                   int
+	syntheticsCardinality   uint64
+	syntheticsNumberFields  uint64
+	loader                  *load.BenchmarkRunner
+	useCase                 string
 )
 
 const (
@@ -63,6 +65,8 @@ func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
+	flag.BoolVar(&replacePartial, "replace-partial", false, "(only applicable with REPLACE (when update rate is higher than 0))")
+	flag.StringVar(&replacePartialCondition, "replace-condition", "", "(Applicable only in conjunction with REPLACE and optionally PARTIAL)")
 	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
 	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
@@ -151,7 +155,7 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 	return document
 }
 
-func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64) {
+func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, updatePartial bool, updateCondition string ) {
 	var documents = make([]redisearch.Document, 0)
 
 	pipelinePos := uint64(0)
@@ -168,7 +172,8 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 		Language: "",
 		NoSave:   false,
 		Replace:  true,
-		Partial:  false,
+		Partial:  updatePartial,
+		ReplaceCondition: updateCondition,
 	}
 
 	for row := range p.rows {
@@ -273,7 +278,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p, pipeline, updateRate, deleteRate)
+		go connectionProcessor(p, pipeline, updateRate, deleteRate, replacePartial, replacePartialCondition)
 		for _, row := range events.rows {
 			p.rows <- row
 		}

@@ -9,9 +9,11 @@ set -e
 PRINT_INTERVAL=100000
 DEBUG=${DEBUG:-0}
 MAX_INSERTS=${MAX_INSERTS:-0}
-BATCH_SIZE=${BATCH_SIZE:-1000}
+BATCH_SIZE=${BATCH_SIZE:-100}
 PIPELINE=${PIPELINE:-9}
 UPDATE_RATE=${UPDATE_RATE:-0.0}
+REPLACE_PARTIAL=${REPLACE_PARTIAL:-false}
+REPLACE_CONDITION=${REPLACE_CONDITION:-""}
 DELETE_RATE=${DELETE_RATE:-0.0}
 DATASET="synthetic-text"
 MAX_CARDINALITY=${MAX_CARDINALITY:-65536}
@@ -47,6 +49,8 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -index=$IDX \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
+      -replace-partial=${REPLACE_PARTIAL} \
+      -replace-condition=${REPLACE_CONDITION} \
       -delete-rate=${DELETE_RATE} \
       -synthetic-max-dataset-cardinality=${MAX_CARDINALITY} \
       -synthetic-fields=${MAX_FIELDS} \
