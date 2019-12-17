@@ -68,11 +68,12 @@ type BenchmarkRunner struct {
 	deleteRate      float64
 
 	// non-flag fields
-	br          *bufio.Reader
-	insertCount uint64
-	updateCount uint64
-	deleteCount uint64
-	rowCnt      uint64
+	br           *bufio.Reader
+	insertCount  uint64
+	updateCount  uint64
+	deleteCount  uint64
+	totalLatency uint64
+	rowCnt       uint64
 }
 
 func (l *BenchmarkRunner) InsertRate() float64 {
@@ -268,10 +269,11 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		metricCnt, rowCnt, updateCount, deleteCount := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
+		metricCnt, rowCnt, updateCount, deleteCount, totalLatency := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
 		atomic.AddUint64(&l.insertCount, metricCnt)
 		atomic.AddUint64(&l.updateCount, updateCount)
 		atomic.AddUint64(&l.deleteCount, deleteCount)
+		atomic.AddUint64(&l.totalLatency, totalLatency)
 		atomic.AddUint64(&l.rowCnt, rowCnt)
 		c.sendToScanner()
 	}
@@ -291,10 +293,18 @@ func (l *BenchmarkRunner) summary(took time.Duration) {
 	insertCount := atomic.LoadUint64(&l.insertCount)
 	updateCount := atomic.LoadUint64(&l.updateCount)
 	deleteCount := atomic.LoadUint64(&l.deleteCount)
+	totalLatency := atomic.LoadUint64(&l.totalLatency)
 	metricRate := float64(insertCount+updateCount+deleteCount) / float64(took.Seconds())
+	insertRate := float64(insertCount) / float64(took.Seconds())
+	updateRate := float64(updateCount) / float64(took.Seconds())
+	deleteRate := float64(deleteCount) / float64(took.Seconds())
+	overalAvgLatency := float64(totalLatency) / float64(insertCount+updateCount+deleteCount)
 
 	printFn("\nSummary:\n")
-	printFn("loaded %d Documents in %0.3fsec with %d workers (mean rate %0.2f docs/sec)\n", l.insertCount, took.Seconds(), l.workers, metricRate)
+	printFn("Loaded %d Documents in %0.3fsec with %d workers\n", l.insertCount, took.Seconds(), l.workers)
+	printFn("\tMean rate:\n\t - Total %0.2f ops/sec\n\t - Inserts %0.2f docs/sec\n\t - Updates %0.2f docs/sec\n\t - Deletes %0.2f docs/sec\n", metricRate, insertRate, updateRate, deleteRate)
+	printFn("\tOverall Avg Latency: %0.3f msec\n", overalAvgLatency)
+
 }
 
 // report handles periodic reporting of loading stats
@@ -304,26 +314,33 @@ func (l *BenchmarkRunner) report(period time.Duration) {
 	prevInsertCount := uint64(0)
 	prevUpdateCount := uint64(0)
 	prevDeleteCount := uint64(0)
+	prevTotalLatency := uint64(0)
 
-	printFn("%-12s , %-12s , %-12s , %-12s , %-15s , %-15s , %-15s\n", "time", "inserts/sec", "updates/sec", "deletes/sec", "current ops/sec", "docs total", "overall ops/sec")
+	printFn("%-12s , %-12s , %-12s , %-12s , %-15s , %-15s , %-15s , %-15s , %-15s\n", "time", "inserts/sec", "updates/sec", "deletes/sec", "current ops/sec", "curr avg lat ms", "docs total", "overall ops/sec", "overall avg lat ms")
 	for now := range time.NewTicker(period).C {
 		insertCount := atomic.LoadUint64(&l.insertCount)
 		updateCount := atomic.LoadUint64(&l.updateCount)
 		deleteCount := atomic.LoadUint64(&l.deleteCount)
+		totalLatency := atomic.LoadUint64(&l.totalLatency)
 
 		sinceStart := now.Sub(start)
 		took := now.Sub(prevTime)
 		insertRate := float64(insertCount-prevInsertCount) / float64(took.Seconds())
 		updateRate := float64(updateCount-prevUpdateCount) / float64(took.Seconds())
 		deleteRate := float64(deleteCount-prevDeleteCount) / float64(took.Seconds())
+		currentCount := (insertCount - prevInsertCount) + (updateCount - prevUpdateCount) + (deleteCount - prevDeleteCount)
+		currentLatency := totalLatency - prevTotalLatency
 		insertUpdateDeleteRate := insertRate + updateRate + deleteRate
 		overallOpsRate := float64(insertCount+updateCount+deleteCount) / float64(sinceStart.Seconds())
+		overallAvgLatency := float64(totalLatency) / float64(insertCount+updateCount+deleteCount)
+		currentAvgLatency := float64(currentLatency) / float64(currentCount)
 
-		printFn("%-12d , %-12.1f , %-12.1f , %-12.1f , %-15.1f , %-15d , %-15.1f\n", now.Unix(), insertRate, updateRate, deleteRate, insertUpdateDeleteRate, insertCount, overallOpsRate)
+		printFn("%-12d , %-12.1f , %-12.1f , %-12.1f , %-15.1f , %-15.3f, %-15d , %-15.1f , %-15.3f\n", now.Unix(), insertRate, updateRate, deleteRate, insertUpdateDeleteRate, currentAvgLatency, insertCount, overallOpsRate, overallAvgLatency)
 
 		prevInsertCount = insertCount
 		prevUpdateCount = updateCount
 		prevDeleteCount = deleteCount
+		prevTotalLatency = totalLatency
 		prevTime = now
 	}
 }

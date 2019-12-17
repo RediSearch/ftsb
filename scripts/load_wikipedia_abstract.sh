@@ -8,7 +8,8 @@ BATCH_SIZE=${BATCH_SIZE:-1000}
 PIPELINE=${PIPELINE:-100}
 UPDATE_RATE=${UPDATE_RATE:-0.0}
 DELETE_RATE=${DELETE_RATE:-0.0}
-
+REPLACE_PARTIAL=${REPLACE_PARTIAL:-false}
+REPLACE_CONDITION=${REPLACE_CONDITION:-""}
 PRINT_INTERVAL=100000
 
 # DB IP
@@ -46,6 +47,8 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -index=$IDX \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
+      -replace-partial=${REPLACE_PARTIAL} \
+      -replace-condition=${REPLACE_CONDITION} \
       -delete-rate=${DELETE_RATE} \
       -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
 else
