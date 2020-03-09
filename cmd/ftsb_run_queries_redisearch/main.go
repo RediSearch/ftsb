@@ -41,7 +41,7 @@ func init() {
 	flag.BoolVar(&withCursor, "with-cursor", false, "If the query is FT.AGGREGRATE wether to include the WITHCRUSOR argument and process all responses until cursor id = 0")
 
 	flag.Parse()
-	client = redisearch.NewClient(host, "ftsb-run-queries-redisearch")
+	client = redisearch.NewClient(host, index)
 }
 
 func main() {
