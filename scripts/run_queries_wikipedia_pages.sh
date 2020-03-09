@@ -47,6 +47,7 @@ for queryName in "agg-1-editor-1year-exact-page-contributions-by-day" "agg-2-*-1
       -index=${IDX} \
       -host=${HOST} \
       -limit-rps=${RATE_LIMIT} \
+      -debug=${DEBUG} \
       -max-queries=${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
       -output-file-stats-hdr-response-latency-hist=~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.txt \
       -workers=${WORKERS} -print-interval=${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt
