@@ -3,8 +3,7 @@
 #Current revisions only, no talk or user pages;
 # this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASET="enwiki-latest-pages-articles-multistream"
-DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926864p5040435"
-
+DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926862p5040436"
 SEED=${SEED:-12345}
 MAX_DOCS=${MAX_DOCS:-0}
 DEBUG=${DEBUG:-3}
