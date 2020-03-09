@@ -42,12 +42,12 @@ for queryName in "simple-1word-query" "2word-union-query" "2word-intersection-qu
       gunzip >/tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0
 
     ftsb_run_queries_redisearch \
-      -file=/tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 \
-      -max-queries=${MAX_QUERIES} \
+      -file /tmp/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0 \
       -index=${IDX} \
       -host=${HOST} \
       -limit-rps=${RATE_LIMIT} \
-      -output-file-stats-hdr-response-latency-hist=~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt \
+      -max-queries=${MAX_QUERIES} -with-cursor=${WITH_CURSOR} \
+      -output-file-stats-hdr-response-latency-hist=~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0.txt \
       -workers=${WORKERS} -print-interval=${PRINT_INTERVAL} 2>&1 | tee ~/redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt
 
     echo "HDR Latency Histogram for Query $queryName saved at ~/HDR-redisearch-queries-$DATASET-$queryName-${MAX_QUERIES}-queries-1-0-0-RATE_LIMIT-${RATE_LIMIT}.txt"
