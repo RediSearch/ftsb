@@ -2,11 +2,15 @@ package load
 
 import (
 	"bufio"
+	"code.cloudfoundry.org/bytefmt"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,6 +59,7 @@ type Benchmark interface {
 type BenchmarkRunner struct {
 	// flag fields
 	dbName          string
+	JsonOutFile     string
 	batchSize       uint
 	workers         uint
 	limit           uint64
@@ -73,7 +78,10 @@ type BenchmarkRunner struct {
 	updateCount  uint64
 	deleteCount  uint64
 	totalLatency uint64
+	totalBytes   uint64
 	rowCnt       uint64
+
+	testResult TestResult
 }
 
 func (l *BenchmarkRunner) InsertRate() float64 {
@@ -111,6 +119,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.StringVar(&loader.fileName, "file", "", "File name to read data from")
 	flag.Float64Var(&loader.updateRate, "update-rate", 0, "Set the update rate ( between 0-1 ) for Documents being ingested")
 	flag.Float64Var(&loader.deleteRate, "delete-rate", 0, "Set the delete rate ( between 0-1 ) for Documents being ingested")
+	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output load results. If not set, will not print to json.")
 	return loader
 }
 
@@ -269,11 +278,12 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		metricCnt, rowCnt, updateCount, deleteCount, totalLatency := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
+		metricCnt, rowCnt, updateCount, deleteCount, totalLatency, totalBytes := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
 		atomic.AddUint64(&l.insertCount, metricCnt)
 		atomic.AddUint64(&l.updateCount, updateCount)
 		atomic.AddUint64(&l.deleteCount, deleteCount)
 		atomic.AddUint64(&l.totalLatency, totalLatency)
+		atomic.AddUint64(&l.totalBytes, totalBytes)
 		atomic.AddUint64(&l.rowCnt, rowCnt)
 		c.sendToScanner()
 	}
@@ -294,35 +304,55 @@ func (l *BenchmarkRunner) summary(took time.Duration) {
 	updateCount := atomic.LoadUint64(&l.updateCount)
 	deleteCount := atomic.LoadUint64(&l.deleteCount)
 	totalLatency := atomic.LoadUint64(&l.totalLatency)
+	totalBytes  := atomic.LoadUint64(&l.totalBytes)
 	metricRate := float64(insertCount+updateCount+deleteCount) / float64(took.Seconds())
 	insertRate := float64(insertCount) / float64(took.Seconds())
 	updateRate := float64(updateCount) / float64(took.Seconds())
 	deleteRate := float64(deleteCount) / float64(took.Seconds())
 	overalAvgLatency := float64(totalLatency) / float64(insertCount+updateCount+deleteCount)
 
+	l.testResult.TotalBytes = totalBytes
+	l.testResult.TotalLatency = totalLatency
+
+
 	printFn("\nSummary:\n")
 	printFn("Loaded %d Documents in %0.3fsec with %d workers\n", l.insertCount, took.Seconds(), l.workers)
 	printFn("\tMean rate:\n\t - Total %0.2f ops/sec\n\t - Inserts %0.2f docs/sec\n\t - Updates %0.2f docs/sec\n\t - Deletes %0.2f docs/sec\n", metricRate, insertRate, updateRate, deleteRate)
 	printFn("\tOverall Avg Latency: %0.3f msec\n", overalAvgLatency)
+
+	if strings.Compare(l.JsonOutFile, "") != 0 {
+
+		file, err := json.MarshalIndent(l.testResult, "", " ")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = ioutil.WriteFile(l.JsonOutFile, file, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 }
 
 // report handles periodic reporting of loading stats
 func (l *BenchmarkRunner) report(period time.Duration) {
 	start := time.Now()
+	l.testResult.StartTime = start.Unix()
 	prevTime := start
 	prevInsertCount := uint64(0)
 	prevUpdateCount := uint64(0)
 	prevDeleteCount := uint64(0)
 	prevTotalLatency := uint64(0)
+	prevTotalBytes := uint64(0)
 
-	printFn("%-12s , %-12s , %-12s , %-12s , %-15s , %-15s , %-15s , %-15s , %-15s\n", "time", "inserts/sec", "updates/sec", "deletes/sec", "current ops/sec", "curr avg lat ms", "docs total", "overall ops/sec", "overall avg lat ms")
+	printFn("%-12s , %-12s , %-12s , %-12s , %-15s , %-15s , %-15s , %-15s , %-15s\n", "time", "inserts/sec", "updates/sec", "deletes/sec", "current ops/sec", "curr avg lat ms", "docs total", "overall ops/sec", "overall avg lat ms", "overall BW/s")
 	for now := range time.NewTicker(period).C {
 		insertCount := atomic.LoadUint64(&l.insertCount)
 		updateCount := atomic.LoadUint64(&l.updateCount)
 		deleteCount := atomic.LoadUint64(&l.deleteCount)
 		totalLatency := atomic.LoadUint64(&l.totalLatency)
-
+		totalBytes := atomic.LoadUint64(&l.totalBytes)
 		sinceStart := now.Sub(start)
 		took := now.Sub(prevTime)
 		insertRate := float64(insertCount-prevInsertCount) / float64(took.Seconds())
@@ -330,12 +360,22 @@ func (l *BenchmarkRunner) report(period time.Duration) {
 		deleteRate := float64(deleteCount-prevDeleteCount) / float64(took.Seconds())
 		currentCount := (insertCount - prevInsertCount) + (updateCount - prevUpdateCount) + (deleteCount - prevDeleteCount)
 		currentLatency := totalLatency - prevTotalLatency
+		curentByteRate :=  float64(totalBytes - prevTotalBytes) / float64(took.Seconds())
 		insertUpdateDeleteRate := insertRate + updateRate + deleteRate
 		overallOpsRate := float64(insertCount+updateCount+deleteCount) / float64(sinceStart.Seconds())
 		overallAvgLatency := float64(totalLatency) / float64(insertCount+updateCount+deleteCount)
 		currentAvgLatency := float64(currentLatency) / float64(currentCount)
+		byteRateStr := bytefmt.ByteSize(uint64(curentByteRate))
 
-		printFn("%-12d , %-12.1f , %-12.1f , %-12.1f , %-15.1f , %-15.3f, %-15d , %-15.1f , %-15.3f\n", now.Unix(), insertRate, updateRate, deleteRate, insertUpdateDeleteRate, currentAvgLatency, insertCount, overallOpsRate, overallAvgLatency)
+		l.testResult.AddRateTs = append(l.testResult.AddRateTs, *NewDataPoint(now.Unix(), insertRate))
+		l.testResult.UpdateRateTs = append(l.testResult.UpdateRateTs, *NewDataPoint(now.Unix(), updateRate))
+		l.testResult.DeleteRateTs = append(l.testResult.DeleteRateTs, *NewDataPoint(now.Unix(), deleteRate))
+		l.testResult.OverallIngestionRateTs = append(l.testResult.OverallIngestionRateTs, *NewDataPoint(now.Unix(), insertUpdateDeleteRate))
+		l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), curentByteRate))
+		l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), curentByteRate))
+
+
+		printFn("%-12d , %-12.1f , %-12.1f , %-12.1f , %-15.1f , %-15.3f, %-15d , %-15.1f , %-15.3f, %s/s ,\n", now.Unix(), insertRate, updateRate, deleteRate, insertUpdateDeleteRate, currentAvgLatency, insertCount, overallOpsRate, overallAvgLatency,byteRateStr)
 
 		prevInsertCount = insertCount
 		prevUpdateCount = updateCount

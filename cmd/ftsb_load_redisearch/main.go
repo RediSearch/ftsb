@@ -100,7 +100,7 @@ func (b *benchmark) GetPointIndexer(maxPartitions uint) load.PointIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{},}
+	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{},}
 }
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
@@ -114,6 +114,7 @@ type processor struct {
 	totalLatencyChan chan uint64
 	updatesChan      chan uint64
 	deletesChan      chan uint64
+	totalBytesChan   chan uint64
 	wg               *sync.WaitGroup
 	client           *redisearch.Client
 	insertedDocIds   []string
@@ -155,7 +156,7 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 	return document
 }
 
-func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, updatePartial bool, updateCondition string ) {
+func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, updatePartial bool, updateCondition string) {
 	var documents = make([]redisearch.Document, 0)
 
 	pipelinePos := uint64(0)
@@ -169,10 +170,10 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 	updateUpperLimit := deleteUpperLimit + updateRate
 
 	updateOpts := redisearch.IndexingOptions{
-		Language: "",
-		NoSave:   false,
-		Replace:  true,
-		Partial:  updatePartial,
+		Language:         "",
+		NoSave:           false,
+		Replace:          true,
+		Partial:          updatePartial,
 		ReplaceCondition: updateCondition,
 	}
 
@@ -260,13 +261,14 @@ func (p *processor) Init(_ int, _ bool) {
 }
 
 // ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64) (uint64, uint64, uint64, uint64, uint64) {
+func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64) (uint64, uint64, uint64, uint64, uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	metricCnt := uint64(0)
 	updateCount := uint64(0)
 	deleteCount := uint64(0)
 	totalLatency := uint64(0)
+	totalBytes := uint64(0)
 	if doLoad {
 		buflen := rowCnt + 1
 
@@ -274,6 +276,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		p.updatesChan = make(chan uint64, buflen)
 		p.deletesChan = make(chan uint64, buflen)
 		p.totalLatencyChan = make(chan uint64, buflen)
+		p.totalBytesChan = make(chan uint64, buflen)
 
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
@@ -288,6 +291,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		close(p.updatesChan)
 		close(p.deletesChan)
 		close(p.totalLatencyChan)
+		close(p.totalBytesChan)
 
 		for val := range p.insertsChan {
 			metricCnt += val
@@ -298,14 +302,17 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		for val := range p.deletesChan {
 			deleteCount += val
 		}
-
 		for val := range p.totalLatencyChan {
 			totalLatency += val
 		}
+		for val := range p.totalBytesChan {
+			totalBytes += val
+		}
+
 	}
 	events.rows = events.rows[:0]
 	ePool.Put(events)
-	return metricCnt, rowCnt, updateCount, deleteCount, totalLatency
+	return metricCnt, rowCnt, updateCount, deleteCount, totalLatency, totalBytes
 }
 
 func (p *processor) Close(_ bool) {

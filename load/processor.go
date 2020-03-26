@@ -5,7 +5,7 @@ type Processor interface {
 	// Init does per-worker setup needed before receiving data
 	Init(workerNum int, doLoad bool)
 	// ProcessBatch handles a single batch of data
-	ProcessBatch(b Batch, doLoad bool, updateRate, deleteRate float64) (metricCount, rowCount, updateCount, DeleteCount, totalLatency uint64)
+	ProcessBatch(b Batch, doLoad bool, updateRate, deleteRate float64) (metricCount, rowCount, updateCount, DeleteCount, totalLatency, totalBytes uint64)
 }
 
 // ProcessorCloser is a Processor that also needs to close or cleanup afterwards
