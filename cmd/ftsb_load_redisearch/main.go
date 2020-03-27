@@ -79,6 +79,19 @@ type benchmark struct {
 	dbc *dbCreator
 }
 
+func (b *benchmark) GetConfigurationParametersMap() (  map[string]interface{}) {
+	configs := map[string]interface{}{}
+	configs["host"] = host
+	configs["pipeline"] = pipeline
+	configs["replacePartial"] = replacePartial
+	configs["replacePartialCondition"] = replacePartialCondition
+	configs["syntheticsCardinality"] = syntheticsCardinality
+	configs["syntheticsNumberFields"] = syntheticsNumberFields
+	configs["useCase"] = useCase
+	configs["debug"] = debug
+	return configs
+}
+
 type RedisIndexer struct {
 	partitions uint
 }
@@ -161,6 +174,7 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 
 	pipelinePos := uint64(0)
 	insertCount := uint64(0)
+	totalBytes := uint64(0)
 	// using random between [0,1) to determine whether it is an delete,update, or insert
 	// DELETE IF BETWEEN [0,deleteLimit)
 	// UPDATE IF BETWEEN [deleteLimit,updateLimit)
@@ -180,12 +194,13 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 	for row := range p.rows {
 		doc := rowToRSDocument(row)
 		if doc != nil {
-
+			documentPayload := uint64((*doc).EstimateSize())
+			totalBytes += documentPayload
+			//fmt.Println(totalBytes)
+			(*doc).EstimateSize()
 			val := rand.Float64()
-			////DELETE
-			//if val < deleteUpperLimit && ((len(p.insertedDocIds) - len(p.deletedDocIds) ) > 0) {
-			//	p.insertedDocIds = append(p.insertedDocIds, doc.Id)
-			//	deleteCount++
+			// DELETE
+			// TODO:
 			// UPDATE
 			// only possible if we already have something to update
 			if val >= deleteUpperLimit && val < updateUpperLimit && (len(p.insertedDocIds) > 0) {
@@ -195,26 +210,11 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 				// make sure we flush the pipeline prior than updating
 				if pipelinePos > 0 {
 					// Index the document. The API accepts multiple documents at a time
-					start := time.Now()
-					if err := p.client.Index(documents...); err != nil {
-						log.Fatalf("failed: %s\n", err)
-					}
-					took := uint64(time.Since(start).Milliseconds())
-					p.totalLatencyChan <- took
-					p.insertsChan <- insertCount
-
-					documents = make([]redisearch.Document, 0)
-					pipelinePos = 0
-					insertCount = 0
+					CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+					documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 				}
-				start := time.Now()
-				if err := p.client.IndexOptions(updateOpts, *doc); err != nil {
-					log.Fatalf("failed: %s\n", err)
-				}
-				took := uint64(time.Since(start).Milliseconds())
-				p.totalLatencyChan <- took
-				p.updatesChan <- 1
-
+				CommonIndexUpdateDocument(p, updateOpts, doc, totalBytes)
+				documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 				// INSERT
 			} else {
 				documents = append(documents, *doc)
@@ -224,36 +224,52 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 			}
 			if pipelinePos%pipeline == 0 && len(documents) > 0 {
 				// Index the document. The API accepts multiple documents at a time
-				start := time.Now()
-				if err := p.client.Index(documents...); err != nil {
-					log.Fatalf("failed: %s\n", err)
-				}
-				took := uint64(time.Since(start).Milliseconds())
-				p.totalLatencyChan <- took
-				p.insertsChan <- insertCount
-
-				documents = make([]redisearch.Document, 0)
-				pipelinePos = 0
-				insertCount = 0
+				CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+				documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 			}
 		}
 
 	}
+	// In the there are still documents to be processed
 	if pipelinePos != 0 && len(documents) > 0 {
 		// Index the document. The API accepts multiple documents at a time
-		start := time.Now()
-		if err := p.client.Index(documents...); err != nil {
-			log.Fatalf("failed: %s\n", err)
-		}
-		took := uint64(time.Since(start).Milliseconds())
-		p.totalLatencyChan <- took
-		p.insertsChan <- insertCount
-
-		documents = make([]redisearch.Document, 0)
-		pipelinePos = 0
-		insertCount = 0
+		CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+		documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 	}
 	p.wg.Done()
+}
+
+func CommonIndexUpdateDocument(p *processor, updateOpts redisearch.IndexingOptions, doc *redisearch.Document, totalBytes uint64) {
+	start := time.Now()
+	if err := p.client.IndexOptions(updateOpts, *doc); err != nil {
+		log.Fatalf("failed: %s\n", err)
+	}
+	took := uint64(time.Since(start).Milliseconds())
+	p.updatesChan <- 1
+	updateCommonChannels(p, took, totalBytes)
+}
+
+func CommonIndexInsertDocuments(p *processor, documents []redisearch.Document, bytesCount uint64, insertCount uint64) () {
+	start := time.Now()
+	if err := p.client.Index(documents...); err != nil {
+		log.Fatalf("failed: %s\n", err)
+	}
+	took := uint64(time.Since(start).Milliseconds())
+	p.insertsChan <- insertCount
+	updateCommonChannels(p, took, bytesCount)
+}
+
+func updateCommonChannels(p *processor, took uint64, bytesCount uint64) {
+	p.totalLatencyChan <- took
+	p.totalBytesChan <- bytesCount
+}
+
+func LocalCountersReset() (documents []redisearch.Document, pipelinePos uint64, insertCount uint64, totalBytes uint64) {
+	documents = make([]redisearch.Document, 0)
+	pipelinePos = 0
+	insertCount = 0
+	totalBytes = 0
+	return documents, insertCount, pipelinePos, totalBytes
 }
 
 func (p *processor) Init(_ int, _ bool) {

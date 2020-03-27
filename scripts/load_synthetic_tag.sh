@@ -41,6 +41,7 @@ echo "2) $DATASET"
 echo "---------------------------------------------------------------------------------"
 
 if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
+  SUFIX="redisearch-load-${DATASET}-w${WORKERS}-pipe${PIPELINE}-RATES-u${UPDATE_RATE}-d${DELETE_RATE}"
   echo "Using ${WORKERS} WORKERS"
   cat /tmp/ftsb_generate_data-$DATASET-redisearch.gz |
     gunzip |
@@ -56,9 +57,10 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -synthetic-fields=${MAX_FIELDS} \
       -use-case="synthetic-tag" \
       -debug=${DEBUG} \
-      -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -json-out-file=${SUFIX}.json \
+      -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi
 
-redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt
+redis-cli -h $IP -p $PORT ft.info $IDX > ~/${SUFIX}-ft.info.txt
