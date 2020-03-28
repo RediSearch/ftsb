@@ -21,7 +21,7 @@ PORT=${PORT:-6379}
 HOST="$IP:$PORT"
 
 # Index to load the data into
-IDX=${IDX:-"idx1"}
+IDX=${IDX:-"enwiki-abstract-idx1"}
 
 # How many queries would be run
 MAX_QUERIES=${MAX_QUERIES:-100000}
@@ -34,13 +34,16 @@ echo "--------------------------------------------------------------------------
 echo "1) $DATASET"
 echo "---------------------------------------------------------------------------------"
 
+redis-cli -h $IP -p $PORT ft.drop $IDX
+
 # create the index
 redis-cli -h ${IP} -p ${PORT} ft.create ${IDX} SCHEMA \
-  TITLE TEXT WEIGHT 5 \
-  URL TEXT WEIGHT 5 \
-  ABSTRACT TEXT WEIGHT 1
+  TITLE TEXT WEIGHT 5 SORTABLE \
+  URL TEXT WEIGHT 5 SORTABLE \
+  ABSTRACT TEXT WEIGHT 1 SORTABLE
 
 if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
+  SUFIX="redisearch-load-${DATASET}-w${WORKERS}-pipe${PIPELINE}-RATES-u${UPDATE_RATE}-d${DELETE_RATE}"
   cat /tmp/ftsb_generate_data-$DATASET-redisearch.gz |
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
@@ -50,9 +53,12 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -replace-partial=${REPLACE_PARTIAL} \
       -replace-condition=${REPLACE_CONDITION} \
       -delete-rate=${DELETE_RATE} \
-      -batch-size ${BATCH_SIZE} -pipeline $PIPELINE -debug=$DEBUG 2>&1 | tee ~/redisearch-load-RATES-UPD-${UPDATE_RATE}-DEL-${DELETE_RATE}-$DATASET-workers-$WORKERS-pipeline-$PIPELINE.txt
+      -use-case="enwiki-abstract" \
+      -debug=${DEBUG} \
+      -json-out-file=${SUFIX}.json \
+      -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE
 else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi
 
-redis-cli -h $IP -p $PORT ft.info $IDX >~/redisearch-load-$DATASET-workers-$WORKERS-pipeline-$PIPELINE_ft.info.txt
+redis-cli -h $IP -p $PORT ft.info $IDX >~/${SUFIX}-ft.info.txt

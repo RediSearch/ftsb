@@ -63,5 +63,4 @@ else
   echo "dataset file not found at /tmp/ftsb_generate_data-$DATASET-redisearch.gz"
 fi
 
-redis-cli -h $IP -p $PORT ft.info $IDX > ~/${SUFIX}-ft.info.txt
-
+redis-cli -h $IP -p $PORT ft.info $IDX >~/${SUFIX}-ft.info.txt
