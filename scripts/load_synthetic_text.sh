@@ -20,6 +20,7 @@ MAX_CARDINALITY=${MAX_CARDINALITY:-65536}
 MAX_FIELDS=${MAX_FIELDS:-10}
 # Index to load the data into
 IDX=${IDX:-"synthetic-text-idx1"}
+NOSAVE=${NOSAVE:-"false"}
 
 # DB IP
 IP=${IP:-"localhost"}
@@ -48,6 +49,7 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
     ftsb_load_redisearch -workers=$WORKERS \
       -reporting-period=${REPORTING_PERIOD} \
       -index=$IDX \
+      -no-save=${NOSAVE} \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
       -replace-partial=${REPLACE_PARTIAL} \

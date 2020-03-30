@@ -13,6 +13,7 @@ UPDATE_RATE=${UPDATE_RATE:-0.0}
 REPLACE_PARTIAL=${REPLACE_PARTIAL:-false}
 REPLACE_CONDITION=${REPLACE_CONDITION:-""}
 DELETE_RATE=${DELETE_RATE:-0.0}
+NOSAVE=${NOSAVE:-"false"}
 
 PRINT_INTERVAL=100000
 
@@ -65,6 +66,7 @@ if [ -f /tmp/ftsb_generate_data-$PAGES_DATASET_OUTPUT-redisearch.gz ]; then
     ftsb_load_redisearch -workers=$WORKERS \
       -reporting-period=${REPORTING_PERIOD} \
       -index=$IDX \
+      -no-save=${NOSAVE} \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
       -replace-partial=${REPLACE_PARTIAL} \

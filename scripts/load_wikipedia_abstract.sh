@@ -11,6 +11,7 @@ DELETE_RATE=${DELETE_RATE:-0.0}
 REPLACE_PARTIAL=${REPLACE_PARTIAL:-false}
 REPLACE_CONDITION=${REPLACE_CONDITION:-""}
 PRINT_INTERVAL=100000
+NOSAVE=${NOSAVE:-"false"}
 
 # DB IP
 IP=${IP:-"localhost"}
@@ -48,6 +49,7 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
     gunzip |
     ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
+      -no-save=${NOSAVE} \
       -host=$HOST -limit=${MAX_INSERTS} \
       -update-rate=${UPDATE_RATE} \
       -replace-partial=${REPLACE_PARTIAL} \

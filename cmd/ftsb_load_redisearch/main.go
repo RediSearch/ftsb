@@ -19,6 +19,7 @@ import (
 var (
 	host                    string
 	pipeline                uint64
+	noSave                  bool
 	replacePartial          bool
 	replacePartialCondition string
 	debug                   int
@@ -65,6 +66,7 @@ func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
+	flag.BoolVar(&noSave, "no-save", false, "If set to true, we will not save the actual document in the database and only index it.")
 	flag.BoolVar(&replacePartial, "replace-partial", false, "(only applicable with REPLACE (when update rate is higher than 0))")
 	flag.StringVar(&replacePartialCondition, "replace-condition", "", "(Applicable only in conjunction with REPLACE and optionally PARTIAL)")
 	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
@@ -79,7 +81,7 @@ type benchmark struct {
 	dbc *dbCreator
 }
 
-func (b *benchmark) GetConfigurationParametersMap() (  map[string]interface{}) {
+func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs := map[string]interface{}{}
 	configs["host"] = host
 	configs["pipeline"] = pipeline
@@ -169,7 +171,7 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 	return document
 }
 
-func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, updatePartial bool, updateCondition string) {
+func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, noSaveOption bool, updatePartial bool, updateCondition string) {
 	var documents = make([]redisearch.Document, 0)
 
 	pipelinePos := uint64(0)
@@ -185,11 +187,14 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 
 	updateOpts := redisearch.IndexingOptions{
 		Language:         "",
-		NoSave:           false,
+		NoSave:           noSaveOption,
 		Replace:          true,
 		Partial:          updatePartial,
 		ReplaceCondition: updateCondition,
 	}
+
+	indexingOpts := redisearch.DefaultIndexingOptions
+	indexingOpts.NoSave = noSaveOption
 
 	for row := range p.rows {
 		doc := rowToRSDocument(row)
@@ -210,7 +215,7 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 				// make sure we flush the pipeline prior than updating
 				if pipelinePos > 0 {
 					// Index the document. The API accepts multiple documents at a time
-					CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+					CommonIndexInsertDocuments(p, indexingOpts, documents, totalBytes, insertCount)
 					documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 				}
 				CommonIndexUpdateDocument(p, updateOpts, doc, totalBytes)
@@ -224,7 +229,7 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 			}
 			if pipelinePos%pipeline == 0 && len(documents) > 0 {
 				// Index the document. The API accepts multiple documents at a time
-				CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+				CommonIndexInsertDocuments(p, indexingOpts, documents, totalBytes, insertCount)
 				documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 			}
 		}
@@ -233,7 +238,7 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 	// In the there are still documents to be processed
 	if pipelinePos != 0 && len(documents) > 0 {
 		// Index the document. The API accepts multiple documents at a time
-		CommonIndexInsertDocuments(p, documents, totalBytes, insertCount)
+		CommonIndexInsertDocuments(p, indexingOpts, documents, totalBytes, insertCount)
 		documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 	}
 	p.wg.Done()
@@ -249,9 +254,9 @@ func CommonIndexUpdateDocument(p *processor, updateOpts redisearch.IndexingOptio
 	updateCommonChannels(p, took, totalBytes)
 }
 
-func CommonIndexInsertDocuments(p *processor, documents []redisearch.Document, bytesCount uint64, insertCount uint64) () {
+func CommonIndexInsertDocuments(p *processor, opts redisearch.IndexingOptions, documents []redisearch.Document, bytesCount uint64, insertCount uint64) () {
 	start := time.Now()
-	if err := p.client.Index(documents...); err != nil {
+	if err := p.client.IndexOptions(opts, documents...); err != nil {
 		log.Fatalf("failed: %s\n", err)
 	}
 	took := uint64(time.Since(start).Milliseconds())
@@ -297,7 +302,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p, pipeline, updateRate, deleteRate, replacePartial, replacePartialCondition)
+		go connectionProcessor(p, pipeline, updateRate, deleteRate, noSave, replacePartial, replacePartialCondition)
 		for _, row := range events.rows {
 			p.rows <- row
 		}
