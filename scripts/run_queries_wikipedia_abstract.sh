@@ -15,7 +15,7 @@ PORT=${PORT:-6379}
 HOST="$IP:$PORT"
 
 # Index to load/query data to/from
-IDX=${IDX:-"idx1"}
+IDX=${IDX:-"enwiki-abstract-idx1"}
 
 # How many queries would be run
 MAX_QUERIES=${MAX_QUERIES:-100000}
