@@ -74,3 +74,8 @@ bin/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+
+# Json output files #
+#####################
+*.json
