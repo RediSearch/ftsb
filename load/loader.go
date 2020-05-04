@@ -391,10 +391,7 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 
 	//OverallAvgByteRate
 	l.testResult.OverallAvgByteRate = overallByteRate
-	l.testResult.OverallAvgByteRateHumanReadable = fmt.Sprintf("%sB/sec",byteRateStr)
-
-
-
+	l.testResult.OverallAvgByteRateHumanReadable = fmt.Sprintf("%sB/sec", byteRateStr)
 
 	printFn("\nSummary:\n")
 	printFn("Loaded %d Documents in %0.3fsec with %d workers\n", l.insertCount, took.Seconds(), l.workers)

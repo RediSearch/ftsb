@@ -22,7 +22,6 @@ MAX_FIELDS=${MAX_FIELDS:-10}
 IDX=${IDX:-"synthetic-numeric-int-idx1"}
 NOSAVE=${NOSAVE:-"false"}
 
-
 # DB IP
 IP=${IP:-"localhost"}
 
