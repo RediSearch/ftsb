@@ -17,7 +17,7 @@ DOCKER_IMG:="$(DOCKER_REPO):$(DOCKER_TAG)"
 DOCKER_LATEST:="${DOCKER_REPO}:latest"
 
 .PHONY: all dataset ingestion query
-all: dataset ingestion query
+all: test dataset ingestion query
 
 dataset: ftsb_generate_data ftsb_generate_queries
 
