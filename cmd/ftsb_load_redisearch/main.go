@@ -23,6 +23,7 @@ var (
 	syntheticsNumberFields  uint64
 	loader                  *load.BenchmarkRunner
 	useCase                 string
+	isSynthethics           bool
 )
 
 const (
@@ -70,6 +71,12 @@ func init() {
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.Parse()
+	if (useCase == useCaseSyntheticText) ||
+		(useCase == useCaseSyntheticNumericInt) ||
+		(useCase == useCaseSyntheticNumericDouble) ||
+		(useCase == useCaseSyntheticTags) {
+		isSynthethics = true
+	}
 }
 
 type benchmark struct {
@@ -86,6 +93,7 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["syntheticsNumberFields"] = syntheticsNumberFields
 	configs["useCase"] = useCase
 	configs["debug"] = debug
+	configs["isSynthethics"] = isSynthethics
 	return configs
 }
 

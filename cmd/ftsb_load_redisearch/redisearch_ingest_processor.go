@@ -67,8 +67,8 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 				totalBytes, pipelinePos, documents, insertCount = ftaddInsertWorkflow(p, pipeline, doc, totalBytes, deleteUpperLimit, updateUpperLimit, pipelinePos, indexingOpts, documents, insertCount, updateOpts)
 			}
 		} else {
-			_ , args , bytelen, _ :=	rowToHash(row)
-			totalBytes+=bytelen
+			_, args, bytelen, _ := rowToHash(row)
+			totalBytes += bytelen
 			documentHashes = append(documentHashes, args)
 		}
 	}
