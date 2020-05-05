@@ -23,8 +23,6 @@ var (
 	syntheticsNumberFields  uint64
 	loader                  *load.BenchmarkRunner
 	useCase                 string
-	useHmset                bool
-	useFtadd                bool
 )
 
 const (
@@ -70,8 +68,6 @@ func init() {
 	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
 	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
-	flag.BoolVar(&useHmset, "use-hmset", false, "If set to true, it will use hmset command to insert the documents.")
-	flag.BoolVar(&useFtadd, "use-ftadd", false, "If set to true, it will use ft.add to insert the documents.")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.Parse()
 }

@@ -18,7 +18,7 @@ DELETE_RATE=${DELETE_RATE:-0.0}
 DATASET="synthetic-numeric-int"
 MAX_CARDINALITY=${MAX_CARDINALITY:-65536}
 MAX_FIELDS=${MAX_FIELDS:-10}
-# Index to load the data into
+# Index to load the databuild into
 IDX=${IDX:-"synthetic-numeric-int-idx1"}
 NOSAVE=${NOSAVE:-"false"}
 
@@ -58,6 +58,7 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -synthetic-max-dataset-cardinality=${MAX_CARDINALITY} \
       -synthetic-fields=${MAX_FIELDS} \
       -use-case="synthetic-numeric-int" \
+      -use-hashes=${USE_HASHES} \
       -debug=${DEBUG} \
       -json-out-file=${SUFIX}.json \
       -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE

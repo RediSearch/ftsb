@@ -14,7 +14,7 @@ PORT=${PORT:-6379}
 
 HOST="$IP:$PORT"
 
-# Index to load/query data to/from
+# Index to load/query databuild to/from
 IDX=${IDX:-"enwiki-abstract-idx1"}
 
 # How many queries would be run

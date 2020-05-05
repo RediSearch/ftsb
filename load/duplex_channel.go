@@ -1,7 +1,7 @@
 package load
 
 // duplexChannel acts as a two-way channel for communicating from a scan routine
-// to a worker goroutine. The toWorker channel sends data to the worker for it
+// to a worker goroutine. The toWorker channel sends databuild to the worker for it
 // to process and the toScan channel allows the worker to acknowledge completion.
 // Using this we can accomplish better flow control between the scanner and workers.
 type duplexChannel struct {

@@ -47,7 +47,6 @@ func rowToRSDocument(row string) (document *redisearch.Document) {
 func ftaddInsertWorkflow(p *processor, pipeline uint64, doc *redisearch.Document, totalBytes uint64, deleteUpperLimit float64, updateUpperLimit float64, pipelinePos uint64, indexingOpts redisearch.IndexingOptions, documents []redisearch.Document, insertCount uint64, updateOpts redisearch.IndexingOptions) (uint64, uint64, []redisearch.Document, uint64) {
 	documentPayload := uint64((*doc).EstimateSize())
 	totalBytes += documentPayload
-	//fmt.Println(totalBytes)
 	(*doc).EstimateSize()
 	val := rand.Float64()
 	// DELETE
@@ -78,5 +77,11 @@ func ftaddInsertWorkflow(p *processor, pipeline uint64, doc *redisearch.Document
 		processorIndexInsertDocuments(p, indexingOpts, documents, totalBytes, insertCount)
 		documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
 	}
+	return totalBytes, pipelinePos, documents, insertCount
+}
+
+
+func hsetInsertWorkflow(p *processor, pipeline uint64, cmd string, args []string, totalBytes uint64, deleteUpperLimit float64, updateUpperLimit float64, pipelinePos uint64, indexingOpts redisearch.IndexingOptions, documents []redisearch.Document, insertCount uint64, updateOpts redisearch.IndexingOptions) (uint64, uint64, []redisearch.Document, uint64) {
+
 	return totalBytes, pipelinePos, documents, insertCount
 }

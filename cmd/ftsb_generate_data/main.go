@@ -1,4 +1,4 @@
-// ftsb_generate_data generates full text search data from pre-specified use cases.
+// ftsb_generate_data generates full text search databuild from pre-specified use cases.
 //
 // Supported formats:
 // RediSearch
@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	// Output data format choices (alphabetical order)
+	// Output databuild format choices (alphabetical order)
 	formatRediSearch = "redisearch"
 
 	// Use case choices (make sure to update TestGetConfig if adding a new one)
@@ -160,17 +160,17 @@ func init() {
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.UintVar(&interleavedGenerationGroupID, "interleaved-generation-group-id", 0,
-		"Group (0-indexed) to perform round-robin serialization within. Use this to scale up data generation to multiple processes.")
+		"Group (0-indexed) to perform round-robin serialization within. Use this to scale up databuild generation to multiple processes.")
 	flag.UintVar(&interleavedGenerationGroupsNum, "interleaved-generation-groups", 1,
-		"The number of round-robin serialization groups. Use this to scale up data generation to multiple processes.")
-	flag.StringVar(&profileFile, "profile-file", "", "File to which to write go profiling data")
+		"The number of round-robin serialization groups. Use this to scale up databuild generation to multiple processes.")
+	flag.StringVar(&profileFile, "profile-file", "", "File to which to write go profiling databuild")
 	flag.Int64Var(&seed, "seed", 0, "PRNG seed (default, or 0, uses the current timestamp).")
 	flag.Uint64Var(&maxDocuments, "max-documents", 0, "Limit the number of documentsto generate, 0 = no limit")
-	flag.StringVar(&inputfileName, "input-file", "", "File name to read the data from")
+	flag.StringVar(&inputfileName, "input-file", "", "File name to read the databuild from")
 	flag.Uint64Var(&syntheticsCardinality, "synthetic-max-dataset-cardinality", 1024, "Max Field cardinality specific to the synthetics use cases (e.g., distinct tags in 'tag' fields).")
-	flag.Uint64Var(&syntheticsFieldDataSize, "synthetic-field-datasize", 64, "Field data size specific to the synthetics use cases.")
+	flag.Uint64Var(&syntheticsFieldDataSize, "synthetic-field-datasize", 64, "Field databuild size specific to the synthetics use cases.")
 	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
-	flag.StringVar(&fileName, "output-file", "", "File name to write generated data to")
+	flag.StringVar(&fileName, "output-file", "", "File name to write generated databuild to")
 	flag.Parse()
 }
 

@@ -1,25 +1,16 @@
 #!/bin/bash
 
-# RediSearch supports up to 1024 fields per schema, out of which at most 128 can be TEXT fields.
-# On 32 bit builds, at most 64 fields can be TEXT fields.
+DATASET="enwiki-latest-abstract1"
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
-
-PRINT_INTERVAL=100000
 DEBUG=${DEBUG:-0}
 MAX_INSERTS=${MAX_INSERTS:-0}
-BATCH_SIZE=${BATCH_SIZE:-100}
-PIPELINE=${PIPELINE:-9}
+BATCH_SIZE=${BATCH_SIZE:-1000}
+PIPELINE=${PIPELINE:-100}
 UPDATE_RATE=${UPDATE_RATE:-0.0}
+DELETE_RATE=${DELETE_RATE:-0.0}
 REPLACE_PARTIAL=${REPLACE_PARTIAL:-false}
 REPLACE_CONDITION=${REPLACE_CONDITION:-""}
-DELETE_RATE=${DELETE_RATE:-0.0}
-DATASET="synthetic-tag"
-MAX_CARDINALITY=${MAX_CARDINALITY:-65536}
-MAX_FIELDS=${MAX_FIELDS:-10}
-# Index to load the data into
-IDX=${IDX:-"synthetic-tag-idx1"}
+PRINT_INTERVAL=100000
 NOSAVE=${NOSAVE:-"false"}
 
 # DB IP
@@ -30,24 +21,33 @@ PORT=${PORT:-6379}
 
 HOST="$IP:$PORT"
 
+# Index to load the databuild into
+IDX=${IDX:-"enwiki-abstract-idx1"}
+
 # How many queries would be run
-REPORTING_PERIOD=${REPORTING_PERIOD:-"1s"}
+MAX_QUERIES=${MAX_QUERIES:-100000}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
 
 echo ""
 echo "---------------------------------------------------------------------------------"
-echo "2) $DATASET"
+echo "1) $DATASET"
 echo "---------------------------------------------------------------------------------"
+
+redis-cli -h $IP -p $PORT ft.drop $IDX
+
+# create the index
+redis-cli -h ${IP} -p ${PORT} ft.create ${IDX} SCHEMA \
+  TITLE TEXT WEIGHT 5 SORTABLE \
+  URL TEXT WEIGHT 5 SORTABLE \
+  ABSTRACT TEXT WEIGHT 1 SORTABLE
 
 if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
   SUFIX="redisearch-load-${DATASET}-w${WORKERS}-pipe${PIPELINE}-RATES-u${UPDATE_RATE}-d${DELETE_RATE}"
-  echo "Using ${WORKERS} WORKERS"
   cat /tmp/ftsb_generate_data-$DATASET-redisearch.gz |
     gunzip |
-    ftsb_load_redisearch -workers=$WORKERS \
-      -reporting-period=${REPORTING_PERIOD} \
+    ftsb_load_redisearch -workers $WORKERS -reporting-period 1s \
       -index=$IDX \
       -no-save=${NOSAVE} \
       -host=$HOST -limit=${MAX_INSERTS} \
@@ -55,9 +55,8 @@ if [ -f /tmp/ftsb_generate_data-$DATASET-redisearch.gz ]; then
       -replace-partial=${REPLACE_PARTIAL} \
       -replace-condition=${REPLACE_CONDITION} \
       -delete-rate=${DELETE_RATE} \
-      -synthetic-max-dataset-cardinality=${MAX_CARDINALITY} \
-      -synthetic-fields=${MAX_FIELDS} \
-      -use-case="synthetic-tag" \
+      -use-case="enwiki-abstract" \
+      -use-hashes=${USE_HASHES} \
       -debug=${DEBUG} \
       -json-out-file=${SUFIX}.json \
       -batch-size=${BATCH_SIZE} -pipeline=$PIPELINE

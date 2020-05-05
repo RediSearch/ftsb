@@ -38,9 +38,9 @@ func (p *processor) Init(_ int, _ bool) {
 // DELETE IF BETWEEN [0,deleteLimit)
 // UPDATE IF BETWEEN [deleteLimit,updateLimit)
 // INSERT IF BETWEEN [updateLimit,1)
-func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, noSaveOption bool, updatePartial bool, updateCondition string) {
+func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, noSaveOption bool, updatePartial bool, updateCondition string, useHashes bool) {
 	var documents = make([]redisearch.Document, 0)
-	//var documentHashes = make([]redisearch.Document, 0)
+	var documentHashes = make([][]string, 0)
 
 	pipelinePos := uint64(0)
 	insertCount := uint64(0)
@@ -61,14 +61,19 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 	indexingOpts.NoSave = noSaveOption
 
 	for row := range p.rows {
-		doc := rowToRSDocument(row)
-		if doc != nil {
-			totalBytes, pipelinePos, documents, insertCount = ftaddInsertWorkflow(p, pipeline, doc, totalBytes, deleteUpperLimit, updateUpperLimit, pipelinePos, indexingOpts, documents, insertCount, updateOpts)
+		if useHashes == false {
+			doc := rowToRSDocument(row)
+			if doc != nil {
+				totalBytes, pipelinePos, documents, insertCount = ftaddInsertWorkflow(p, pipeline, doc, totalBytes, deleteUpperLimit, updateUpperLimit, pipelinePos, indexingOpts, documents, insertCount, updateOpts)
+			}
+		} else {
+			_ , args , bytelen, _ :=	rowToHash(row)
+			totalBytes+=bytelen
+			documentHashes = append(documentHashes, args)
 		}
-
 	}
 	// In the there are still documents to be processed
-	if pipelinePos != 0 && len(documents) > 0 {
+	if useHashes == false && pipelinePos != 0 && len(documents) > 0 {
 		// Index the document. The API accepts multiple documents at a time
 		processorIndexInsertDocuments(p, indexingOpts, documents, totalBytes, insertCount)
 		documents, insertCount, pipelinePos, totalBytes = LocalCountersReset()
@@ -101,8 +106,8 @@ func updateCommonChannels(p *processor, took uint64, bytesCount uint64) {
 	p.totalBytesChan <- bytesCount
 }
 
-// ProcessBatch reads eventsBatches which contain rows of data for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64) (uint64, uint64, uint64, uint64, uint64, uint64) {
+// ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
+func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64, useHashes bool) (uint64, uint64, uint64, uint64, uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	metricCnt := uint64(0)
@@ -122,7 +127,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p, pipeline, updateRate, deleteRate, noSave, replacePartial, replacePartialCondition)
+		go connectionProcessor(p, pipeline, updateRate, deleteRate, noSave, replacePartial, replacePartialCondition, useHashes)
 		for _, row := range events.rows {
 			p.rows <- row
 		}

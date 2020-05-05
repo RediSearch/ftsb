@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-func rowToHash(row string) (cmd string, args []string, bytelen int, err error) {
+func rowToHash(row string) (cmd string, args []string, bytelen uint64, err error) {
 	cmd = "hmset"
-	bytelen = len(cmd)
+	bytelen = uint64(len(cmd))
 	args = make([]string, 0)
 	if debug > 0 {
 		fmt.Fprintln(os.Stderr, "converting row to hash "+row)
@@ -18,7 +18,7 @@ func rowToHash(row string) (cmd string, args []string, bytelen int, err error) {
 	// we need at least the id and score
 	if len(fieldSizesStr) >= 2 {
 		documentId := loader.DatabaseName() + "-" + fieldSizesStr[0]
-		bytelen += len(documentId)
+		bytelen += uint64(len(documentId))
 		//documentScore, _ := strconv.ParseFloat(fieldSizesStr[1], 64)
 		args = append(args, documentId)
 		//doc := redisearch.NewDocument(documentId, float32(documentScore))
@@ -29,8 +29,8 @@ func rowToHash(row string) (cmd string, args []string, bytelen int, err error) {
 				if debug > 0 {
 					fmt.Fprintln(os.Stderr, "On doc "+documentId+" adding field with NAME "+pair[0]+" and VALUE "+pair[1])
 				}
-				bytelen += len(pair[0])
-				bytelen += len(pair[1])
+				bytelen += uint64(len(pair[0]))
+				bytelen += uint64(len(pair[1]))
 				args = append(args, pair[0], pair[1])
 			} else {
 				if debug > 0 {
