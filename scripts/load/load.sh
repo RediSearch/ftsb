@@ -46,6 +46,9 @@ for ((WORKERS = $MIN_WORKERS; WORKERS <= $MAX_WORKERS; WORKERS += WORKERS_INCREM
     fi
 
     redis-cli -h $IP -p $PORT ft.info $IDX >~/${SUFIX}-ft.info.txt
+
+    echo "Sleeping: $SLEEP_BETWEEN_RUNS"
+    sleep ${SLEEP_BETWEEN_RUNS}
   done
   # to make the increment correct
   if [[ "${WORKERS}" == "1" ]]; then
