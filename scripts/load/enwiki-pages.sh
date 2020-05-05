@@ -8,14 +8,5 @@ EXE_DIR=${EXE_DIR:-$(dirname $0)}
 source ${EXE_DIR}/../common_vars.sh
 source ${EXE_DIR}/../usecases/enwiki-pages.sh
 
-# drop the index if it exists
-redis-cli -h $IP -p $PORT ft.drop $IDX >>/dev/null
-
-echo "Issuing ft.create $IDX ${EXPRESSION} SCHEMA ${SCHEMA}"
-
-# create the index
-redis-cli -h $IP -p $PORT ft.create $IDX ${EXPRESSION} SCHEMA ${SCHEMA}
-
-
 # Run the loader
 source ${EXE_DIR}/load.sh

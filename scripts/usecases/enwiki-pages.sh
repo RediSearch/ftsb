@@ -2,8 +2,6 @@
 
 set -e
 #https://dumps.wikimedia.org/enwiki/latest/
-#Current revisions only, no talk or user pages;
-# this is approximately 14 GB compressed (expands to over 58 GB when decompressed).
 DATASETIN="enwiki-latest-pages-articles-multistream12.xml-p3926862p5040436"
 REMOTE_URL=https://dumps.wikimedia.org/enwiki/latest/$DATASETIN
 USE_CASE="enwiki-pages"

@@ -21,9 +21,10 @@ PORT=${PORT:-6379}
 HOST="$IP:$PORT"
 USE_HASHES=${USE_HASHES:-"false"}
 HAS_PREFIX=${HAS_PREFIX:-"true"}
+REPETITIONS=${REPETITIONS:-1}
 # How many queries would be run
 REPORTING_PERIOD=${REPORTING_PERIOD:-"1s"}
 # How many concurrent worker would run queries - match num of cores, or default to 8
-WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
-
-echo "Using ${WORKERS} WORKERS"
+MAX_WORKERS=${MAX_WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
+MIN_WORKERS=${MIN_WORKERS:-1}
+WORKERS_INCREMENT=${WORKERS_INCREMENT:-16}
