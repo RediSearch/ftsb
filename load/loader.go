@@ -452,10 +452,10 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 }
 
 // protect against NaN on json
-func wrapNaN(input float64) (output float64 ) {
+func wrapNaN(input float64) (output float64) {
 	output = input
-	if (math.IsNaN(output) ){
-		output=-1.0
+	if math.IsNaN(output) {
+		output = -1.0
 	}
 	return
 }
@@ -463,13 +463,12 @@ func wrapNaN(input float64) (output float64 ) {
 func (l *BenchmarkRunner) addRateMetricsDatapoints(now time.Time, insertRate float64, updateRate float64, deleteRate float64, CurrentOpsRate float64, currentByteRate float64, currentAvgLatency float64) {
 	//pinsertRate := insertRate
 
-
 	l.testResult.InsertRateTs = append(l.testResult.InsertRateTs, *NewDataPoint(now.Unix(), wrapNaN(insertRate)))
 	l.testResult.UpdateRateTs = append(l.testResult.UpdateRateTs, *NewDataPoint(now.Unix(), wrapNaN(updateRate)))
 	l.testResult.DeleteRateTs = append(l.testResult.DeleteRateTs, *NewDataPoint(now.Unix(), wrapNaN(deleteRate)))
 	l.testResult.OverallIngestionRateTs = append(l.testResult.OverallIngestionRateTs, *NewDataPoint(now.Unix(), wrapNaN(CurrentOpsRate)))
 	l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), wrapNaN(currentByteRate)))
-	l.testResult.OverallAverageLatencyTs = append(l.testResult.OverallAverageLatencyTs, *NewDataPoint(now.Unix(),wrapNaN( currentAvgLatency)))
+	l.testResult.OverallAverageLatencyTs = append(l.testResult.OverallAverageLatencyTs, *NewDataPoint(now.Unix(), wrapNaN(currentAvgLatency)))
 }
 
 func calculateRateMetrics(insertCount uint64, prevInsertCount uint64, took time.Duration, updateCount uint64, prevUpdateCount uint64, deleteCount uint64, prevDeleteCount uint64, totalLatency uint64, prevTotalLatency uint64, totalBytes uint64, prevTotalBytes uint64, sinceStart time.Duration) (float64, float64, float64, float64, float64, float64, float64, float64, float64) {

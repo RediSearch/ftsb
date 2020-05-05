@@ -79,3 +79,11 @@ func ftaddInsertWorkflow(p *processor, pipeline uint64, doc *redisearch.Document
 	}
 	return totalBytes, pipelinePos, documents, insertCount
 }
+
+func LocalCountersReset() (documents []redisearch.Document, pipelinePos uint64, insertCount uint64, totalBytes uint64) {
+	documents = make([]redisearch.Document, 0)
+	pipelinePos = 0
+	insertCount = 0
+	totalBytes = 0
+	return documents, insertCount, pipelinePos, totalBytes
+}

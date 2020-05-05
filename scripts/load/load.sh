@@ -20,7 +20,7 @@ if [ -f ${DATAFILE_LOADER} ]; then
       -debug=${DEBUG} \
       -json-out-file=${SUFIX}.json \
       -batch-size=${BATCH_SIZE} \
-      -pipeline=${PIPELINE}
+      -pipeline-max-size=${PIPELINE}
 else
   echo "dataset file not found at ${DATAFILE_LOADER}"
 fi

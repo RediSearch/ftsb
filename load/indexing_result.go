@@ -20,7 +20,7 @@ type TestResult struct {
 	RequestedInsertRatio float64 `json:"RequestedInsertRatio"`
 	RequestedUpdateRatio float64 `json:"RequestedUpdateRatio"`
 	RequestedDeleteRatio float64 `json:"RequestedDeleteRatio"`
-	UseHashes               bool  `json:"UseHashes"`
+	UseHashes            bool    `json:"UseHashes"`
 
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`

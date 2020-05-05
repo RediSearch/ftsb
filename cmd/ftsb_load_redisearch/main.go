@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/RediSearch/ftsb/load"
-	"github.com/RediSearch/redisearch-go/redisearch"
+	//"github.com/RediSearch/redisearch-go/redisearch"
+	"time"
+
 	//"github.com/mediocregopher/radix"
 	"log"
 	"strings"
@@ -14,7 +16,6 @@ import (
 // Program option vars:
 var (
 	host                    string
-	pipeline                uint64
 	noSave                  bool
 	replacePartial          bool
 	replacePartialCondition string
@@ -24,6 +25,8 @@ var (
 	loader                  *load.BenchmarkRunner
 	useCase                 string
 	isSynthethics           bool
+	PoolPipelineConcurrency int
+	PoolPipelineWindow      time.Duration
 )
 
 const (
@@ -62,7 +65,6 @@ var (
 func init() {
 	loader = load.GetBenchmarkRunnerWithBatchSize(1000)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
-	flag.Uint64Var(&pipeline, "pipeline", 10, "The pipeline's size")
 	flag.BoolVar(&noSave, "no-save", false, "If set to true, we will not save the actual document in the database and only index it.")
 	flag.BoolVar(&replacePartial, "replace-partial", false, "(only applicable with REPLACE (when update rate is higher than 0))")
 	flag.StringVar(&replacePartialCondition, "replace-condition", "", "(Applicable only in conjunction with REPLACE and optionally PARTIAL)")
@@ -70,6 +72,9 @@ func init() {
 	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
+	flag.DurationVar(&PoolPipelineWindow, "pipeline-window", 500*time.Microsecond, "If window is zero then implicit pipelining will be disabled")
+	flag.IntVar(&PoolPipelineConcurrency, "pipeline-max-size", 100, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
+
 	flag.Parse()
 	if (useCase == useCaseSyntheticText) ||
 		(useCase == useCaseSyntheticNumericInt) ||
@@ -86,7 +91,6 @@ type benchmark struct {
 func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs := map[string]interface{}{}
 	configs["host"] = host
-	configs["pipeline"] = pipeline
 	configs["replacePartial"] = replacePartial
 	configs["replacePartialCondition"] = replacePartialCondition
 	configs["syntheticsCardinality"] = syntheticsCardinality
@@ -94,6 +98,8 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["useCase"] = useCase
 	configs["debug"] = debug
 	configs["isSynthethics"] = isSynthethics
+	configs["PoolPipelineWindow"] = PoolPipelineWindow
+	configs["PoolPipelineConcurrency"] = PoolPipelineConcurrency
 	return configs
 }
 
@@ -123,14 +129,6 @@ func (b *benchmark) GetProcessor() load.Processor {
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
 	return b.dbc
-}
-
-func LocalCountersReset() (documents []redisearch.Document, pipelinePos uint64, insertCount uint64, totalBytes uint64) {
-	documents = make([]redisearch.Document, 0)
-	pipelinePos = 0
-	insertCount = 0
-	totalBytes = 0
-	return documents, insertCount, pipelinePos, totalBytes
 }
 
 func main() {

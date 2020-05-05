@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/RediSearch/ftsb/load"
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/mediocregopher/radix"
@@ -28,7 +29,7 @@ type processor struct {
 func (p *processor) Init(_ int, _ bool) {
 	p.client = redisearch.NewClient(host, loader.DatabaseName())
 	var err error = nil
-	p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0))
+	p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(PoolPipelineWindow, PoolPipelineConcurrency))
 	if err != nil {
 		log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 	}
@@ -40,7 +41,7 @@ func (p *processor) Init(_ int, _ bool) {
 // INSERT IF BETWEEN [updateLimit,1)
 func connectionProcessor(p *processor, pipeline uint64, updateRate float64, deleteRate float64, noSaveOption bool, updatePartial bool, updateCondition string, useHashes bool) {
 	var documents = make([]redisearch.Document, 0)
-	var documentHashes = make([][]string, 0)
+	//var documentHashes = make([][]string, 0)
 
 	pipelinePos := uint64(0)
 	insertCount := uint64(0)
@@ -67,9 +68,10 @@ func connectionProcessor(p *processor, pipeline uint64, updateRate float64, dele
 				totalBytes, pipelinePos, documents, insertCount = ftaddInsertWorkflow(p, pipeline, doc, totalBytes, deleteUpperLimit, updateUpperLimit, pipelinePos, indexingOpts, documents, insertCount, updateOpts)
 			}
 		} else {
-			_, args, bytelen, _ := rowToHash(row)
-			totalBytes += bytelen
-			documentHashes = append(documentHashes, args)
+			cmd, docFields, bytelen, _ := rowToHash(row)
+			hsetInsertWorkflow(p, cmd, docFields, bytelen)
+
+			//documentHashes = append(documentHashes, args)
 		}
 	}
 	// In the there are still documents to be processed
@@ -95,6 +97,18 @@ func processorIndexInsertDocuments(p *processor, opts redisearch.IndexingOptions
 	start := time.Now()
 	if err := p.client.IndexOptions(opts, documents...); err != nil {
 		log.Fatalf("failed: %s\n", err)
+	}
+	took := uint64(time.Since(start).Milliseconds())
+	p.insertsChan <- insertCount
+	updateCommonChannels(p, took, bytesCount)
+}
+
+func processorIndexInsertHashes(p *processor, cmd string, docfields []string, bytesCount uint64, insertCount uint64) () {
+	start := time.Now()
+	err := p.vanillaClient.Do(radix.Cmd(nil, "HSET", docfields...))
+	if err != nil {
+		extendedError := fmt.Errorf("hset failed:%v\n", err)
+		log.Fatal(extendedError)
 	}
 	took := uint64(time.Since(start).Milliseconds())
 	p.insertsChan <- insertCount
@@ -127,7 +141,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRa
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p, pipeline, updateRate, deleteRate, noSave, replacePartial, replacePartialCondition, useHashes)
+		go connectionProcessor(p, uint64(PoolPipelineConcurrency), updateRate, deleteRate, noSave, replacePartial, replacePartialCondition, useHashes)
 		for _, row := range events.rows {
 			p.rows <- row
 		}

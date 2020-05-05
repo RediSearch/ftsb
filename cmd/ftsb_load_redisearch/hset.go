@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/RediSearch/redisearch-go/redisearch"
 	"log"
 	"os"
 	"strings"
@@ -47,7 +46,14 @@ func rowToHash(row string) (cmd string, args []string, bytelen uint64, err error
 	return
 }
 
-func hsetInsertWorkflow(p *processor, pipeline uint64, cmd string, args []string, totalBytes uint64, deleteUpperLimit float64, updateUpperLimit float64, pipelinePos uint64, insertCount uint64, indexingOpts redisearch.IndexingOptions, documents []string, updateOpts redisearch.IndexingOptions) (uint64, uint64, []string, uint64) {
+func hsetInsertWorkflow(p *processor, cmd string, args []string, totalBytes uint64) (uint64, uint64) {
+	processorIndexInsertHashes(p, cmd, args, totalBytes, 1)
+	return totalBytes, 1
+}
 
-	return totalBytes, pipelinePos, documents, insertCount
+func LocalCountersResetHashes() (pipelinePos uint64, insertCount uint64, totalBytes uint64) {
+	pipelinePos = 0
+	insertCount = 0
+	totalBytes = 0
+	return insertCount, pipelinePos, totalBytes
 }
