@@ -293,7 +293,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 
 	// Prepare processor
 	proc := b.GetProcessor()
-	proc.Init(workerNum, l.doLoad)
+	proc.Init(workerNum, l.doLoad, int(l.workers))
 
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
