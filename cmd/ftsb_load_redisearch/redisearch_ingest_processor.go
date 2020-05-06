@@ -36,7 +36,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		if useHashes == false {
 			log.Fatalf("Cluster mode not supported without -use-hashes options set to true")
 		} else {
-			if sharedCluster == nil {
+			if workerNumber == 1 {
 				poolFunc := func(network, addr string) (radix.Client, error) {
 					return radix.NewPool(network, addr, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
 				}
