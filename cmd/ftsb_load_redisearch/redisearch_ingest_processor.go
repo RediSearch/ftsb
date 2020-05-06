@@ -131,9 +131,9 @@ func processorIndexInsertHashes(p *processor, cmd string, docfields []string, by
 	var err error = nil
 	start := time.Now()
 	if clusterMode {
-		err = sharedCluster.Do(radix.FlatCmd(nil, "hset", docfields[0], docfields[1:]))
+		err = p.vanillaCluster.Do(radix.FlatCmd(nil, "hset", docfields[0], docfields[1:]))
 	} else {
-		err = sharedPool.Do(radix.FlatCmd(nil, "hset", docfields[0], docfields[1:]))
+		err = p.vanillaClient.Do(radix.FlatCmd(nil, "hset", docfields[0], docfields[1:]))
 	}
 	if err != nil {
 		extendedError := fmt.Errorf("hset failed:%v\n", err)
