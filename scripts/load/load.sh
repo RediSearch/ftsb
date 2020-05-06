@@ -10,7 +10,7 @@ for ((WORKERS = $MIN_WORKERS; WORKERS <= $MAX_WORKERS; WORKERS += WORKERS_INCREM
       HELPER_MAX_INSERTS=$(($MAX_INSERTS / 10))
     fi
 
-    SUFIX="redisearch-load-${USE_CASE}-w${WORKERS}-maxpipe${PIPELINE}-hashes_${USE_HASHES}-hasprefix_${HAS_PREFIX}_rates-u${UPDATE_RATE}-d${DELETE_RATE}__repetition${REPETITION}"
+    SUFIX="redisearch-load-${USE_CASE}-cluster{${CLUSTER_MODE}}_w${WORKERS}-maxpipe${PIPELINE}-hashes_${USE_HASHES}-hasprefix_${HAS_PREFIX}_rates-u${UPDATE_RATE}-d${DELETE_RATE}__repetition${REPETITION}"
     echo "Saving results in files starting with: ${SUFIX}"
 
     echo "Dropping index $IDX if it exists"
@@ -40,7 +40,10 @@ for ((WORKERS = $MIN_WORKERS; WORKERS <= $MAX_WORKERS; WORKERS += WORKERS_INCREM
           -debug=${DEBUG} \
           -json-out-file=${SUFIX}.json \
           -batch-size=${BATCH_SIZE} \
-          -pipeline-max-size=${PIPELINE}
+          -pipeline-max-size=${PIPELINE} \
+          -pipeline-window=${PIPELINE_WINDOW_MS}ms \
+          -cluster-mode=${CLUSTER_MODE}
+
     else
       echo "dataset file not found at ${DATAFILE_LOADER}"
     fi

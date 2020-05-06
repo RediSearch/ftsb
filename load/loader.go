@@ -70,7 +70,6 @@ type BenchmarkRunner struct {
 	workers         uint
 	limit           uint64
 	doLoad          bool
-	useHashes       bool
 	doCreateDB      bool
 	doAbortOnExist  bool
 	reportingPeriod time.Duration
@@ -124,7 +123,6 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
-	flag.BoolVar(&loader.useHashes, "use-hashes", false, "If set to true, it will use hashes to insert the documents.")
 	flag.Float64Var(&loader.updateRate, "update-rate", 0, "Set the update rate ( between 0-1 ) for Documents being ingested")
 	flag.Float64Var(&loader.deleteRate, "delete-rate", 0, "Set the delete rate ( between 0-1 ) for Documents being ingested")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output load results. If not set, will not print to json.")
@@ -175,7 +173,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.DBSpecificConfigs = b.GetConfigurationParametersMap()
 	l.testResult.Limit = l.limit
 	l.testResult.DbName = l.dbName
-	l.testResult.UseHashes = l.useHashes
+	l.testResult.Workers = l.workers
 	l.summary(start, end)
 }
 
@@ -300,7 +298,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		metricCnt, rowCnt, updateCount, deleteCount, totalLatency, totalBytes := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate, l.useHashes)
+		metricCnt, rowCnt, updateCount, deleteCount, totalLatency, totalBytes := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
 		atomic.AddUint64(&l.insertCount, metricCnt)
 		atomic.AddUint64(&l.updateCount, updateCount)
 		atomic.AddUint64(&l.deleteCount, deleteCount)

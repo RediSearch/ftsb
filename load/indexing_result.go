@@ -17,10 +17,10 @@ type TestResult struct {
 	BatchSize            int64   `json:"BatchSize"`
 	Limit                uint64  `json:"Limit"`
 	DbName               string  `json:"DbName"`
+	Workers              uint    `json:"Workers"`
 	RequestedInsertRatio float64 `json:"RequestedInsertRatio"`
 	RequestedUpdateRatio float64 `json:"RequestedUpdateRatio"`
 	RequestedDeleteRatio float64 `json:"RequestedDeleteRatio"`
-	UseHashes            bool    `json:"UseHashes"`
 
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`

@@ -24,15 +24,31 @@ type processor struct {
 	updatedDocIds    []string
 	deletedDocIds    []string
 	vanillaClient    *radix.Pool
+	vanillaCluster   *radix.Cluster
 }
 
-func (p *processor) Init(_ int, _ bool) {
-	p.client = redisearch.NewClient(host, loader.DatabaseName())
+func (p *processor) Init(workerNumber int, _ bool) {
 	var err error = nil
-	p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(PoolPipelineWindow, PoolPipelineConcurrency))
-	if err != nil {
-		log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
+	if clusterMode {
+		if useHashes == false {
+			log.Fatalf("Cluster mode not supported without -use-hashes options set to true")
+		} else {
+			p.vanillaCluster, err = radix.NewCluster([]string{host})
+			if err != nil {
+				log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
+			}
+		}
+	} else {
+		if useHashes == false {
+			p.client = redisearch.NewClient(host, loader.DatabaseName())
+		} else {
+			p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(PoolPipelineWindow, PoolPipelineConcurrency))
+			if err != nil {
+				log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
+			}
+		}
 	}
+
 }
 
 // using random between [0,1) to determine whether it is an delete,update, or insert
@@ -104,8 +120,13 @@ func processorIndexInsertDocuments(p *processor, opts redisearch.IndexingOptions
 }
 
 func processorIndexInsertHashes(p *processor, cmd string, docfields []string, bytesCount uint64, insertCount uint64) () {
+	var err error = nil
 	start := time.Now()
-	err := p.vanillaClient.Do(radix.Cmd(nil, "HSET", docfields...))
+	if clusterMode {
+		err = p.vanillaCluster.Do(radix.Cmd(nil, cmd, docfields...))
+	} else {
+		err = p.vanillaClient.Do(radix.Cmd(nil, cmd, docfields...))
+	}
 	if err != nil {
 		extendedError := fmt.Errorf("hset failed:%v\n", err)
 		log.Fatal(extendedError)
@@ -121,7 +142,7 @@ func updateCommonChannels(p *processor, took uint64, bytesCount uint64) {
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64, useHashes bool) (uint64, uint64, uint64, uint64, uint64, uint64) {
+func (p *processor) ProcessBatch(b load.Batch, doLoad bool, updateRate, deleteRate float64) (uint64, uint64, uint64, uint64, uint64, uint64) {
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	metricCnt := uint64(0)

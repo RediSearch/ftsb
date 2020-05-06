@@ -27,6 +27,8 @@ var (
 	isSynthethics           bool
 	PoolPipelineConcurrency int
 	PoolPipelineWindow      time.Duration
+	useHashes               bool
+	clusterMode             bool
 )
 
 const (
@@ -72,6 +74,8 @@ func init() {
 	flag.Uint64Var(&syntheticsNumberFields, "synthetic-fields", 10, "Number of fields per document specific to the synthetics use cases (starting at field1, field2, field3, etc...).")
 	flag.StringVar(&useCase, "use-case", "enwiki-abstract", fmt.Sprintf("Use case to model. (choices: %s)", strings.Join(useCaseChoices, ", ")))
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
+	flag.BoolVar(&useHashes, "use-hashes", false, "If set to true, it will use hashes to insert the documents.")
+	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.DurationVar(&PoolPipelineWindow, "pipeline-window", 500*time.Microsecond, "If window is zero then implicit pipelining will be disabled")
 	flag.IntVar(&PoolPipelineConcurrency, "pipeline-max-size", 100, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
 
@@ -96,6 +100,8 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["syntheticsCardinality"] = syntheticsCardinality
 	configs["syntheticsNumberFields"] = syntheticsNumberFields
 	configs["useCase"] = useCase
+	configs["useHashes"] = useHashes
+	configs["clusterMode"] = clusterMode
 	configs["debug"] = debug
 	configs["isSynthethics"] = isSynthethics
 	configs["PoolPipelineWindow"] = PoolPipelineWindow
@@ -124,7 +130,7 @@ func (b *benchmark) GetPointIndexer(maxPartitions uint) load.PointIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{}, nil}
+	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{}, nil, nil}
 }
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
@@ -147,5 +153,5 @@ func main() {
 		isSynthethics,
 		useCase,
 	}
-	loader.RunBenchmark(&benchmark{dbc: &creator}, load.SingleQueue)
+	loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
 }
