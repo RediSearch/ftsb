@@ -27,7 +27,7 @@ var (
 	PoolPipelineWindow      float64
 	useHashes               bool
 	clusterMode             bool
-	singleWorkerQueue bool
+	singleWorkerQueue       bool
 )
 
 const (

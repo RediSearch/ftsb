@@ -41,8 +41,7 @@ for ((WORKERS = $MIN_WORKERS; WORKERS <= $MAX_WORKERS; WORKERS += WORKERS_INCREM
           -json-out-file=${SUFIX}.json \
           -batch-size=${BATCH_SIZE} \
           -pipeline-max-size=${PIPELINE} \
-          -pipeline-window-ms=${PIPELINE_WINDOW_MS} \
-                              -cluster-mode=${CLUSTER_MODE}
+          -cluster-mode=${CLUSTER_MODE}
 
     else
       echo "dataset file not found at ${DATAFILE_LOADER}"

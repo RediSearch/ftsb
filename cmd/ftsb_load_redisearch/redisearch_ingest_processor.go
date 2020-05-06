@@ -30,7 +30,7 @@ type processor struct {
 	//vanillaCluster   *radix.Cluster
 }
 
-func (p *processor) Init(workerNumber int, _ bool, totalWorkers int ) {
+func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	var err error = nil
 	if clusterMode {
 		if useHashes == false {
@@ -40,10 +40,10 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int ) {
 				poolFunc := func(network, addr string) (radix.Client, error) {
 					return radix.NewPool(network, addr, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
 				}
-				sharedCluster, err = radix.NewCluster([]string{host},radix.ClusterPoolFunc(poolFunc))
-			if err != nil {
-				log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
-			}
+				sharedCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
+				if err != nil {
+					log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
+				}
 			}
 		}
 	} else {
