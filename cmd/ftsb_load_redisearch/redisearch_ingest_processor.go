@@ -26,8 +26,8 @@ type processor struct {
 	insertedDocIds   []string
 	updatedDocIds    []string
 	deletedDocIds    []string
-	//vanillaClient    *radix.Pool
-	//vanillaCluster   *radix.Cluster
+	vanillaClient    *radix.Pool
+	vanillaCluster   *radix.Cluster
 }
 
 func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
@@ -36,25 +36,23 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		if useHashes == false {
 			log.Fatalf("Cluster mode not supported without -use-hashes options set to true")
 		} else {
-			if workerNumber == 1 {
-				poolFunc := func(network, addr string) (radix.Client, error) {
-					return radix.NewPool(network, addr, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
-				}
-				sharedCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
-				if err != nil {
-					log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
-				}
+			poolFunc := func(network, addr string) (radix.Client, error) {
+				return radix.NewPool(network, addr, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+			}
+			p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
+			if err != nil {
+				log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
+
 			}
 		}
 	} else {
 		if useHashes == false {
 			p.client = redisearch.NewClient(host, loader.DatabaseName())
 		} else {
-			if sharedPool == nil {
-				sharedPool, err = radix.NewPool("tcp", host, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
-				if err != nil {
-					log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
-				}
+			p.vanillaClient, err = radix.NewPool("tcp", host, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+			if err != nil {
+				log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
+
 			}
 		}
 	}

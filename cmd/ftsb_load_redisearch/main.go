@@ -131,7 +131,7 @@ func (b *benchmark) GetPointIndexer(maxPartitions uint) load.PointIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{}}
+	return &processor{b.dbc, nil, nil, nil, nil, nil, nil, nil, nil, []string{}, []string{}, []string{}, nil, nil}
 }
 
 func (b *benchmark) GetDBCreator() load.DBCreator {
