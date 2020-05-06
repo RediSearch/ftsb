@@ -29,6 +29,7 @@ var (
 	PoolPipelineWindow      time.Duration
 	useHashes               bool
 	clusterMode             bool
+	singleWorkerQueue bool
 )
 
 const (
@@ -78,6 +79,7 @@ func init() {
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.DurationVar(&PoolPipelineWindow, "pipeline-window", 500*time.Microsecond, "If window is zero then implicit pipelining will be disabled")
 	flag.IntVar(&PoolPipelineConcurrency, "pipeline-max-size", 100, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
+	flag.BoolVar(&singleWorkerQueue, "workers-single-queue", true, "If set to true, it will use a single shared queue across all workers.")
 
 	flag.Parse()
 	if (useCase == useCaseSyntheticText) ||
@@ -102,6 +104,7 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["useCase"] = useCase
 	configs["useHashes"] = useHashes
 	configs["clusterMode"] = clusterMode
+	configs["singleWorkerQueue"] = singleWorkerQueue
 	configs["debug"] = debug
 	configs["isSynthethics"] = isSynthethics
 	configs["PoolPipelineWindow"] = PoolPipelineWindow
@@ -153,5 +156,9 @@ func main() {
 		isSynthethics,
 		useCase,
 	}
-	loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
+	if singleWorkerQueue {
+		loader.RunBenchmark(&benchmark{dbc: &creator}, load.SingleQueue)
+	} else {
+		loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
+	}
 }
