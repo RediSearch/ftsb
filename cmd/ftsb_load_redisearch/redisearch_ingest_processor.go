@@ -37,7 +37,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 			log.Fatalf("Cluster mode not supported without -use-hashes options set to true")
 		} else {
 			poolFunc := func(network, addr string) (radix.Client, error) {
-				return radix.NewPool(network, addr, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+				return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
 			}
 			p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
 			if err != nil {
@@ -49,7 +49,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		if useHashes == false {
 			p.client = redisearch.NewClient(host, loader.DatabaseName())
 		} else {
-			p.vanillaClient, err = radix.NewPool("tcp", host, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+			p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
 			if err != nil {
 				log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 
