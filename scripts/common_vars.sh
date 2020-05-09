@@ -31,3 +31,9 @@ WORKERS_INCREMENT=${WORKERS_INCREMENT:-16}
 SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 PIPELINE_WINDOW_MS=${PIPELINE_WINDOW_MS:-250}
 CLUSTER_MODE=${CLUSTER_MODE:-"false"}
+
+# RediSearch supports up to 1024 fields per schema, out of which at most 128 can be TEXT fields.
+# On 32 bit builds, at most 64 fields can be TEXT fields.
+MAX_FIELDS=${MAX_FIELDS:-10}
+MAX_CARDINALITY=${MAX_CARDINALITY:-65536}
+FIELD_SIZE=${FIELD_SIZE:-64}
