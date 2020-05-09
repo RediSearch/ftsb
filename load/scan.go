@@ -21,7 +21,7 @@ func ackAndMaybeSend(ch *duplexChannel, count *int, unsent []Batch) []Batch {
 	return unsent
 }
 
-// sendOrQueueBatch attempts to send a Batch of data on a duplexChannel.
+// sendOrQueueBatch attempts to send a Batch of databuild on a duplexChannel.
 // If it would block or there is other work to be sent first, the Batch is stored on a queue.
 // The count of outstanding work is adjusted upwards
 func sendOrQueueBatch(ch *duplexChannel, count *int, batch Batch, unsent []Batch) []Batch {
@@ -36,7 +36,7 @@ func sendOrQueueBatch(ch *duplexChannel, count *int, batch Batch, unsent []Batch
 	return unsent
 }
 
-// Batch is an aggregate of points for a particular data system.
+// Batch is an aggregate of points for a particular databuild system.
 // It needs to have a way to measure it's size to make sure
 // it does not get too large and it needs a way to append a point
 type Batch interface {
@@ -50,7 +50,7 @@ type Point struct {
 	Data interface{}
 }
 
-// NewDocument creates a Document with the provided data as the internal representation
+// NewDocument creates a Document with the provided databuild as the internal representation
 func NewDocument(data interface{}) *Point {
 	return &Point{Data: data}
 }
@@ -77,13 +77,13 @@ type BatchFactory interface {
 	New() Batch
 }
 
-// PointDecoder decodes the next data point in the process of scanning.
+// PointDecoder decodes the next databuild point in the process of scanning.
 type PointDecoder interface {
-	//Decode creates a Point from a data stream
+	//Decode creates a Point from a databuild stream
 	Decode(*bufio.Reader) *Point
 }
 
-// ScanWithIndexer reads data from the provided bufio.Reader br until a limit is reached (if -1, all items are read).
+// ScanWithIndexer reads databuild from the provided bufio.Reader br until a limit is reached (if -1, all items are read).
 // Data is decoded by PointDecoder decoder and then placed into appropriate batches, using the supplied PointIndexer,
 // which are then dispatched to workers (duplexChannel chosen by PointIndexer). Scan does flow control to make sure workers are not left idle for too long
 // and also that the scanning process  does not starve them of CPU.

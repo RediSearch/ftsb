@@ -17,6 +17,7 @@ type TestResult struct {
 	BatchSize            int64   `json:"BatchSize"`
 	Limit                uint64  `json:"Limit"`
 	DbName               string  `json:"DbName"`
+	Workers              uint    `json:"Workers"`
 	RequestedInsertRatio float64 `json:"RequestedInsertRatio"`
 	RequestedUpdateRatio float64 `json:"RequestedUpdateRatio"`
 	RequestedDeleteRatio float64 `json:"RequestedDeleteRatio"`
@@ -41,13 +42,13 @@ type TestResult struct {
 	MeasuredDeleteRatio float64 `json:"MeasuredDeleteRatio"`
 
 	// Overall Rates
-	OverallAvgOpsRate    float64 `json:"OverallAvgOpsRate"`
-	OverallAvgInsertRate float64 `json:"OverallAvgInsertRate"`
-	OverallAvgUpdateRate float64 `json:"OverallAvgUpdateRate"`
-	OverallAvgDeleteRate float64 `json:"OverallAvgDeleteRate"`
-	OverallAvgLatency    float64 `json:"OverallAvgLatency"`
-	OverallAvgByteRate   float64 `json:"OverallAvgByteRate"`
-	OverallAvgByteRateHumanReadable   string `json:"OverallAvgByteRateHumanReadable"`
+	OverallAvgOpsRate               float64 `json:"OverallAvgOpsRate"`
+	OverallAvgInsertRate            float64 `json:"OverallAvgInsertRate"`
+	OverallAvgUpdateRate            float64 `json:"OverallAvgUpdateRate"`
+	OverallAvgDeleteRate            float64 `json:"OverallAvgDeleteRate"`
+	OverallAvgLatency               float64 `json:"OverallAvgLatency"`
+	OverallAvgByteRate              float64 `json:"OverallAvgByteRate"`
+	OverallAvgByteRateHumanReadable string  `json:"OverallAvgByteRateHumanReadable"`
 
 	// Time-Series
 	OverallIngestionRateTs  []DataPoint `json:"OverallIngestionRateTs"`

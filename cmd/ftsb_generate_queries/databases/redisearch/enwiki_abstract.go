@@ -98,7 +98,7 @@ func (d *EnWikiAbstract) Simple2WordBarackObama(qi query.Query) {
 
 }
 
-// fill Query fills the query struct with data
+// fill Query fills the query struct with databuild
 func (d *EnWikiAbstract) fillInQuery(qi query.Query, humanLabel, humanDesc, redisQuery string) {
 	q := qi.(*query.RediSearch)
 	q.HumanLabel = []byte(humanLabel)

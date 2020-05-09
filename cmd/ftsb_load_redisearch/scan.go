@@ -11,7 +11,7 @@ type decoder struct {
 	scanner *bufio.Scanner
 }
 
-// Reads and returns a text line that encodes a data point for a specif field name.
+// Reads and returns a text line that encodes a databuild point for a specif field name.
 // Since scanning happens in a single thread, we hold off on transforming it
 // to an INSERT statement until it's being processed concurrently by a worker.
 func (d *decoder) Decode(_ *bufio.Reader) *load.Point {
