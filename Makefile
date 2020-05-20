@@ -17,7 +17,7 @@ DOCKER_IMG:="$(DOCKER_REPO):$(DOCKER_TAG)"
 DOCKER_LATEST:="${DOCKER_REPO}:latest"
 
 .PHONY: all dataset ingestion query
-all: test dataset ingestion query
+all: get test dataset ingestion query
 
 dataset: ftsb_generate_data ftsb_generate_queries
 
@@ -25,23 +25,26 @@ ingestion: ftsb_load_redisearch
 
 query: ftsb_run_queries_redisearch
 
-ftsb_generate_data:
+ftsb_generate_data: get
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
-ftsb_generate_queries:
+ftsb_generate_queries: get
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
-ftsb_load_redisearch:
+ftsb_load_redisearch: get
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
-ftsb_run_queries_redisearch:
+ftsb_run_queries_redisearch: get
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
-test:
+get:
+	go get ./...
+
+test: get
 	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 collect-detach:
