@@ -1,12 +1,12 @@
 package serialize
 
-// WikiAbstract wraps a single document. It stores database-agnostic data
+// WikiAbstract wraps a single document. It stores database-agnostic databuild
 import (
 	"github.com/RediSearch/redisearch-go/redisearch"
 	"io"
 )
 
-// WikiAbstract wraps a single document. It stores database-agnostic data
+// WikiAbstract wraps a single document. It stores database-agnostic databuild
 // representing one WikiAbstract
 //
 // Internally, WikiAbstract uses byte slices instead of strings to try to minimize

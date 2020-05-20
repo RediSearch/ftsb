@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// Utility function for appending various data types to a byte string
+// Utility function for appending various databuild types to a byte string
 func fastFormatAppend(v interface{}, buf []byte) []byte {
 	switch v.(type) {
 	case int:

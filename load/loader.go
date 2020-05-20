@@ -118,11 +118,11 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
 	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
 	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")
-	flag.BoolVar(&loader.doLoad, "do-load", true, "Whether to write data. Set this flag to false to check input read speed.")
+	flag.BoolVar(&loader.doLoad, "do-load", true, "Whether to write databuild. Set this flag to false to check input read speed.")
 	flag.BoolVar(&loader.doCreateDB, "do-create-db", true, "Whether to create the database. Disable on all but one client if running on a multi client setup.")
 	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
-	flag.StringVar(&loader.fileName, "file", "", "File name to read data from")
+	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
 	flag.Float64Var(&loader.updateRate, "update-rate", 0, "Set the update rate ( between 0-1 ) for Documents being ingested")
 	flag.Float64Var(&loader.deleteRate, "delete-rate", 0, "Set the delete rate ( between 0-1 ) for Documents being ingested")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output load results. If not set, will not print to json.")
@@ -130,7 +130,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	return loader
 }
 
-// DatabaseName returns the value of the --db-name flag (name of the database to store data)
+// DatabaseName returns the value of the --db-name flag (name of the database to store databuild)
 func (l *BenchmarkRunner) DatabaseName() string {
 	return l.dbName
 }
@@ -155,12 +155,12 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stderr, 20, 0, 1, ' ', tabwriter.AlignRight)
-	// Start scan process - actual data read process
+	// Start scan process - actual databuild read process
 	start := time.Now()
 
 	l.scan(b, channels, start, w)
 
-	// After scan process completed (no more data to come) - begin shutdown process
+	// After scan process completed (no more databuild to come) - begin shutdown process
 
 	// Close all communication channels to/from workers
 	for _, c := range channels {
@@ -173,6 +173,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.DBSpecificConfigs = b.GetConfigurationParametersMap()
 	l.testResult.Limit = l.limit
 	l.testResult.DbName = l.dbName
+	l.testResult.Workers = l.workers
 	l.summary(start, end)
 }
 
@@ -274,7 +275,7 @@ func (l *BenchmarkRunner) createChannels(workQueues uint) []*duplexChannel {
 	return channels
 }
 
-// scan launches any needed reporting mechanism and proceeds to scan input data
+// scan launches any needed reporting mechanism and proceeds to scan input databuild
 // to distribute to workers
 func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start time.Time, w *tabwriter.Writer) uint64 {
 	// Start background reporting process
@@ -283,7 +284,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 		go l.report(l.reportingPeriod, start, w)
 	}
 
-	// Scan incoming data
+	// Scan incoming databuild
 	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetPointDecoder(l.br), b.GetBatchFactory(), b.GetPointIndexer(uint(len(channels))))
 }
 
@@ -292,7 +293,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 
 	// Prepare processor
 	proc := b.GetProcessor()
-	proc.Init(workerNum, l.doLoad)
+	proc.Init(workerNum, l.doLoad, int(l.workers))
 
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
@@ -391,10 +392,7 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 
 	//OverallAvgByteRate
 	l.testResult.OverallAvgByteRate = overallByteRate
-	l.testResult.OverallAvgByteRateHumanReadable = fmt.Sprintf("%sB/sec",byteRateStr)
-
-
-
+	l.testResult.OverallAvgByteRateHumanReadable = fmt.Sprintf("%sB/sec", byteRateStr)
 
 	printFn("\nSummary:\n")
 	printFn("Loaded %d Documents in %0.3fsec with %d workers\n", l.insertCount, took.Seconds(), l.workers)
@@ -451,13 +449,24 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 	}
 }
 
+// protect against NaN on json
+func wrapNaN(input float64) (output float64) {
+	output = input
+	if math.IsNaN(output) {
+		output = -1.0
+	}
+	return
+}
+
 func (l *BenchmarkRunner) addRateMetricsDatapoints(now time.Time, insertRate float64, updateRate float64, deleteRate float64, CurrentOpsRate float64, currentByteRate float64, currentAvgLatency float64) {
-	l.testResult.InsertRateTs = append(l.testResult.InsertRateTs, *NewDataPoint(now.Unix(), insertRate))
-	l.testResult.UpdateRateTs = append(l.testResult.UpdateRateTs, *NewDataPoint(now.Unix(), updateRate))
-	l.testResult.DeleteRateTs = append(l.testResult.DeleteRateTs, *NewDataPoint(now.Unix(), deleteRate))
-	l.testResult.OverallIngestionRateTs = append(l.testResult.OverallIngestionRateTs, *NewDataPoint(now.Unix(), CurrentOpsRate))
-	l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), currentByteRate))
-	l.testResult.OverallAverageLatencyTs = append(l.testResult.OverallAverageLatencyTs, *NewDataPoint(now.Unix(), currentAvgLatency))
+	//pinsertRate := insertRate
+
+	l.testResult.InsertRateTs = append(l.testResult.InsertRateTs, *NewDataPoint(now.Unix(), wrapNaN(insertRate)))
+	l.testResult.UpdateRateTs = append(l.testResult.UpdateRateTs, *NewDataPoint(now.Unix(), wrapNaN(updateRate)))
+	l.testResult.DeleteRateTs = append(l.testResult.DeleteRateTs, *NewDataPoint(now.Unix(), wrapNaN(deleteRate)))
+	l.testResult.OverallIngestionRateTs = append(l.testResult.OverallIngestionRateTs, *NewDataPoint(now.Unix(), wrapNaN(CurrentOpsRate)))
+	l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), wrapNaN(currentByteRate)))
+	l.testResult.OverallAverageLatencyTs = append(l.testResult.OverallAverageLatencyTs, *NewDataPoint(now.Unix(), wrapNaN(currentAvgLatency)))
 }
 
 func calculateRateMetrics(insertCount uint64, prevInsertCount uint64, took time.Duration, updateCount uint64, prevUpdateCount uint64, deleteCount uint64, prevDeleteCount uint64, totalLatency uint64, prevTotalLatency uint64, totalBytes uint64, prevTotalBytes uint64, sinceStart time.Duration) (float64, float64, float64, float64, float64, float64, float64, float64, float64) {

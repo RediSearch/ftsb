@@ -6,8 +6,8 @@
 [![GoDoc](https://godoc.org/github.com/RediSearch/ftsb?status.svg)](https://godoc.org/github.com/RediSearch/ftsb)
 
 # Full-Text Search Benchmark (FTSB)
-[![Mailing List](https://img.shields.io/badge/Mailing%20List-RediSearch-blue)](https://groups.google.com/forum/#!forum/redisearch)
-[![Gitter](https://badges.gitter.im/RedisLabs/RediSearch.svg)](https://gitter.im/RedisLabs/RediSearch?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+ [![Forum](https://img.shields.io/badge/Forum-RediSearch-blue)](https://forum.redislabs.com/c/modules/redisearch/) 
+ [![Gitter](https://badges.gitter.im/RedisLabs/RediSearch.svg)](https://gitter.im/RedisLabs/RediSearch?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This repo contains code for benchmarking full text search databases,
 including RediSearch.

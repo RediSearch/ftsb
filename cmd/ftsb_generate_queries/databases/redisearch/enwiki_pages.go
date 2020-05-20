@@ -174,7 +174,7 @@ func (d *EnWikiPages) Agg8_ApproximateAvgEditorContributionsByYear(qi query.Quer
 	d.Core.PagesEditorsIndexPosition++
 }
 
-// fill Query fills the query struct with data
+// fill Query fills the query struct with databuild
 func (d *EnWikiPages) fillInQuery(qi query.Query, humanLabel, humanDesc, redisQuery string) {
 	q := qi.(*query.RediSearch)
 	q.HumanLabel = []byte(humanLabel)

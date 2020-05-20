@@ -14,7 +14,7 @@ PORT=${PORT:-6379}
 
 HOST="$IP:$PORT"
 
-# Index to load the data into
+# Index to load the databuild into
 IDX=${IDX:-"pages-meta-idx1"}
 
 # How many queries would be run

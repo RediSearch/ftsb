@@ -72,7 +72,7 @@ func (s *CommonFTSSimulator) Describe(file *os.File) {
 
 }
 
-// A FTSSimulator generates data similar to telemetry from Telegraf for only CPU metrics.
+// A FTSSimulator generates databuild similar to telemetry from Telegraf for only CPU metrics.
 // It fulfills the Simulator interface.
 type FTSSimulator struct {
 	*CommonFTSSimulator

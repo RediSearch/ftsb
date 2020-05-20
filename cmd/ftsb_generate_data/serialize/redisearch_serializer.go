@@ -8,7 +8,7 @@ import (
 // RediSearchDocumentSerializer writes a WikiAbstract in a serialized form for RediSearch
 type RediSearchDocumentSerializer struct{}
 
-// Serialize writes WikiAbstract data to the given writer, in a format that will be easy to create a RediSearch command
+// Serialize writes WikiAbstract databuild to the given writer, in a format that will be easy to create a RediSearch command
 func (s *RediSearchDocumentSerializer) Serialize(p *redisearch.Document, w io.Writer) (err error) {
 	// To do this
 	// FT.ADD myIdx doc1 1.0 FIELDS title "hello world" body "lorem ipsum" url "http://redis.io"

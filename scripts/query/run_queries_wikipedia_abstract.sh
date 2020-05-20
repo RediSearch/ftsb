@@ -14,7 +14,7 @@ PORT=${PORT:-6379}
 
 HOST="$IP:$PORT"
 
-# Index to load/query data to/from
+# Index to load/query databuild to/from
 IDX=${IDX:-"enwiki-abstract-idx1"}
 
 # How many queries would be run
@@ -27,7 +27,6 @@ WITH_CURSOR=${WITH_CURSOR:-false}
 RATE_LIMIT=${RATE_LIMIT:-0}
 
 # How many queries would be run
-SLEEP_BETWEEN_RUNS=${SLEEP_BETWEEN_RUNS:-60}
 
 # How many concurrent worker would run queries - match num of cores, or default to 8
 WORKERS=${WORKERS:-$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 8)}
