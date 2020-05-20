@@ -1,4 +1,4 @@
-// tsbs_run_queries_siridb speed tests SiriDB using requests from stdin or file
+// ftsb_run_queries_redisearch speed tests RediSearch using requests from stdin or file
 //
 
 // This program has no knowledge of the internals of the endpoint.
