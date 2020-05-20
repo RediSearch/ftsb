@@ -60,7 +60,6 @@ scripts). The easiest way to get and install the Go programs is to use
 # Fetch FTSB and its dependencies
 go get github.com/RediSearch/ftsb
 cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
-go get ./...
 
 # Install desired binaries. At a minimum this includes ftsb_generate_data,
 # ftsb_generate_queries, one ftsb_load_* binary, and one ftsb_run_queries_*
@@ -229,7 +228,7 @@ ftsb_run_queries_redisearch \
 ```
 
 #### Sustainable Throughput benchmark
-To really understand a system behavior we also cant relay solely on doing the full percentile analysis while stressing the system to it's maximum RPS. 
+To really understand a system behavior we also can't relay solely on doing the full percentile analysis while stressing the system to it's maximum RPS. 
 
 We need to be able to compare the behavior under different throughput and/or configurations, to be able to get the best "Sustainable Throughput: The throughput achieved while safely maintaining service levels.
  To enabling full percentile spectrum and Sustainable Throughput analysis you can use:
