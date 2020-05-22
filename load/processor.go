@@ -5,7 +5,7 @@ type Processor interface {
 	// Init does per-worker setup needed before receiving databuild
 	Init(workerNum int, doLoad bool, totalWorkers int)
 	// ProcessBatch handles a single batch of databuild
-	ProcessBatch(b Batch, doLoad bool) (setupWriteCount, writeCount, updateCount, readCount, readCursorCount, DeleteCount, totalLatency, totalTxBytes, totalRxBytes uint64)
+	ProcessBatch(b Batch, doLoad bool) Stat
 }
 
 // ProcessorCloser is a Processor that also needs to close or cleanup afterwards

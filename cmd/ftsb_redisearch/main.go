@@ -52,7 +52,7 @@ func (i *RedisIndexer) GetIndex(itemsRead uint64, p *load.DocHolder) int {
 	return int(uint(itemsRead) % i.partitions)
 }
 
-func (b *benchmark) GetPointDecoder(br *bufio.Reader) load.DocDecoder {
+func (b *benchmark) GetCmdDecoder(br *bufio.Reader) load.DocDecoder {
 	return &decoder{scanner: bufio.NewScanner(br)}
 }
 
@@ -60,7 +60,7 @@ func (b *benchmark) GetBatchFactory() load.BatchFactory {
 	return &factory{}
 }
 
-func (b *benchmark) GetPointIndexer(maxPartitions uint) load.DocIndexer {
+func (b *benchmark) GetCommandIndexer(maxPartitions uint) load.DocIndexer {
 	return &RedisIndexer{partitions: maxPartitions}
 }
 

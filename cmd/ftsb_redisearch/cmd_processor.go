@@ -11,27 +11,19 @@ import (
 )
 
 type processor struct {
-	dbc                 *dbCreator
-	rows                chan string
-	setupWriteCountChan chan uint64
-	writeCountChan      chan uint64
-	updateCountChan     chan uint64
-	readCountChan       chan uint64
-	readCursorCountChan chan uint64
-	DeleteCountChan     chan uint64
-	totalLatencyChan    chan uint64
-	totalTxBytesChan    chan uint64
-	totalRxBytesChan    chan uint64
-	wg                  *sync.WaitGroup
-	vanillaClient       *radix.Pool
-	vanillaCluster      *radix.Cluster
+	dbc            *dbCreator
+	rows           chan string
+	cmdChan        chan load.Stat
+	wg             *sync.WaitGroup
+	vanillaClient  *radix.Pool
+	vanillaCluster *radix.Cluster
 }
 
 func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	var err error = nil
 	if clusterMode {
 		poolFunc := func(network, addr string) (radix.Client, error) {
-			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
 		}
 		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
 		if err != nil {
@@ -40,7 +32,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		}
 	} else {
 
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 
@@ -94,27 +86,10 @@ func sendFlatCmd(p *processor, cmdType, cmd string, docfields []string, txBytesC
 		extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", cmd, err, issuedCommand)
 		log.Fatal(extendedError)
 	}
-	took += uint64(time.Since(start).Milliseconds())
+	took += uint64(time.Since(start).Microseconds())
 	rxBytesCount += getRxLen(rcv)
-	switch cmdType {
-	case "SETUP_WRITE":
-		p.setupWriteCountChan <- insertCount
-	case "WRITE":
-		p.writeCountChan <- insertCount
-		break
-	case "UPDATE":
-		p.updateCountChan <- insertCount
-		break
-	case "READ":
-		p.readCountChan <- insertCount
-		break
-	case "DELETE":
-		p.DeleteCountChan <- insertCount
-		break
-	//case "OTHER":
-	default:
-		break
-	}
+	stat := load.NewStat().AddEntry([]byte(cmdType), took, false, false, txBytesCount, rxBytesCount)
+
 	if cmd == "FT.AGGREGATE" && rcv != nil {
 		var aggreply []interface{}
 		aggreply = rcv.([]interface{})
@@ -132,53 +107,32 @@ func sendFlatCmd(p *processor, cmdType, cmd string, docfields []string, txBytesC
 				extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", "FT.CURSOR", err, issuedCommand)
 				log.Fatal(extendedError)
 			}
-			took += uint64(time.Since(start).Milliseconds())
+			took += uint64(time.Since(start).Microseconds())
 			rxBytesCount += getRxLen(rcv)
+			stat.AddCmdStatEntry(*load.NewCmdStat([]byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
 			cursor_id = 0
 			if len(aggreply) == 2 {
 				cursor_id = aggreply[1].(int64)
 			}
 			cursor_cmds++
 		}
-		if cursor_cmds > 0 {
-			p.readCursorCountChan <- cursor_cmds
-		}
+		//if cursor_cmds > 0 {
+		//	p.readCursorCountChan <- cursor_cmds
+		//}
 	}
-	updateCommonChannels(p, took, txBytesCount, rxBytesCount)
+	p.cmdChan <- *stat
 
-}
-
-func updateCommonChannels(p *processor, took, txBytesCount, rxBytesCount uint64) {
-	p.totalLatencyChan <- took
-	p.totalTxBytesChan <- txBytesCount
-	p.totalRxBytesChan <- rxBytesCount
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (setupWriteCount, writeCount, updateCount, readCount, readCursorCount, DeleteCount, totalLatency, totalTxBytes, totalRxBytes uint64) {
+func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (outstat load.Stat) {
+	outstat = *load.NewStat()
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
-	setupWriteCount = 0
-	writeCount = 0
-	updateCount = 0
-	readCount = 0
-	readCursorCount = 0
-	DeleteCount = 0
-	totalLatency = 0
-	totalTxBytes = 0
-	totalRxBytes = 0
 	if doLoad {
 		buflen := rowCnt + 1
 
-		p.setupWriteCountChan = make(chan uint64, buflen)
-		p.writeCountChan = make(chan uint64, buflen)
-		p.updateCountChan = make(chan uint64, buflen)
-		p.readCountChan = make(chan uint64, buflen)
-		p.readCursorCountChan = make(chan uint64, buflen)
-		p.DeleteCountChan = make(chan uint64, buflen)
-		p.totalLatencyChan = make(chan uint64, buflen)
-		p.totalTxBytesChan = make(chan uint64, buflen)
-		p.totalRxBytesChan = make(chan uint64, buflen)
+		p.cmdChan = make(chan load.Stat, buflen)
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
@@ -189,42 +143,10 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (setupWriteCount, wr
 		close(p.rows)
 		p.wg.Wait()
 
-		close(p.setupWriteCountChan)
-		close(p.writeCountChan)
-		close(p.updateCountChan)
-		close(p.readCountChan)
-		close(p.readCursorCountChan)
-		close(p.DeleteCountChan)
-		close(p.totalLatencyChan)
-		close(p.totalTxBytesChan)
-		close(p.totalRxBytesChan)
+		close(p.cmdChan)
 
-		for val := range p.setupWriteCountChan {
-			setupWriteCount += val
-		}
-		for val := range p.writeCountChan {
-			writeCount += val
-		}
-		for val := range p.updateCountChan {
-			updateCount += val
-		}
-		for val := range p.readCountChan {
-			readCount += val
-		}
-		for val := range p.readCursorCountChan {
-			readCursorCount += val
-		}
-		for val := range p.DeleteCountChan {
-			DeleteCount += val
-		}
-		for val := range p.totalLatencyChan {
-			totalLatency += val
-		}
-		for val := range p.totalTxBytesChan {
-			totalTxBytes += val
-		}
-		for val := range p.totalRxBytesChan {
-			totalRxBytes += val
+		for cmdStat := range p.cmdChan {
+			outstat.Merge(cmdStat)
 		}
 	}
 	events.rows = events.rows[:0]

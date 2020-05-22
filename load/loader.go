@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/filipecosta90/hdrhistogram"
 	"io/ioutil"
 	"log"
 	"math"
@@ -40,14 +41,14 @@ var (
 // Benchmark is an interface that represents the skeleton of a program
 // needed to run an insert or benchmark benchmark.
 type Benchmark interface {
-	// GetPointDecoder returns the DocDecoder to use for this Benchmark
-	GetPointDecoder(br *bufio.Reader) DocDecoder
+	// GetCmdDecoder returns the DocDecoder to use for this Benchmark
+	GetCmdDecoder(br *bufio.Reader) DocDecoder
 
 	// GetBatchFactory returns the BatchFactory to use for this Benchmark
 	GetBatchFactory() BatchFactory
 
-	// GetPointIndexer returns the DocIndexer to use for this Benchmark
-	GetPointIndexer(maxPartitions uint) DocIndexer
+	// GetCommandIndexer returns the DocIndexer to use for this Benchmark
+	GetCommandIndexer(maxPartitions uint) DocIndexer
 
 	// GetProcessor returns the Processor to use for this Benchmark
 	GetProcessor() Processor
@@ -76,21 +77,36 @@ type BenchmarkRunner struct {
 	fileName        string
 
 	// non-flag fields
-	br              *bufio.Reader
-	setupWriteCount uint64
-	writeCount      uint64
-	updateCount     uint64
-	readCount       uint64
-	readCursorCount uint64
-	deleteCount     uint64
-	totalLatency    uint64
-	txTotalBytes    uint64
-	rxTotalBytes    uint64
+	br                  *bufio.Reader
+	setupWriteCount     uint64
+	setupWriteHistogram *hdrhistogram.Histogram
+	writeCount          uint64
+	writeHistogram      *hdrhistogram.Histogram
+	updateCount         uint64
+	updateHistogram     *hdrhistogram.Histogram
+	readCount           uint64
+	readHistogram       *hdrhistogram.Histogram
+	readCursorCount     uint64
+	readCursorHistogram *hdrhistogram.Histogram
+	deleteCount         uint64
+	deleteHistogram     *hdrhistogram.Histogram
+	totalLatency        uint64
+	totalHistogram      *hdrhistogram.Histogram
+	txTotalBytes        uint64
+	rxTotalBytes        uint64
 
 	testResult TestResult
 }
 
-var loader = &BenchmarkRunner{}
+var loader = &BenchmarkRunner{
+	setupWriteHistogram: hdrhistogram.New(1, 1000000, 4),
+	writeHistogram:      hdrhistogram.New(1, 1000000, 4),
+	updateHistogram:     hdrhistogram.New(1, 1000000, 4),
+	readHistogram:       hdrhistogram.New(1, 1000000, 4),
+	readCursorHistogram: hdrhistogram.New(1, 1000000, 4),
+	deleteHistogram:     hdrhistogram.New(1, 1000000, 4),
+	totalHistogram:      hdrhistogram.New(1, 1000000, 4),
+}
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
 // with a default batch size
@@ -140,7 +156,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	}
 
 	w := new(tabwriter.Writer)
-	w.Init(os.Stderr, 17, 0, 0, ' ', tabwriter.AlignRight)
+	w.Init(os.Stderr, 20, 0, 0, ' ', tabwriter.AlignRight)
 	// Start scan process - actual databuild read process
 	start := time.Now()
 
@@ -264,7 +280,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	// Scan incoming databuild
-	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetPointDecoder(l.br), b.GetBatchFactory(), b.GetPointIndexer(uint(len(channels))))
+	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
 }
 
 // work is the processing function for each worker in the loader
@@ -277,17 +293,42 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		setupWriteCount, writeCount, updateCount, readCount, readCursorCount, deleteCount, totalLatency, totalTxBytes, totalRxBytes := proc.ProcessBatch(b, l.doLoad)
-		atomic.AddUint64(&l.setupWriteCount, setupWriteCount)
-		atomic.AddUint64(&l.writeCount, writeCount)
-		atomic.AddUint64(&l.updateCount, updateCount)
-		atomic.AddUint64(&l.readCount, readCount)
-		atomic.AddUint64(&l.readCursorCount, readCursorCount)
-		atomic.AddUint64(&l.deleteCount, deleteCount)
-		atomic.AddUint64(&l.totalLatency, totalLatency)
-		atomic.AddUint64(&l.txTotalBytes, totalTxBytes)
-		atomic.AddUint64(&l.rxTotalBytes, totalRxBytes)
-
+		stats := proc.ProcessBatch(b, l.doLoad)
+		cmdStats := stats.CmdStats()
+		for pos := 0; pos < len(cmdStats); pos++ {
+			cmdStat := cmdStats[pos]
+			atomic.AddUint64(&l.totalLatency, cmdStat.Latency())
+			_ = l.totalHistogram.RecordValue(int64(cmdStat.Latency()))
+			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
+			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
+			labelStr := string(cmdStat.Label())
+			switch labelStr {
+			case "SETUP_WRITE":
+				atomic.AddUint64(&l.setupWriteCount, 1)
+				_ = l.setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			case "WRITE":
+				atomic.AddUint64(&l.writeCount, 1)
+				_ = l.writeHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			case "UPDATE":
+				atomic.AddUint64(&l.updateCount, 1)
+				_ = l.updateHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			case "READ":
+				atomic.AddUint64(&l.readCount, 1)
+				_ = l.readHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			case "CURSOR_READ":
+				atomic.AddUint64(&l.readCursorCount, 1)
+				_ = l.readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			case "DELETE":
+				atomic.AddUint64(&l.deleteCount, 1)
+				_ = l.deleteHistogram.RecordValue(int64(cmdStat.Latency()))
+				break
+			}
+		}
 		c.sendToScanner()
 	}
 
@@ -407,19 +448,28 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 	printFn("\nSummary:\n")
 	printFn("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
 	printFn("\tMean rate:\n\t "+
-		"- Total %0.0f ops/sec\n\t "+
-		"- Setup Writes %0.0f ops/sec\n\t "+
-		"- Writes %0.0f ops/sec\n\t "+
-		"- Reads %0.0f ops/sec\n\t "+
-		"- Cursor Reads %0.0f ops/sec\n\t "+
-		"- Updates %0.0f ops/sec\n\t "+
-		"- Deletes %0.0f ops/sec\n",
+		"- Total %0.0f ops/sec %0.3f q50 lat\n\t"+
+		"- Setup Writes %0.0f ops/sec%0.3f q50 lat\n\t"+
+		"- Writes %0.0f ops/sec %0.3f q50 lat\n\t"+
+		"- Reads %0.0f ops/sec %0.3f q50 lat\n\t"+
+		"- Cursor Reads %0.0f ops/sec %0.3f q50 lat\n\t"+
+		"- Updates %0.0f ops/sec %0.3f q50 lat\n\t"+
+		"- Deletes %0.0f ops/sec %0.3f q50 lat\n\t",
 		overallOpsRate,
+		float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
 		setupWriteRate,
+		float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
 		writeRate,
+		float64(l.writeHistogram.ValueAtQuantile(50.0))/10e2,
 		readRate,
+		float64(l.readHistogram.ValueAtQuantile(50.0))/10e2,
 		readCursorRate,
-		updateRate, deleteRate)
+		float64(l.readCursorHistogram.ValueAtQuantile(50.0))/10e2,
+		updateRate,
+		float64(l.updateHistogram.ValueAtQuantile(50.0))/10e2,
+		deleteRate,
+		float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
+	)
 	printFn("\tOverall Avg Latency: %0.3f msec\n", overallAvgLatency)
 	printFn("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
 	printFn("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
@@ -452,7 +502,7 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 	prevTxTotalBytes := uint64(0)
 	prevRxTotalBytes := uint64(0)
 
-	fmt.Fprint(w, "setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\tcurr avg lat ms\ttotal ops\tTX BW/s\tRX BW/s\n")
+	fmt.Fprint(w, "setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\ttotal ops\tTX BW/s\tRX BW/s\n")
 	w.Flush()
 	for now := range time.NewTicker(period).C {
 		setupWriteCount := atomic.LoadUint64(&l.setupWriteCount)
@@ -473,8 +523,28 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 		currentRxByteRateStr := bytefmt.ByteSize(uint64(currentRxByteRate))
 
 		l.addRateMetricsDatapoints(now, setupWriteRate, writeRate, readRate, readCursorRate, updateRate, deleteRate, CurrentOpsRate, currentTxByteRate, currentRxByteRate, currentAvgLatency)
-		fmt.Fprint(w, fmt.Sprintf("%.0f \t %.0f \t%.0f \t %.0f \t %.0f \t %.0f \t %.0f \t %.3f  \t%d \t %sB/s \t %sB/s\n",
-			setupWriteRate, writeRate, updateRate, readRate, readCursorRate, deleteRate, CurrentOpsRate, currentAvgLatency, totalOps, currentTxByteRateStr, currentRxByteRateStr))
+		fmt.Fprint(w, fmt.Sprintf("%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t %.0f (%.3f) \t%d \t %sB/s \t %sB/s\n",
+			setupWriteRate,
+			float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
+
+			writeRate,
+			float64(l.writeHistogram.ValueAtQuantile(50.0))/10e2,
+
+			updateRate,
+			float64(l.updateHistogram.ValueAtQuantile(50.0))/10e2,
+
+			readRate,
+			float64(l.readHistogram.ValueAtQuantile(50.0))/10e2,
+
+			readCursorRate,
+			float64(l.readCursorHistogram.ValueAtQuantile(50.0))/10e2,
+
+			deleteRate,
+			float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
+
+			CurrentOpsRate,
+			float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
+			totalOps, currentTxByteRateStr, currentRxByteRateStr))
 		w.Flush()
 		prevSetupWriteCount = setupWriteCount
 		prevWriteCount = writeCount
