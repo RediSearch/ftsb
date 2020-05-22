@@ -345,6 +345,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.MeasuredRatios = l.GetMeasuredRatiosMap()
 	l.testResult.OverallRates = l.GetOverallRatesMap()
 	l.testResult.TimeSeries = l.GetTimeSeriesMap()
+	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
 	l.testResult.Limit = l.limit
 	l.testResult.DbName = l.dbName
 	l.testResult.Workers = l.workers
@@ -561,13 +562,13 @@ func (l *BenchmarkRunner) summary() {
 	printFn("\nSummary:\n")
 	printFn("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
 	printFn("\tOverall stats:\n\t"+
-		"- Total %0.0f ops/sec\tq50 lat %0.3f ms\n\t"+
-		"- Setup Writes %0.0f ops/sec\tq50 lat %0.3f ms\n\t"+
-		"- Writes %0.0f ops/sec\tq50 lat %0.3f ms\n\t"+
-		"- Reads %0.0f ops/sec\tq50 lat %0.3 msf\n\t"+
-		"- Cursor Reads %0.0f ops/sec\tq50 lat %0.3f ms\n\t"+
-		"- Updates %0.0f ops/sec\tq50 lat %0.3f ms\n\t"+
-		"- Deletes %0.0f ops/sec\tq50 lat %0.3f ms\n\t",
+		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
+		"- Writes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Reads %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Cursor Reads %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
+		"- Updates %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Deletes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n",
 		overallOpsRate,
 		float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
 		setupWriteRate,
@@ -703,24 +704,46 @@ func wrapNaN(input float64) (output float64) {
 }
 
 func (l *BenchmarkRunner) addRateMetricsDatapoints(datapoints []DataPoint, now time.Time, timeframe time.Duration, hist *hdrhistogram.Histogram) []DataPoint {
-	ops := hist.TotalCount()
-	q50 := 0.0
-	q95 := 0.0
-	q99 := 0.0
+	ops, mp := generateQuantileMap(hist)
 	rate := 0.0
-	if ops > 0 {
-		q50 = float64(hist.ValueAtQuantile(50.0)) / 10e2
-		q95 = float64(hist.ValueAtQuantile(95.0)) / 10e2
-		q99 = float64(hist.ValueAtQuantile(99.0)) / 10e2
-		rate = float64(ops) / float64(timeframe.Seconds())
-	}
-
-	mp := map[string]float64{"rate": rate, "q50": q50, "q95": q95, "q99": q99}
-
+	rate = float64(ops) / float64(timeframe.Seconds())
+	mp["rate"] = rate
 	datapoint := DataPoint{now.Unix(), mp}
 	datapoints = append(datapoints, datapoint)
 	return datapoints
 
+}
+
+func generateQuantileMap(hist *hdrhistogram.Histogram) (int64, map[string]float64) {
+	ops := hist.TotalCount()
+	q50 := 0.0
+	q95 := 0.0
+	q99 := 0.0
+	if ops > 0 {
+		q50 = float64(hist.ValueAtQuantile(50.0)) / 10e2
+		q95 = float64(hist.ValueAtQuantile(95.0)) / 10e2
+		q99 = float64(hist.ValueAtQuantile(99.0)) / 10e2
+	}
+
+	mp := map[string]float64{"q50": q50, "q95": q95, "q99": q99}
+	return ops, mp
+}
+
+func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
+	configs := map[string]interface{}{}
+	_, setupWrite := generateQuantileMap(b.setupWriteHistogram)
+	configs["setupWrite"] = setupWrite
+	_, write := generateQuantileMap(b.writeHistogram)
+	configs["write"] = write
+	_, read := generateQuantileMap(b.readHistogram)
+	configs["read"] = read
+	_, readCursor := generateQuantileMap(b.readCursorHistogram)
+	configs["readCursor"] = readCursor
+	_, update := generateQuantileMap(b.updateHistogram)
+	configs["update"] = update
+	_, delete := generateQuantileMap(b.deleteHistogram)
+	configs["delete"] = delete
+	return configs
 }
 
 func calculateRateMetrics(current, prev int64, took time.Duration) (rate float64) {
