@@ -357,8 +357,11 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 	//TotalLatency
 	l.testResult.TotalLatency = totalLatency
 
-	//TotalBytes
-	l.testResult.TotalBytes = txTotalBytes
+	//TotalTxBytes
+	l.testResult.TotalTxBytes = txTotalBytes
+
+	//TotalTxBytes
+	l.testResult.TotalRxBytes = rxTotalBytes
 
 	/////////
 	// Overall Ratios
@@ -366,6 +369,9 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 
 	//MeasuredWriteRatio
 	l.testResult.MeasuredWriteRatio = float64(writeCount) / float64(totalOps)
+
+	//MeasuredReadRatio
+	l.testResult.MeasuredReadRatio = float64(readCount) / float64(totalOps)
 
 	//MeasuredUpdateRatio
 	l.testResult.MeasuredUpdateRatio = float64(updateCount) / float64(totalOps)
@@ -522,7 +528,7 @@ func calculateRateMetrics(setupWriteCount, prevSetupWriteCount, writeCount, prev
 
 	CurrentOpsRate = setupWriteRate + writeRate + readRate + readCursorRate + updateRate + deleteRate
 
-	totalCount := writeCount + readCount + updateCount + deleteCount
+	totalCount := setupWriteCount + writeCount + readCount + readCursorCount + updateCount + deleteCount
 	overallOpsRate = float64(totalCount) / float64(sinceStart.Seconds())
 	overallAvgLatency = float64(totalLatency) / float64(totalCount)
 	overallTxByteRate = float64(txTotalBytes) / float64(took.Seconds())

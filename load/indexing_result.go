@@ -18,9 +18,6 @@ type TestResult struct {
 	Limit                uint64  `json:"Limit"`
 	DbName               string  `json:"DbName"`
 	Workers              uint    `json:"Workers"`
-	RequestedInsertRatio float64 `json:"RequestedInsertRatio"`
-	RequestedUpdateRatio float64 `json:"RequestedUpdateRatio"`
-	RequestedDeleteRatio float64 `json:"RequestedDeleteRatio"`
 
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`
@@ -37,7 +34,8 @@ type TestResult struct {
 	TotalReadsCursor uint64 `json:"TotalReadsCursor"`
 	TotalDeletes     uint64 `json:"TotalDeletes"`
 	TotalLatency     uint64 `json:"TotalLatency"`
-	TotalBytes       uint64 `json:"TotalBytes"`
+	TotalTxBytes     uint64 `json:"TotalTxBytes"`
+	TotalRxBytes     uint64 `json:"TotalRxBytes"`
 
 	// Overall Ratios
 	MeasuredWriteRatio  float64 `json:"MeasuredWriteRatio"`
