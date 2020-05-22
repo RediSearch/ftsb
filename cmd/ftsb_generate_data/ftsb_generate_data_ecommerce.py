@@ -234,7 +234,7 @@ if (__name__ == "__main__"):
     parser.add_argument('--update_ratio', type=float, default=0.85,)
     parser.add_argument('--seed', type=int, default=12345,)
     parser.add_argument('--doc_limit', type=int, default=100000,)
-    parser.add_argument('--total_benchmark_commands', type=int, default=100000,)
+    parser.add_argument('--total_benchmark_commands', type=int, default=10000,)
     parser.add_argument('--max_skus_per_aggregate', type=int, default=100,)
     parser.add_argument('--max_nodes_per_aggregate', type=int, default=100,)
     parser.add_argument('--indexname', type=str, default="inventory",)

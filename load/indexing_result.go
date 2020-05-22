@@ -1,13 +1,25 @@
 package load
 
 type DataPoint struct {
-	Timestamp int64   `json:"Timestamp"`
-	Value     float64 `json:"Value"`
+	Timestamp   int64              `json:"Timestamp"`
+	MultiValues map[string]float64 `json:"MultiValues"`
 }
 
-func NewDataPoint(timestamp int64, value float64) *DataPoint {
-	return &DataPoint{Timestamp: timestamp, Value: value}
+func (p DataPoint) AddValue(s string, value float64) {
+	p.MultiValues[s] = value
 }
+
+func NewDataPoint(timestamp int64) *DataPoint {
+	mp := map[string]float64{}
+	return &DataPoint{Timestamp: timestamp, MultiValues: mp}
+}
+
+// ByTimestamp implements sort.Interface based on the Timestamp field of the DataPoint.
+type ByTimestamp []DataPoint
+
+func (a ByTimestamp) Len() int           { return len(a) }
+func (a ByTimestamp) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a ByTimestamp) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type TestResult struct {
 
@@ -22,49 +34,21 @@ type TestResult struct {
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`
 
-	// Totals
-	StartTime        int64  `json:"StartTime"`
-	EndTime          int64  `json:"EndTime"`
-	DurationMillis   int64  `json:"DurationMillis"`
-	TotalOps         uint64 `json:"TotalOps"`
-	SetupTotalWrites uint64 `json:"SetupTotalWrites"`
-	TotalWrites      uint64 `json:"TotalWrites"`
-	TotalUpdates     uint64 `json:"TotalUpdates"`
-	TotalReads       uint64 `json:"TotalReads"`
-	TotalReadsCursor uint64 `json:"TotalReadsCursor"`
-	TotalDeletes     uint64 `json:"TotalDeletes"`
-	TotalLatency     uint64 `json:"TotalLatency"`
-	TotalTxBytes     uint64 `json:"TotalTxBytes"`
-	TotalRxBytes     uint64 `json:"TotalRxBytes"`
+	StartTime      int64 `json:"StartTime"`
+	EndTime        int64 `json:"EndTime"`
+	DurationMillis int64 `json:"DurationMillis"`
 
-	// Overall Ratios
-	MeasuredWriteRatio  float64 `json:"MeasuredWriteRatio"`
-	MeasuredReadRatio   float64 `json:"MeasuredReadRatio"`
-	MeasuredUpdateRatio float64 `json:"MeasuredUpdateRatio"`
-	MeasuredDeleteRatio float64 `json:"MeasuredDeleteRatio"`
+	// Totals
+	Totals map[string]interface{} `json:"Totals"`
+
+	MeasuredRatios map[string]interface{} `json:"MeasuredRatios"`
 
 	// Overall Rates
-	OverallAvgOpsRate               float64 `json:"OverallAvgOpsRate"`
-	OverallAvgSetupWriteRate        float64 `json:"OverallAvgSetupWriteRate"`
-	OverallAvgWriteRate             float64 `json:"OverallAvgWriteRate"`
-	OverallAvgReadRate              float64 `json:"OverallAvgReadRate"`
-	OverallAvgReadCursorRate        float64 `json:"OverallAvgReadCursorRate"`
-	OverallAvgUpdateRate            float64 `json:"OverallAvgUpdateRate"`
-	OverallAvgDeleteRate            float64 `json:"OverallAvgDeleteRate"`
-	OverallAvgLatency               float64 `json:"OverallAvgLatency"`
-	OverallAvgTxByteRate            float64 `json:"OverallAvgTxByteRate"`
-	OverallAvgRxByteRate            float64 `json:"OverallAvgRxByteRate"`
-	OverallAvgByteRateHumanReadable string  `json:"OverallAvgByteRateHumanReadable"`
+	OverallRates map[string]interface{} `json:"OverallRates"`
+
+	// Overall Quantiles
+	OverallQuantiles map[string]interface{} `json:"OverallQuantiles"`
 
 	// Time-Series
-	OverallOpsRateTs        []DataPoint `json:"OverallOpsRateTs"`
-	OverallTxByteRateTs     []DataPoint `json:"OverallTxByteRateTs"`
-	OverallRxByteRateTs     []DataPoint `json:"OverallRxByteRateTs"`
-	OverallAverageLatencyTs []DataPoint `json:"OverallAverageLatencyTs"`
-	SetupWriteRateTs        []DataPoint `json:"SetupWriteRateTs"`
-	WriteRateTs             []DataPoint `json:"WriteRateTs"`
-	ReadRateTs              []DataPoint `json:"ReadRateTs"`
-	ReadCursorRateTs        []DataPoint `json:"ReadCursorRateTs"`
-	UpdateRateTs            []DataPoint `json:"UpdateRateTs"`
-	DeleteRateTs            []DataPoint `json:"DeleteRateTs"`
+	TimeSeries map[string]interface{} `json:"TimeSeries"`
 }
