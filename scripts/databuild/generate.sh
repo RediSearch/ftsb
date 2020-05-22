@@ -6,7 +6,7 @@ set -e
 if [ -f $DATAFILE_RAW ]; then
   echo "Issuing ftsb_generate_data."
   ftsb_generate_data -input-file=${DATAFILE_RAW} \
-    -max-documents=${MAX_DOCS} \
+    -max-commands=${MAX_DOCS} \
     -seed=${SEED} \
     -format=${FORMAT} \
     -use-case=${USE_CASE} -debug=${DEBUG} >${DATAFILE_LOADER}

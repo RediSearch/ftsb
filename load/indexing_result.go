@@ -26,35 +26,47 @@ type TestResult struct {
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`
 
 	// Totals
-	StartTime      int64  `json:"StartTime"`
-	EndTime        int64  `json:"EndTime"`
-	DurationMillis int64  `json:"DurationMillis"`
-	TotalOps       uint64 `json:"TotalOps"`
-	TotalInserts   uint64 `json:"TotalInserts"`
-	TotalUpdates   uint64 `json:"TotalUpdates"`
-	TotalDeletes   uint64 `json:"TotalDeletes"`
-	TotalLatency   uint64 `json:"TotalLatency"`
-	TotalBytes     uint64 `json:"TotalBytes"`
+	StartTime        int64  `json:"StartTime"`
+	EndTime          int64  `json:"EndTime"`
+	DurationMillis   int64  `json:"DurationMillis"`
+	TotalOps         uint64 `json:"TotalOps"`
+	SetupTotalWrites uint64 `json:"SetupTotalWrites"`
+	TotalWrites      uint64 `json:"TotalWrites"`
+	TotalUpdates     uint64 `json:"TotalUpdates"`
+	TotalReads       uint64 `json:"TotalReads"`
+	TotalReadsCursor uint64 `json:"TotalReadsCursor"`
+	TotalDeletes     uint64 `json:"TotalDeletes"`
+	TotalLatency     uint64 `json:"TotalLatency"`
+	TotalBytes       uint64 `json:"TotalBytes"`
 
 	// Overall Ratios
-	MeasuredInsertRatio float64 `json:"MeasuredInsertRatio"`
+	MeasuredWriteRatio  float64 `json:"MeasuredWriteRatio"`
+	MeasuredReadRatio   float64 `json:"MeasuredReadRatio"`
 	MeasuredUpdateRatio float64 `json:"MeasuredUpdateRatio"`
 	MeasuredDeleteRatio float64 `json:"MeasuredDeleteRatio"`
 
 	// Overall Rates
 	OverallAvgOpsRate               float64 `json:"OverallAvgOpsRate"`
-	OverallAvgInsertRate            float64 `json:"OverallAvgInsertRate"`
+	OverallAvgSetupWriteRate        float64 `json:"OverallAvgSetupWriteRate"`
+	OverallAvgWriteRate             float64 `json:"OverallAvgWriteRate"`
+	OverallAvgReadRate              float64 `json:"OverallAvgReadRate"`
+	OverallAvgReadCursorRate        float64 `json:"OverallAvgReadCursorRate"`
 	OverallAvgUpdateRate            float64 `json:"OverallAvgUpdateRate"`
 	OverallAvgDeleteRate            float64 `json:"OverallAvgDeleteRate"`
 	OverallAvgLatency               float64 `json:"OverallAvgLatency"`
-	OverallAvgByteRate              float64 `json:"OverallAvgByteRate"`
+	OverallAvgTxByteRate            float64 `json:"OverallAvgTxByteRate"`
+	OverallAvgRxByteRate            float64 `json:"OverallAvgRxByteRate"`
 	OverallAvgByteRateHumanReadable string  `json:"OverallAvgByteRateHumanReadable"`
 
 	// Time-Series
-	OverallIngestionRateTs  []DataPoint `json:"OverallIngestionRateTs"`
-	OverallByteRateTs       []DataPoint `json:"OverallByteRateTs"`
+	OverallOpsRateTs        []DataPoint `json:"OverallOpsRateTs"`
+	OverallTxByteRateTs     []DataPoint `json:"OverallTxByteRateTs"`
+	OverallRxByteRateTs     []DataPoint `json:"OverallRxByteRateTs"`
 	OverallAverageLatencyTs []DataPoint `json:"OverallAverageLatencyTs"`
-	InsertRateTs            []DataPoint `json:"InsertRateTs"`
+	SetupWriteRateTs        []DataPoint `json:"SetupWriteRateTs"`
+	WriteRateTs             []DataPoint `json:"WriteRateTs"`
+	ReadRateTs              []DataPoint `json:"ReadRateTs"`
+	ReadCursorRateTs        []DataPoint `json:"ReadCursorRateTs"`
 	UpdateRateTs            []DataPoint `json:"UpdateRateTs"`
 	DeleteRateTs            []DataPoint `json:"DeleteRateTs"`
 }
