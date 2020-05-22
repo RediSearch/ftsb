@@ -40,7 +40,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		}
 	} else {
 
-		p.vanillaClient, err = radix.NewPool("tcp", host, totalWorkers, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, PoolPipelineConcurrency))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 
