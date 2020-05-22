@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 import random
@@ -229,15 +230,32 @@ def generate_setup_json(test_name, description, setup_commands, teardown_command
 
 
 if (__name__ == "__main__"):
-    seed = 12345
-    update_ratio = 0.85
+    parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.')
+    parser.add_argument('--update_ratio', type=float, default=0.85,)
+    parser.add_argument('--seed', type=int, default=12345,)
+    parser.add_argument('--doc_limit', type=int, default=1000000,)
+    parser.add_argument('--total_benchmark_commands', type=int, default=1000000,)
+    parser.add_argument('--max_skus_per_aggregate', type=int, default=100,)
+    parser.add_argument('--max_nodes_per_aggregate', type=int, default=100,)
+    parser.add_argument('--indexname', type=str, default="inventory",)
+    parser.add_argument('--benchmark_output_file_prefix', type=str, default="inventory.redisearch.commands",)
+    parser.add_argument('--benchmark_config_file', type=str, default="inventory.redisearch.cfg.json",)
+    parser.add_argument('--input_data_filename', type=str, default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv",)
+    args = parser.parse_args()
+    seed = args.seed
+    update_ratio = args.update_ratio
     read_ratio = 1 - update_ratio
-    doc_limit = 1000000
-    total_benchmark_commands = 1000000
-    indexname = "inventory"
-    input_data_filename = './../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv'
-    benchmark_output_file = 'inventory.redisearch.commands.csv'
-    benchmark_config_file = 'inventory.redisearch.cfg.json'
+    doc_limit = args.doc_limit
+    total_benchmark_commands = args.total_benchmark_commands
+    max_skus_per_aggregate = args.max_skus_per_aggregate
+    max_nodes_per_aggregate = args.max_nodes_per_aggregate
+    indexname = args.indexname
+    input_data_filename = args.input_data_filename
+    benchmark_output_file = args.benchmark_output_file_prefix
+    benchmark_config_file = args.benchmark_config_file
+    all_fname = "{}.ALL.csv".format(benchmark_output_file)
+    setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
+    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
@@ -256,8 +274,8 @@ if (__name__ == "__main__"):
     total_nodes = 0
     total_docs = 0
 
-    print("Using random seed {0}".format(seed))
-    random.seed(seed)
+    print("Using random seed {0}".format(args.seed))
+    random.seed(args.seed)
 
     docs = []
     print("-- generating the write commands -- ")
@@ -285,37 +303,49 @@ if (__name__ == "__main__"):
     print(" ".join(ft_create_cmd))
     setup_commands.append(ft_create_cmd)
     print("-- generating {} ft.add commands -- ".format(total_docs))
+    print("\t saving to {} and {}".format(setup_fname, all_fname))
 
-    with open(benchmark_output_file, 'w', newline='') as csvfile:
-        csv_writer = csv.writer(csvfile, delimiter=',')
-        progress = tqdm(unit="docs", total=total_docs)
-        for doc in docs_map.values():
-            generated_row = generate_ft_add_row(indexname, doc)
-            csv_writer.writerow(generated_row)
-            progress.update()
-        progress.close()
+    all_csvfile = open( all_fname, 'w', newline='')
+    setup_csvfile = open( setup_fname, 'w', newline='')
+    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
+    setup_csv_writer = csv.writer(setup_csvfile, delimiter=',')
+    progress = tqdm(unit="docs", total=total_docs)
+    for doc in docs_map.values():
+        generated_row = generate_ft_add_row(indexname, doc)
+        all_csv_writer.writerow(generated_row)
+        setup_csv_writer.writerow(generated_row)
+        progress.update()
+    progress.close()
+    setup_csvfile.close()
 
     print("-- generating {} update/read commands -- ".format(total_benchmark_commands))
-    with open(benchmark_output_file, 'a', newline='') as csvfile:
-        docs_list = list(docs_map.values())
-        skusIds_list = list(skusIds.keys())
-        nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
-        csv_writer = csv.writer(csvfile, delimiter=',')
-        progress = tqdm(unit="docs", total=total_benchmark_commands)
-        for _ in range(0, total_benchmark_commands):
-            choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
-            if choice == "update":
-                random_doc_pos = random.randint(0, total_docs - 1)
-                doc = docs_list[random_doc_pos]
-                generated_row = generate_ft_add_update_row(indexname, doc)
-                total_updates = total_updates + 1
-            elif choice == "read":
-                generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p, 100, skusIds_list,
-                                                          100, nodesIds)
-                total_reads = total_reads + 1
-            csv_writer.writerow(generated_row)
-            progress.update()
-        progress.close()
+    print("\t saving to {} and {}".format(bench_fname, all_fname))
+    bench_csvfile = open( bench_fname, 'w', newline='')
+    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
+
+    docs_list = list(docs_map.values())
+    skusIds_list = list(skusIds.keys())
+    nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
+    csv_writer = csv.writer(csvfile, delimiter=',')
+    progress = tqdm(unit="docs", total=total_benchmark_commands)
+    for _ in range(0, total_benchmark_commands):
+        choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
+        if choice == "update":
+            random_doc_pos = random.randint(0, total_docs - 1)
+            doc = docs_list[random_doc_pos]
+            generated_row = generate_ft_add_update_row(indexname, doc)
+            total_updates = total_updates + 1
+        elif choice == "read":
+            generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p, max_skus_per_aggregate, skusIds_list,
+                                                      max_nodes_per_aggregate, nodesIds)
+            total_reads = total_reads + 1
+        all_csv_writer.writerow(generated_row)
+        bench_csv_writer.writerow(generated_row)
+        progress.update()
+    progress.close()
+
+    bench_csvfile.close()
+    all_csvfile.close()
 
     with open(benchmark_config_file, "w") as setupf:
         setup_json = generate_setup_json(test_name, description, setup_commands, teardown_commands, used_indices,

@@ -5,7 +5,11 @@ cmd/ftsb_generate_data/ftsb_generate_data
 cmd/ftsb_generate_queries/ftsb_generate_queries
 cmd/ftsb_load_redisearch/ftsb_load_redisearch
 cmd/ftsb_run_queries_redisearch/ftsb_run_queries_redisearch
+cmd/ftsb_redisearch/ftsb_redisearch
+
 *.txt
+*.csv
+cmd/ftsb_generate_data/*.csv
 
 # Idea / others #
 #################
