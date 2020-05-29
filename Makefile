@@ -37,6 +37,7 @@ get:
 test: get
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./...
 
+
 collect-detach:
 	docker-compose -f contrib/docker-compose.yml up --force-recreate -d
 	sleep 5
