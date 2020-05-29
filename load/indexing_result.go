@@ -1,60 +1,54 @@
 package load
 
 type DataPoint struct {
-	Timestamp int64   `json:"Timestamp"`
-	Value     float64 `json:"Value"`
+	Timestamp   int64              `json:"Timestamp"`
+	MultiValues map[string]float64 `json:"MultiValues"`
 }
 
-func NewDataPoint(timestamp int64, value float64) *DataPoint {
-	return &DataPoint{Timestamp: timestamp, Value: value}
+func (p DataPoint) AddValue(s string, value float64) {
+	p.MultiValues[s] = value
 }
+
+func NewDataPoint(timestamp int64) *DataPoint {
+	mp := map[string]float64{}
+	return &DataPoint{Timestamp: timestamp, MultiValues: mp}
+}
+
+// ByTimestamp implements sort.Interface based on the Timestamp field of the DataPoint.
+type ByTimestamp []DataPoint
+
+func (a ByTimestamp) Len() int           { return len(a) }
+func (a ByTimestamp) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a ByTimestamp) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type TestResult struct {
 
 	// Test Configs
-	Metadata             string  `json:"Metadata"`
-	ResultFormatVersion  string  `json:"ResultFormatVersion"`
-	BatchSize            int64   `json:"BatchSize"`
-	Limit                uint64  `json:"Limit"`
-	DbName               string  `json:"DbName"`
-	Workers              uint    `json:"Workers"`
-	RequestedInsertRatio float64 `json:"RequestedInsertRatio"`
-	RequestedUpdateRatio float64 `json:"RequestedUpdateRatio"`
-	RequestedDeleteRatio float64 `json:"RequestedDeleteRatio"`
+	Metadata            string `json:"Metadata"`
+	ResultFormatVersion string `json:"ResultFormatVersion"`
+	BatchSize           int64  `json:"BatchSize"`
+	Limit               uint64 `json:"Limit"`
+	DbName              string `json:"DbName"`
+	Workers             uint   `json:"Workers"`
 
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`
 
-	// Totals
-	StartTime      int64  `json:"StartTime"`
-	EndTime        int64  `json:"EndTime"`
-	DurationMillis int64  `json:"DurationMillis"`
-	TotalOps       uint64 `json:"TotalOps"`
-	TotalInserts   uint64 `json:"TotalInserts"`
-	TotalUpdates   uint64 `json:"TotalUpdates"`
-	TotalDeletes   uint64 `json:"TotalDeletes"`
-	TotalLatency   uint64 `json:"TotalLatency"`
-	TotalBytes     uint64 `json:"TotalBytes"`
+	StartTime      int64 `json:"StartTime"`
+	EndTime        int64 `json:"EndTime"`
+	DurationMillis int64 `json:"DurationMillis"`
 
-	// Overall Ratios
-	MeasuredInsertRatio float64 `json:"MeasuredInsertRatio"`
-	MeasuredUpdateRatio float64 `json:"MeasuredUpdateRatio"`
-	MeasuredDeleteRatio float64 `json:"MeasuredDeleteRatio"`
+	// Totals
+	Totals map[string]interface{} `json:"Totals"`
+
+	MeasuredRatios map[string]interface{} `json:"MeasuredRatios"`
 
 	// Overall Rates
-	OverallAvgOpsRate               float64 `json:"OverallAvgOpsRate"`
-	OverallAvgInsertRate            float64 `json:"OverallAvgInsertRate"`
-	OverallAvgUpdateRate            float64 `json:"OverallAvgUpdateRate"`
-	OverallAvgDeleteRate            float64 `json:"OverallAvgDeleteRate"`
-	OverallAvgLatency               float64 `json:"OverallAvgLatency"`
-	OverallAvgByteRate              float64 `json:"OverallAvgByteRate"`
-	OverallAvgByteRateHumanReadable string  `json:"OverallAvgByteRateHumanReadable"`
+	OverallRates map[string]interface{} `json:"OverallRates"`
+
+	// Overall Quantiles
+	OverallQuantiles map[string]interface{} `json:"OverallQuantiles"`
 
 	// Time-Series
-	OverallIngestionRateTs  []DataPoint `json:"OverallIngestionRateTs"`
-	OverallByteRateTs       []DataPoint `json:"OverallByteRateTs"`
-	OverallAverageLatencyTs []DataPoint `json:"OverallAverageLatencyTs"`
-	InsertRateTs            []DataPoint `json:"InsertRateTs"`
-	UpdateRateTs            []DataPoint `json:"UpdateRateTs"`
-	DeleteRateTs            []DataPoint `json:"DeleteRateTs"`
+	TimeSeries map[string]interface{} `json:"TimeSeries"`
 }

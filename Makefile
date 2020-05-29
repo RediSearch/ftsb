@@ -16,28 +16,18 @@ DOCKER_TAG=edge
 DOCKER_IMG:="$(DOCKER_REPO):$(DOCKER_TAG)"
 DOCKER_LATEST:="${DOCKER_REPO}:latest"
 
-.PHONY: all dataset ingestion query
-all: get test dataset ingestion query
+.PHONY: all benchmark
+all: get test benchmark
 
-dataset: ftsb_generate_data ftsb_generate_queries
+#dataset: ftsb_generate_data
 
-ingestion: ftsb_load_redisearch
+benchmark: ftsb_redisearch
+#
+#ftsb_generate_data: get
+#	go build -o bin/$@ ./cmd/$@
+#	go install ./cmd/$@
 
-query: ftsb_run_queries_redisearch
-
-ftsb_generate_data: get
-	go build -o bin/$@ ./cmd/$@
-	go install ./cmd/$@
-
-ftsb_generate_queries: get
-	go build -o bin/$@ ./cmd/$@
-	go install ./cmd/$@
-
-ftsb_load_redisearch: get
-	go build -o bin/$@ ./cmd/$@
-	go install ./cmd/$@
-
-ftsb_run_queries_redisearch: get
+ftsb_redisearch: get
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
@@ -45,7 +35,8 @@ get:
 	go get ./...
 
 test: get
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+
 
 collect-detach:
 	docker-compose -f contrib/docker-compose.yml up --force-recreate -d
@@ -69,7 +60,6 @@ docker-build-nc:
 
 # Make a release by building and publishing the `{version}` ans `latest` tagged containers to ECR
 docker-release: docker-build-nc docker-publish
-
 
 # Docker publish
 docker-publish: docker-publish-latest docker-publish-version ## Publish the `{version}` ans `latest` tagged containers to ECR

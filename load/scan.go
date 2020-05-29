@@ -41,33 +41,33 @@ func sendOrQueueBatch(ch *duplexChannel, count *int, batch Batch, unsent []Batch
 // it does not get too large and it needs a way to append a point
 type Batch interface {
 	Len() int
-	Append(*Point)
+	Append(*DocHolder)
 }
 
-// Point acts as a 'holder' for the internal representation of a point in a given load client.
-// Instead of using interface{} as a return type, we get compile safety by using Point
-type Point struct {
+// DocHolder acts as a 'holder' for the internal representation of a point in a given benchmark client.
+// Instead of using interface{} as a return type, we get compile safety by using DocHolder
+type DocHolder struct {
 	Data interface{}
 }
 
 // NewDocument creates a Document with the provided databuild as the internal representation
-func NewDocument(data interface{}) *Point {
-	return &Point{Data: data}
+func NewDocument(data interface{}) *DocHolder {
+	return &DocHolder{Data: data}
 }
 
-// PointIndexer determines the index of the Batch (and subsequently the channel)
+// DocIndexer determines the index of the Batch (and subsequently the channel)
 // that a particular point belongs to
-type PointIndexer interface {
-	// GetIndex returns a partition for the given Point
-	GetIndex(uint64, *Point) int
+type DocIndexer interface {
+	// GetIndex returns a partition for the given DocHolder
+	GetIndex(uint64, *DocHolder) int
 }
 
 // ConstantIndexer always puts the item on a single channel. This is the typical
 // use case where all the workers share the same channel
 type ConstantIndexer struct{}
 
-// GetIndex returns a constant index (0) regardless of Point
-func (i *ConstantIndexer) GetIndex(_ *Point) int {
+// GetIndex returns a constant index (0) regardless of DocHolder
+func (i *ConstantIndexer) GetIndex(_ *DocHolder) int {
 	return 0
 }
 
@@ -77,17 +77,17 @@ type BatchFactory interface {
 	New() Batch
 }
 
-// PointDecoder decodes the next databuild point in the process of scanning.
-type PointDecoder interface {
-	//Decode creates a Point from a databuild stream
-	Decode(*bufio.Reader) *Point
+// DocDecoder decodes the next databuild point in the process of scanning.
+type DocDecoder interface {
+	//Decode creates a DocHolder from a databuild stream
+	Decode(*bufio.Reader) *DocHolder
 }
 
 // ScanWithIndexer reads databuild from the provided bufio.Reader br until a limit is reached (if -1, all items are read).
-// Data is decoded by PointDecoder decoder and then placed into appropriate batches, using the supplied PointIndexer,
-// which are then dispatched to workers (duplexChannel chosen by PointIndexer). Scan does flow control to make sure workers are not left idle for too long
+// Data is decoded by DocDecoder decoder and then placed into appropriate batches, using the supplied DocIndexer,
+// which are then dispatched to workers (duplexChannel chosen by DocIndexer). Scan does flow control to make sure workers are not left idle for too long
 // and also that the scanning process  does not starve them of CPU.
-func scanWithIndexer(channels []*duplexChannel, batchSize uint, limit uint64, br *bufio.Reader, decoder PointDecoder, factory BatchFactory, indexer PointIndexer) uint64 {
+func scanWithIndexer(channels []*duplexChannel, batchSize uint, limit uint64, br *bufio.Reader, decoder DocDecoder, factory BatchFactory, indexer DocIndexer) uint64 {
 	var itemsRead uint64
 	numChannels := len(channels)
 

@@ -8,7 +8,7 @@ USE_CASE="enwiki-pages"
 DATAFILE_RAW=/tmp/$USE_CASE.xml
 DATAFILE_LOADER=/tmp/$USE_CASE.ftsb
 
-# Index to load the databuild into
+# Index to benchmark the databuild into
 IDX=${IDX:-"enwiki-pages-meta-idx1"}
 
 SCHEMA="TITLE TEXT SORTABLE \

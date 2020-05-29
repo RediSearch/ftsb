@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/filipecosta90/hdrhistogram"
 	"io/ioutil"
 	"log"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,16 +40,16 @@ var (
 )
 
 // Benchmark is an interface that represents the skeleton of a program
-// needed to run an insert or load benchmark.
+// needed to run an insert or benchmark benchmark.
 type Benchmark interface {
-	// GetPointDecoder returns the PointDecoder to use for this Benchmark
-	GetPointDecoder(br *bufio.Reader) PointDecoder
+	// GetCmdDecoder returns the DocDecoder to use for this Benchmark
+	GetCmdDecoder(br *bufio.Reader) DocDecoder
 
 	// GetBatchFactory returns the BatchFactory to use for this Benchmark
 	GetBatchFactory() BatchFactory
 
-	// GetPointIndexer returns the PointIndexer to use for this Benchmark
-	GetPointIndexer(maxPartitions uint) PointIndexer
+	// GetCommandIndexer returns the DocIndexer to use for this Benchmark
+	GetCommandIndexer(maxPartitions uint) DocIndexer
 
 	// GetProcessor returns the Processor to use for this Benchmark
 	GetProcessor() Processor
@@ -57,6 +59,141 @@ type Benchmark interface {
 
 	// GetConfigurationParametersMap returns the map of specific configurations used in the benchmark
 	GetConfigurationParametersMap() map[string]interface{}
+}
+
+func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
+	configs := map[string]interface{}{}
+	//TotalOps
+	configs["TotalOps"] = b.totalHistogram.TotalCount()
+
+	//SetupTotalWrites
+	configs["SetupWrites"] = b.setupWriteHistogram.TotalCount()
+
+	//TotalWrites
+	configs["Writes"] = b.writeHistogram.TotalCount()
+
+	//TotalReads
+	configs["Reads"] = b.readHistogram.TotalCount()
+
+	//TotalReadsCursor
+	configs["ReadsCursor"] = b.readCursorHistogram.TotalCount()
+
+	//TotalUpdates
+	configs["Updates"] = b.updateHistogram.TotalCount()
+
+	//TotalDeletes
+	configs["Deletes"] = b.deleteHistogram.TotalCount()
+
+	//TotalTxBytes
+	configs["TxBytes"] = b.txTotalBytes
+
+	//TotalRxBytes
+	configs["RxBytes"] = b.rxTotalBytes
+
+	return configs
+}
+
+func (b *BenchmarkRunner) GetMeasuredRatiosMap() map[string]interface{} {
+	/////////
+	// Overall Ratios
+	/////////
+	configs := map[string]interface{}{}
+
+	totalOps := b.totalHistogram.TotalCount()
+	writeRatio := float64(b.writeHistogram.TotalCount()+b.setupWriteHistogram.TotalCount()) / float64(totalOps)
+	readRatio := float64(b.readHistogram.TotalCount()+b.readCursorHistogram.TotalCount()) / float64(totalOps)
+	updateRatio := float64(b.updateHistogram.TotalCount()) / float64(totalOps)
+	deleteRatio := float64(b.deleteHistogram.TotalCount()) / float64(totalOps)
+
+	//MeasuredWriteRatio
+	configs["MeasuredWriteRatio"] = writeRatio
+
+	//MeasuredReadRatio
+	configs["MeasuredReadRatio"] = readRatio
+
+	//MeasuredUpdateRatio
+	configs["MeasuredUpdateRatio"] = updateRatio
+
+	//MeasuredDeleteRatio
+	configs["MeasuredDeleteRatio"] = deleteRatio
+
+	return configs
+}
+
+func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
+	/////////
+	// Overall Rates
+	/////////
+	configs := map[string]interface{}{}
+
+	took := l.end.Sub(l.start)
+	writeCount := l.writeHistogram.TotalCount()
+	setupWriteCount := l.setupWriteHistogram.TotalCount()
+	totalWriteCount := writeCount + setupWriteCount
+	readCount := l.readHistogram.TotalCount()
+	readCursorCount := l.readCursorHistogram.TotalCount()
+	totalReadCount := readCount + readCursorCount
+	updateCount := l.updateHistogram.TotalCount()
+	deleteCount := l.deleteHistogram.TotalCount()
+
+	totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
+	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
+
+	setupWriteRate := calculateRateMetrics(setupWriteCount, 0, took)
+	configs["setupWriteRate"] = setupWriteRate
+
+	writeRate := calculateRateMetrics(writeCount, 0, took)
+	configs["writeRate"] = writeRate
+
+	readRate := calculateRateMetrics(readCount, 0, took)
+	configs["readRate"] = readRate
+
+	readCursorRate := calculateRateMetrics(readCursorCount, 0, took)
+	configs["readCursorRate"] = readCursorRate
+
+	updateRate := calculateRateMetrics(updateCount, 0, took)
+	configs["updateRate"] = updateRate
+
+	deleteRate := calculateRateMetrics(deleteCount, 0, took)
+	configs["deleteRate"] = deleteRate
+
+	overallOpsRate := calculateRateMetrics(totalOps, 0, took)
+	configs["overallOpsRate"] = overallOpsRate
+
+	overallTxByteRate := calculateRateMetrics(int64(txTotalBytes), 0, took)
+	configs["overallTxByteRate"] = overallTxByteRate
+
+	overallRxByteRate := calculateRateMetrics(int64(rxTotalBytes), 0, took)
+	configs["overallRxByteRate"] = overallRxByteRate
+
+	txByteRateStr := bytefmt.ByteSize(uint64(overallTxByteRate))
+	configs["txByteRateStr"] = txByteRateStr
+
+	rxByteRateStr := bytefmt.ByteSize(uint64(overallRxByteRate))
+	configs["rxByteRateStr"] = rxByteRateStr
+	return configs
+}
+
+func (b *BenchmarkRunner) GetTimeSeriesMap() map[string]interface{} {
+
+	configs := map[string]interface{}{}
+	sort.Sort(ByTimestamp(b.setupWriteTs))
+	sort.Sort(ByTimestamp(b.writeTs))
+	sort.Sort(ByTimestamp(b.readTs))
+	sort.Sort(ByTimestamp(b.readCursorTs))
+	sort.Sort(ByTimestamp(b.updateTs))
+	sort.Sort(ByTimestamp(b.deleteTs))
+
+	configs["setupWriteTs"] = b.setupWriteTs
+	configs["writeTs"] = b.writeTs
+	configs["readTs"] = b.readTs
+	configs["readCursorTs"] = b.readCursorTs
+	configs["updateTs"] = b.updateTs
+	configs["deleteTs"] = b.deleteTs
+
+	return configs
+
 }
 
 // BenchmarkRunner is responsible for initializing and storing common
@@ -74,35 +211,70 @@ type BenchmarkRunner struct {
 	doAbortOnExist  bool
 	reportingPeriod time.Duration
 	fileName        string
-	insertRate      float64
-	updateRate      float64
-	deleteRate      float64
+	start           time.Time
+	end             time.Time
 
 	// non-flag fields
-	br           *bufio.Reader
-	insertCount  uint64
-	updateCount  uint64
-	deleteCount  uint64
-	totalLatency uint64
-	totalBytes   uint64
-	rowCnt       uint64
+	br *bufio.Reader
+
+	setupWriteHistogram      *hdrhistogram.Histogram
+	inst_setupWriteHistogram *hdrhistogram.Histogram
+	setupWriteTs             []DataPoint
+
+	writeHistogram      *hdrhistogram.Histogram
+	inst_writeHistogram *hdrhistogram.Histogram
+
+	writeTs []DataPoint
+
+	updateHistogram      *hdrhistogram.Histogram
+	inst_updateHistogram *hdrhistogram.Histogram
+	updateTs             []DataPoint
+
+	readHistogram      *hdrhistogram.Histogram
+	inst_readHistogram *hdrhistogram.Histogram
+	readTs             []DataPoint
+
+	readCursorHistogram      *hdrhistogram.Histogram
+	inst_readCursorHistogram *hdrhistogram.Histogram
+	readCursorTs             []DataPoint
+
+	deleteHistogram      *hdrhistogram.Histogram
+	inst_deleteHistogram *hdrhistogram.Histogram
+	deleteTs             []DataPoint
+
+	totalHistogram      *hdrhistogram.Histogram
+	inst_totalHistogram *hdrhistogram.Histogram
+	totalTs             []DataPoint
+
+	txTotalBytes uint64
+	rxTotalBytes uint64
 
 	testResult TestResult
 }
 
-func (l *BenchmarkRunner) InsertRate() float64 {
-	return l.insertRate
+var loader = &BenchmarkRunner{
+	setupWriteHistogram:      hdrhistogram.New(1, 1000000, 3),
+	inst_setupWriteHistogram: hdrhistogram.New(1, 1000000, 3),
+	setupWriteTs:             make([]DataPoint, 0, 10),
+	writeHistogram:           hdrhistogram.New(1, 1000000, 3),
+	inst_writeHistogram:      hdrhistogram.New(1, 1000000, 3),
+	writeTs:                  make([]DataPoint, 0, 10),
+	updateHistogram:          hdrhistogram.New(1, 1000000, 3),
+	inst_updateHistogram:     hdrhistogram.New(1, 1000000, 3),
+	updateTs:                 make([]DataPoint, 0, 10),
+	readHistogram:            hdrhistogram.New(1, 1000000, 3),
+	inst_readHistogram:       hdrhistogram.New(1, 1000000, 3),
+	readTs:                   make([]DataPoint, 0, 10),
+	readCursorHistogram:      hdrhistogram.New(1, 1000000, 3),
+	inst_readCursorHistogram: hdrhistogram.New(1, 1000000, 3),
+	readCursorTs:             make([]DataPoint, 0, 10),
+	deleteHistogram:          hdrhistogram.New(1, 1000000, 3),
+	inst_deleteHistogram:     hdrhistogram.New(1, 1000000, 3),
+	deleteTs:                 make([]DataPoint, 0, 10),
+	totalHistogram:           hdrhistogram.New(1, 1000000, 3),
+	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
+	totalTs:                  make([]DataPoint, 0, 10),
 }
-
-func (l *BenchmarkRunner) DeleteRate() float64 {
-	return l.deleteRate
-}
-
-func (l *BenchmarkRunner) UpdateRate() float64 {
-	return l.updateRate
-}
-
-var loader = &BenchmarkRunner{}
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
 // with a default batch size
@@ -118,14 +290,13 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
 	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
 	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")
-	flag.BoolVar(&loader.doLoad, "do-load", true, "Whether to write databuild. Set this flag to false to check input read speed.")
+	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
 	flag.BoolVar(&loader.doCreateDB, "do-create-db", true, "Whether to create the database. Disable on all but one client if running on a multi client setup.")
 	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
-	flag.Float64Var(&loader.updateRate, "update-rate", 0, "Set the update rate ( between 0-1 ) for Documents being ingested")
-	flag.Float64Var(&loader.deleteRate, "delete-rate", 0, "Set the delete rate ( between 0-1 ) for Documents being ingested")
-	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output load results. If not set, will not print to json.")
+	flag.StringVar(&loader.JsonOutFile, "json-config-file", "", "Name of json config file to read the setup/teardown info. If not set, will not do any of those and simple issue the commands from --file.")
+	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	return loader
 }
@@ -136,7 +307,7 @@ func (l *BenchmarkRunner) DatabaseName() string {
 }
 
 // RunBenchmark takes in a Benchmark b, a bufio.Reader br, and holders for number of metrics and rows
-// and uses those to run the load benchmark
+// and reads those to run the benchmark benchmark
 func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.br = l.GetBufferedReader()
 
@@ -145,7 +316,6 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	defer cleanupFn()
 
 	channels := l.createChannels(workQueues)
-	l.updateRequestedInsertUpdateDeleteRatios()
 	// Launch all worker processes in background
 	var wg sync.WaitGroup
 	for i := 0; i < int(l.workers); i++ {
@@ -154,11 +324,11 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	}
 
 	w := new(tabwriter.Writer)
-	w.Init(os.Stderr, 20, 0, 1, ' ', tabwriter.AlignRight)
+	w.Init(os.Stderr, 20, 0, 0, ' ', tabwriter.AlignRight)
 	// Start scan process - actual databuild read process
-	start := time.Now()
+	l.start = time.Now()
 
-	l.scan(b, channels, start, w)
+	l.scan(b, channels, l.start, w)
 
 	// After scan process completed (no more databuild to come) - begin shutdown process
 
@@ -169,19 +339,17 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 
 	// Wait for all workers to finish
 	wg.Wait()
-	end := time.Now()
+	l.end = time.Now()
 	l.testResult.DBSpecificConfigs = b.GetConfigurationParametersMap()
+	l.testResult.Totals = l.GetTotalsMap()
+	l.testResult.MeasuredRatios = l.GetMeasuredRatiosMap()
+	l.testResult.OverallRates = l.GetOverallRatesMap()
+	l.testResult.TimeSeries = l.GetTimeSeriesMap()
+	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
 	l.testResult.Limit = l.limit
 	l.testResult.DbName = l.dbName
 	l.testResult.Workers = l.workers
-	l.summary(start, end)
-}
-
-func (l *BenchmarkRunner) updateRequestedInsertUpdateDeleteRatios() {
-	l.insertRate = 1.0 - l.updateRate - l.deleteRate
-	l.testResult.RequestedInsertRatio = l.insertRate
-	l.testResult.RequestedUpdateRatio = l.updateRate
-	l.testResult.RequestedDeleteRatio = l.deleteRate
+	l.summary()
 }
 
 // GetBufferedReader returns the buffered Reader that should be used by the loader
@@ -285,7 +453,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	// Scan incoming databuild
-	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetPointDecoder(l.br), b.GetBatchFactory(), b.GetPointIndexer(uint(len(channels))))
+	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
 }
 
 // work is the processing function for each worker in the loader
@@ -298,13 +466,49 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		metricCnt, rowCnt, updateCount, deleteCount, totalLatency, totalBytes := proc.ProcessBatch(b, l.doLoad, l.updateRate, l.deleteRate)
-		atomic.AddUint64(&l.insertCount, metricCnt)
-		atomic.AddUint64(&l.updateCount, updateCount)
-		atomic.AddUint64(&l.deleteCount, deleteCount)
-		atomic.AddUint64(&l.totalLatency, totalLatency)
-		atomic.AddUint64(&l.totalBytes, totalBytes)
-		atomic.AddUint64(&l.rowCnt, rowCnt)
+		stats := proc.ProcessBatch(b, l.doLoad)
+		cmdStats := stats.CmdStats()
+		for pos := 0; pos < len(cmdStats); pos++ {
+			cmdStat := cmdStats[pos]
+			_ = l.totalHistogram.RecordValue(int64(cmdStat.Latency()))
+			_ = l.inst_totalHistogram.RecordValue(int64(cmdStat.Latency()))
+
+			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
+			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
+			labelStr := string(cmdStat.Label())
+			switch labelStr {
+			case "SETUP_WRITE":
+				_ = l.setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			case "WRITE":
+				_ = l.writeHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_writeHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			case "UPDATE":
+				_ = l.updateHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_updateHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			case "READ":
+				_ = l.readHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_readHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			case "CURSOR_READ":
+				_ = l.readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			case "DELETE":
+				_ = l.deleteHistogram.RecordValue(int64(cmdStat.Latency()))
+				_ = l.inst_deleteHistogram.RecordValue(int64(cmdStat.Latency()))
+
+				break
+			}
+		}
 		c.sendToScanner()
 	}
 
@@ -318,87 +522,70 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 }
 
 // summary prints the summary of statistics from loading
-func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
-	took := end.Sub(start)
-	insertCount := atomic.LoadUint64(&l.insertCount)
-	updateCount := atomic.LoadUint64(&l.updateCount)
-	deleteCount := atomic.LoadUint64(&l.deleteCount)
-	totalOps := insertCount + updateCount + deleteCount
-	totalLatency := atomic.LoadUint64(&l.totalLatency)
-	totalBytes := atomic.LoadUint64(&l.totalBytes)
-	insertRate, updateRate, deleteRate, _, overallOpsRate, _, overallAvgLatency, _, overallByteRate := calculateRateMetrics(insertCount, 0, took, updateCount, 0, deleteCount, 0, totalLatency, 0, totalBytes, 0, took)
-	byteRateStr := bytefmt.ByteSize(uint64(overallByteRate))
+func (l *BenchmarkRunner) summary() {
+	took := l.end.Sub(l.start)
+	writeCount := l.writeHistogram.TotalCount()
+	setupWriteCount := l.setupWriteHistogram.TotalCount()
+	totalWriteCount := writeCount + setupWriteCount
+	readCount := l.readHistogram.TotalCount()
+	readCursorCount := l.readCursorHistogram.TotalCount()
+	totalReadCount := readCount + readCursorCount
+	updateCount := l.updateHistogram.TotalCount()
+	deleteCount := l.deleteHistogram.TotalCount()
+
+	totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
+	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
+
+	setupWriteRate := calculateRateMetrics(setupWriteCount, 0, took)
+	writeRate := calculateRateMetrics(writeCount, 0, took)
+	readRate := calculateRateMetrics(readCount, 0, took)
+	readCursorRate := calculateRateMetrics(readCursorCount, 0, took)
+	updateRate := calculateRateMetrics(updateCount, 0, took)
+	deleteRate := calculateRateMetrics(deleteCount, 0, took)
+	overallOpsRate := calculateRateMetrics(totalOps, 0, took)
+	overallTxByteRate := calculateRateMetrics(int64(txTotalBytes), 0, took)
+	overallRxByteRate := calculateRateMetrics(int64(rxTotalBytes), 0, took)
+	txByteRateStr := bytefmt.ByteSize(uint64(overallTxByteRate))
+	rxByteRateStr := bytefmt.ByteSize(uint64(overallRxByteRate))
 
 	/////////
 	// Totals
 	/////////
-	l.testResult.StartTime = start.Unix()
-	l.testResult.EndTime = end.Unix()
+	l.testResult.StartTime = l.start.Unix()
+	l.testResult.EndTime = l.end.Unix()
 	l.testResult.DurationMillis = took.Milliseconds()
 	l.testResult.BatchSize = int64(l.batchSize)
 	l.testResult.Metadata = l.Metadata
-
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
-	//TotalOps
-	l.testResult.TotalOps = totalOps
-
-	//TotalInserts
-	l.testResult.TotalInserts = insertCount
-
-	//TotalUpdates
-	l.testResult.TotalUpdates = updateCount
-
-	//TotalDeletes
-	l.testResult.TotalDeletes = deleteCount
-
-	//TotalLatency
-	l.testResult.TotalLatency = totalLatency
-
-	//TotalBytes
-	l.testResult.TotalBytes = totalBytes
-
-	/////////
-	// Overall Ratios
-	/////////
-
-	//MeasuredInsertRatio
-	l.testResult.MeasuredInsertRatio = float64(insertCount) / float64(totalOps)
-
-	//MeasuredUpdateRatio
-	l.testResult.MeasuredUpdateRatio = float64(updateCount) / float64(totalOps)
-
-	//MeasuredDeleteRatio
-	l.testResult.MeasuredDeleteRatio = float64(deleteCount) / float64(totalOps)
-
-	/////////
-	// Overall Rates
-	/////////
-
-	//OverallAvgIndexingRate
-	l.testResult.OverallAvgOpsRate = overallOpsRate
-
-	//OverallAvgInsertRate
-	l.testResult.OverallAvgInsertRate = insertRate
-
-	//OverallAvgUpdateRate
-	l.testResult.OverallAvgUpdateRate = updateRate
-
-	//OverallAvgDeleteRate
-	l.testResult.OverallAvgDeleteRate = deleteRate
-
-	//OverallAvgLatency
-	l.testResult.OverallAvgLatency = overallAvgLatency
-
-	//OverallAvgByteRate
-	l.testResult.OverallAvgByteRate = overallByteRate
-	l.testResult.OverallAvgByteRateHumanReadable = fmt.Sprintf("%sB/sec", byteRateStr)
-
 	printFn("\nSummary:\n")
-	printFn("Loaded %d Documents in %0.3fsec with %d workers\n", l.insertCount, took.Seconds(), l.workers)
-	printFn("\tMean rate:\n\t - Total %0.2f ops/sec\n\t - Inserts %0.2f docs/sec\n\t - Updates %0.2f docs/sec\n\t - Deletes %0.2f docs/sec\n", overallOpsRate, insertRate, updateRate, deleteRate)
-	printFn("\tOverall Avg Latency: %0.3f msec\n", overallAvgLatency)
-	printFn("\tOverall Byte Rate: %sB/sec\n", byteRateStr)
+	printFn("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
+	printFn("\tOverall stats:\n\t"+
+		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
+		"- Writes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Reads %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Cursor Reads %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
+		"- Updates %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
+		"- Deletes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n",
+		overallOpsRate,
+		float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
+		setupWriteRate,
+		float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
+		writeRate,
+		float64(l.writeHistogram.ValueAtQuantile(50.0))/10e2,
+		readRate,
+		float64(l.readHistogram.ValueAtQuantile(50.0))/10e2,
+		readCursorRate,
+		float64(l.readCursorHistogram.ValueAtQuantile(50.0))/10e2,
+		updateRate,
+		float64(l.updateHistogram.ValueAtQuantile(50.0))/10e2,
+		deleteRate,
+		float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
+	)
+	printFn("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
+	printFn("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
 
 	if strings.Compare(l.JsonOutFile, "") != 0 {
 
@@ -418,34 +605,92 @@ func (l *BenchmarkRunner) summary(start time.Time, end time.Time) {
 // report handles periodic reporting of loading stats
 func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwriter.Writer) {
 	prevTime := start
-	prevInsertCount := uint64(0)
-	prevUpdateCount := uint64(0)
-	prevDeleteCount := uint64(0)
-	prevTotalLatency := uint64(0)
-	prevTotalBytes := uint64(0)
-	fmt.Fprint(w, "time\tinserts/se\tupdates/sec\tdeletes/sec\tcurrent ops/sec\tcurr avg lat ms\tdocs total\toverall ops/sec\toverall avg lat ms \t overall BW/s\n")
+	prevWriteCount := int64(0)
+	prevSetupWriteCount := int64(0)
+	prevUpdateCount := int64(0)
+	prevReadCursorCount := int64(0)
+	prevReadCount := int64(0)
+	prevDeleteCount := int64(0)
+	prevTotalOps := int64(0)
+	prevTxTotalBytes := uint64(0)
+	prevRxTotalBytes := uint64(0)
+
+	fmt.Fprint(w, "setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\ttotal ops\tTX BW/s\tRX BW/s\n")
 	w.Flush()
 	for now := range time.NewTicker(period).C {
-		insertCount := atomic.LoadUint64(&l.insertCount)
-		updateCount := atomic.LoadUint64(&l.updateCount)
-		deleteCount := atomic.LoadUint64(&l.deleteCount)
-		totalLatency := atomic.LoadUint64(&l.totalLatency)
-		totalBytes := atomic.LoadUint64(&l.totalBytes)
-		sinceStart := now.Sub(start)
 		took := now.Sub(prevTime)
-		insertRate, updateRate, deleteRate, CurrentOpsRate, overallOpsRate, currentAvgLatency, overallAvgLatency, currentByteRate, _ := calculateRateMetrics(insertCount, prevInsertCount, took, updateCount, prevUpdateCount, deleteCount, prevDeleteCount, totalLatency, prevTotalLatency, totalBytes, prevTotalBytes, sinceStart)
-		byteRateStr := bytefmt.ByteSize(uint64(currentByteRate))
+		writeCount := l.writeHistogram.TotalCount()
+		setupWriteCount := l.setupWriteHistogram.TotalCount()
+		totalWriteCount := writeCount + setupWriteCount
+		readCount := l.readHistogram.TotalCount()
+		readCursorCount := l.readCursorHistogram.TotalCount()
+		totalReadCount := readCount + readCursorCount
+		updateCount := l.updateHistogram.TotalCount()
+		deleteCount := l.deleteHistogram.TotalCount()
 
-		l.addRateMetricsDatapoints(now, insertRate, updateRate, deleteRate, CurrentOpsRate, currentByteRate, currentAvgLatency)
-		fmt.Fprint(w, fmt.Sprintf("%d \t %.1f \t %.1f \t %.1f \t %.1f \t %.3f \t %d \t %.1f \t %.3f \t %sB/s\n",
-			now.Unix(), insertRate, updateRate, deleteRate, CurrentOpsRate, currentAvgLatency, insertCount, overallOpsRate, overallAvgLatency, byteRateStr))
+		totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+		txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
+		rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
+		setupWriteRate := calculateRateMetrics(setupWriteCount, prevSetupWriteCount, took)
+		writeRate := calculateRateMetrics(writeCount, prevWriteCount, took)
+		readRate := calculateRateMetrics(readCount, prevReadCount, took)
+		readCursorRate := calculateRateMetrics(readCursorCount, prevReadCursorCount, took)
+		updateRate := calculateRateMetrics(updateCount, prevUpdateCount, took)
+		deleteRate := calculateRateMetrics(deleteCount, prevDeleteCount, took)
+		CurrentOpsRate := calculateRateMetrics(totalOps, prevTotalOps, took)
+		overallTxByteRate := calculateRateMetrics(int64(txTotalBytes), int64(prevTxTotalBytes), took)
+		overallRxByteRate := calculateRateMetrics(int64(rxTotalBytes), int64(prevRxTotalBytes), took)
+		txByteRateStr := bytefmt.ByteSize(uint64(overallTxByteRate))
+		rxByteRateStr := bytefmt.ByteSize(uint64(overallRxByteRate))
+
+		l.setupWriteTs = l.addRateMetricsDatapoints(l.setupWriteTs, now, took, l.inst_setupWriteHistogram)
+		l.writeTs = l.addRateMetricsDatapoints(l.writeTs, now, took, l.inst_writeHistogram)
+		l.readTs = l.addRateMetricsDatapoints(l.readTs, now, took, l.inst_readHistogram)
+		l.readCursorTs = l.addRateMetricsDatapoints(l.readCursorTs, now, took, l.inst_readCursorHistogram)
+		l.updateTs = l.addRateMetricsDatapoints(l.updateTs, now, took, l.inst_updateHistogram)
+		l.deleteTs = l.addRateMetricsDatapoints(l.deleteTs, now, took, l.inst_deleteHistogram)
+
+		fmt.Fprint(w, fmt.Sprintf("%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t %.0f (%.3f) \t%d \t %sB/s \t %sB/s\n",
+			setupWriteRate,
+			float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
+
+			writeRate,
+			float64(l.writeHistogram.ValueAtQuantile(50.0))/10e2,
+
+			updateRate,
+			float64(l.updateHistogram.ValueAtQuantile(50.0))/10e2,
+
+			readRate,
+			float64(l.readHistogram.ValueAtQuantile(50.0))/10e2,
+
+			readCursorRate,
+			float64(l.readCursorHistogram.ValueAtQuantile(50.0))/10e2,
+
+			deleteRate,
+			float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
+
+			CurrentOpsRate,
+			float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
+			totalOps, txByteRateStr, rxByteRateStr))
 		w.Flush()
-		prevInsertCount = insertCount
+		prevSetupWriteCount = setupWriteCount
+		prevWriteCount = writeCount
+		prevReadCount = readCount
+		prevReadCursorCount = readCursorCount
 		prevUpdateCount = updateCount
 		prevDeleteCount = deleteCount
-		prevTotalLatency = totalLatency
-		prevTotalBytes = totalBytes
+		prevTxTotalBytes = txTotalBytes
+		prevRxTotalBytes = rxTotalBytes
+		prevTotalOps = totalOps
 		prevTime = now
+
+		l.inst_setupWriteHistogram.Reset()
+		l.inst_writeHistogram.Reset()
+		l.inst_readHistogram.Reset()
+		l.inst_readCursorHistogram.Reset()
+		l.inst_updateHistogram.Reset()
+		l.inst_deleteHistogram.Reset()
+
 	}
 }
 
@@ -458,28 +703,50 @@ func wrapNaN(input float64) (output float64) {
 	return
 }
 
-func (l *BenchmarkRunner) addRateMetricsDatapoints(now time.Time, insertRate float64, updateRate float64, deleteRate float64, CurrentOpsRate float64, currentByteRate float64, currentAvgLatency float64) {
-	//pinsertRate := insertRate
+func (l *BenchmarkRunner) addRateMetricsDatapoints(datapoints []DataPoint, now time.Time, timeframe time.Duration, hist *hdrhistogram.Histogram) []DataPoint {
+	ops, mp := generateQuantileMap(hist)
+	rate := 0.0
+	rate = float64(ops) / float64(timeframe.Seconds())
+	mp["rate"] = rate
+	datapoint := DataPoint{now.Unix(), mp}
+	datapoints = append(datapoints, datapoint)
+	return datapoints
 
-	l.testResult.InsertRateTs = append(l.testResult.InsertRateTs, *NewDataPoint(now.Unix(), wrapNaN(insertRate)))
-	l.testResult.UpdateRateTs = append(l.testResult.UpdateRateTs, *NewDataPoint(now.Unix(), wrapNaN(updateRate)))
-	l.testResult.DeleteRateTs = append(l.testResult.DeleteRateTs, *NewDataPoint(now.Unix(), wrapNaN(deleteRate)))
-	l.testResult.OverallIngestionRateTs = append(l.testResult.OverallIngestionRateTs, *NewDataPoint(now.Unix(), wrapNaN(CurrentOpsRate)))
-	l.testResult.OverallByteRateTs = append(l.testResult.OverallByteRateTs, *NewDataPoint(now.Unix(), wrapNaN(currentByteRate)))
-	l.testResult.OverallAverageLatencyTs = append(l.testResult.OverallAverageLatencyTs, *NewDataPoint(now.Unix(), wrapNaN(currentAvgLatency)))
 }
 
-func calculateRateMetrics(insertCount uint64, prevInsertCount uint64, took time.Duration, updateCount uint64, prevUpdateCount uint64, deleteCount uint64, prevDeleteCount uint64, totalLatency uint64, prevTotalLatency uint64, totalBytes uint64, prevTotalBytes uint64, sinceStart time.Duration) (float64, float64, float64, float64, float64, float64, float64, float64, float64) {
-	insertRate := float64(insertCount-prevInsertCount) / float64(took.Seconds())
-	updateRate := float64(updateCount-prevUpdateCount) / float64(took.Seconds())
-	deleteRate := float64(deleteCount-prevDeleteCount) / float64(took.Seconds())
-	currentCount := (insertCount - prevInsertCount) + (updateCount - prevUpdateCount) + (deleteCount - prevDeleteCount)
-	currentLatency := totalLatency - prevTotalLatency
-	curentByteRate := float64(totalBytes-prevTotalBytes) / float64(took.Seconds())
-	CurrentOpsRate := insertRate + updateRate + deleteRate
-	overallOpsRate := float64(insertCount+updateCount+deleteCount) / float64(sinceStart.Seconds())
-	overallAvgLatency := float64(totalLatency) / float64(insertCount+updateCount+deleteCount)
-	currentAvgLatency := float64(currentLatency) / float64(currentCount)
-	overallByteRate := float64(totalBytes) / float64(took.Seconds())
-	return insertRate, updateRate, deleteRate, CurrentOpsRate, overallOpsRate, currentAvgLatency, overallAvgLatency, curentByteRate, overallByteRate
+func generateQuantileMap(hist *hdrhistogram.Histogram) (int64, map[string]float64) {
+	ops := hist.TotalCount()
+	q50 := 0.0
+	q95 := 0.0
+	q99 := 0.0
+	if ops > 0 {
+		q50 = float64(hist.ValueAtQuantile(50.0)) / 10e2
+		q95 = float64(hist.ValueAtQuantile(95.0)) / 10e2
+		q99 = float64(hist.ValueAtQuantile(99.0)) / 10e2
+	}
+
+	mp := map[string]float64{"q50": q50, "q95": q95, "q99": q99}
+	return ops, mp
+}
+
+func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
+	configs := map[string]interface{}{}
+	_, setupWrite := generateQuantileMap(b.setupWriteHistogram)
+	configs["setupWrite"] = setupWrite
+	_, write := generateQuantileMap(b.writeHistogram)
+	configs["write"] = write
+	_, read := generateQuantileMap(b.readHistogram)
+	configs["read"] = read
+	_, readCursor := generateQuantileMap(b.readCursorHistogram)
+	configs["readCursor"] = readCursor
+	_, update := generateQuantileMap(b.updateHistogram)
+	configs["update"] = update
+	_, delete := generateQuantileMap(b.deleteHistogram)
+	configs["delete"] = delete
+	return configs
+}
+
+func calculateRateMetrics(current, prev int64, took time.Duration) (rate float64) {
+	rate = float64(current-prev) / float64(took.Seconds())
+	return
 }
