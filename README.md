@@ -45,10 +45,15 @@ wherever possible to connect to each database.
 
 Currently, FTSB supports three use cases:
  - **ecommerce-inventory**, From a base dataset of [10K fashion products on Amazon.com](https://data.world/promptcloud/fashion-products-on-amazon-com/workspace/file?filename=amazon_co-ecommerce_sample.csv) which are then multiplexed by categories, sellers, and countries to produce larger datasets > 1M docs. This benchmark focuses on updates and aggregate performance, splitting into Reads (FT.AGGREGATE), Cursor Reads (FT.CURSOR), and Updates (FT.ADD) the performance numbers. 
- The use case generates an index with 10 TAG fields (3 sortable and 1 non indexed), and 10 NUMERIC sortable non indexed fields per document.
+ The use case generates an index with 10 TAG fields (3 sortable and 1 non indexed), and 16 NUMERIC sortable non indexed fields per document.
+ The aggregate queries are designed to be extremely costly both on computation and network TX, given that on each query we're aggregating and filtering over a large portion of the dataset while additionally loading 21 fields. 
  Both the update and read rates can be adjusted.
+ 
+ 
  - **enwiki-abstract**, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates
 3 TEXT fields per document.
+
+
  - **enwiki-pages**, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions, containing processed metadata  extracted from the full Wikipedia XML dump.
  This use case generates 4 TEXT fields ( 2 sortable ), 1 sortable TAG field, and 6 sortable NUMERIC fields per document.
               
