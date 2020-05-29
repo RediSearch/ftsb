@@ -19,11 +19,11 @@ DOCKER_LATEST:="${DOCKER_REPO}:latest"
 .PHONY: all benchmark
 all: get test benchmark
 
-#dataset: ftsb_generate_data
+#dataset: ftsb_generate_redisearch
 
 benchmark: ftsb_redisearch
 #
-#ftsb_generate_data: get
+#ftsb_generate_redisearch: get
 #	go build -o bin/$@ ./cmd/$@
 #	go install ./cmd/$@
 

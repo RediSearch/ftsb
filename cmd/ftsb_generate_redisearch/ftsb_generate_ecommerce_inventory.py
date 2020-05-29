@@ -68,9 +68,9 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                 nodeId = nodes[node]
                 did = str(uuid.uuid4()).replace("-", "")
                 if skuId not in product_ids:
-                    product_ids[skuId]=1
+                    product_ids[skuId] = 1
                 else:
-                    product_ids[skuId]+=1
+                    product_ids[skuId] += 1
                 market = random.choices(countries_alpha_3, weights=countries_alpha_p)[0]
                 doc_id = "{market}_{nodeId}_{skuId}".format(market=market, nodeId=nodeId, skuId=did)
 
@@ -89,7 +89,8 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                                # allocated
                                "allocated": {"type": NUMERIC, "value": allocated,
                                              "field_options": ["SORTABLE", "NOINDEX"]},
-                               "allocatedLastUpdatedTimestamp": {"type": NUMERIC, "value": allocatedLastUpdatedTimestamp,
+                               "allocatedLastUpdatedTimestamp": {"type": NUMERIC,
+                                                                 "value": allocatedLastUpdatedTimestamp,
                                                                  "field_options": ["SORTABLE", "NOINDEX"]},
                                # reserved
                                "reserved": {"type": NUMERIC, "value": reserved,
@@ -132,14 +133,16 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                                "standardAvailableToPromise": {"type": TAG,
                                                               "value": pattern.sub('', standardAvailableToPromise),
                                                               "field_options": []},
-                               "bopisAvailableToPromise": {"type": TAG, "value": pattern.sub('', bopisAvailableToPromise),
+                               "bopisAvailableToPromise": {"type": TAG,
+                                                           "value": pattern.sub('', bopisAvailableToPromise),
                                                            "field_options": []},
 
                                "nodeType": {"type": TAG, "value": pattern.sub('', nodeType), "field_options": []},
                                "brand": {"type": TAG, "value": pattern.sub('', brand), "field_options": ["NOINDEX"]},
 
                                "onHold": {"type": TAG, "value": pattern.sub('', onHold), "field_options": []},
-                               "exclusionType": {"type": TAG, "value": pattern.sub('', exclusionType), "field_options": []},
+                               "exclusionType": {"type": TAG, "value": pattern.sub('', exclusionType),
+                                                 "field_options": []},
                            }
                            }
                     docs_map[doc_id] = doc
@@ -229,18 +232,95 @@ def generate_setup_json(test_name, description, setup_commands, teardown_command
     return setup_json
 
 
+def generate_setup_commands():
+    global progress, csvfile, nodes, total_nodes, docs_map, skusIds, total_docs
+    docs = []
+    print("-- generating the write commands -- ")
+    print("Reading csv data to generate docs")
+    progress = tqdm(unit="docs", total=doc_limit)
+    while total_docs < doc_limit:
+        with open(input_data_filename, newline='') as csvfile:
+            spamreader = csv.reader(csvfile, delimiter=',')
+            for row in spamreader:
+                nodes, total_nodes, docs_map, added_docs, skusIds = process_inventory(row, 5, nodes, total_nodes,
+                                                                                      docs_map, skusIds,
+                                                                                      countries_alpha_3,
+                                                                                      countries_alpha_p)
+                total_docs = total_docs + added_docs
+                if total_docs > doc_limit:
+                    break
+                progress.update(added_docs)
+        if total_docs > doc_limit:
+            break
+    progress.close()
+    total_skids = len(list(skusIds.keys()))
+    print("Generated {} total docs with {} distinct skids and {} distinct nodes".format(total_docs, total_skids,
+                                                                                        total_nodes))
+
+
+def save_setup_csv_command_list():
+    global all_csvfile, all_csv_writer, progress, doc, generated_row
+    all_csvfile = open(all_fname, 'w', newline='')
+    setup_csvfile = open(setup_fname, 'w', newline='')
+    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
+    setup_csv_writer = csv.writer(setup_csvfile, delimiter=',')
+    progress = tqdm(unit="docs", total=total_docs)
+    for doc in docs_map.values():
+        generated_row = generate_ft_add_row(indexname, doc)
+        all_csv_writer.writerow(generated_row)
+        setup_csv_writer.writerow(generated_row)
+        progress.update()
+    progress.close()
+    setup_csvfile.close()
+
+
+def generate_benchmark_commands():
+    global all_csvfile, progress, doc, generated_row, total_updates, total_reads
+    print("-- generating {} update/read commands -- ".format(total_benchmark_commands))
+    print("\t saving to {} and {}".format(bench_fname, all_fname))
+    all_csvfile = open(all_fname, 'a', newline='')
+    bench_csvfile = open(bench_fname, 'w', newline='')
+    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
+    docs_list = list(docs_map.values())
+    skusIds_list = list(skusIds.keys())
+    nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
+    csv_writer = csv.writer(csvfile, delimiter=',')
+    progress = tqdm(unit="docs", total=total_benchmark_commands)
+    for _ in range(0, total_benchmark_commands):
+        choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
+        if choice == "update":
+            random_doc_pos = random.randint(0, total_docs - 1)
+            doc = docs_list[random_doc_pos]
+            generated_row = generate_ft_add_update_row(indexname, doc)
+            total_updates = total_updates + 1
+        elif choice == "read":
+            generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p,
+                                                      max_skus_per_aggregate, skusIds_list,
+                                                      max_nodes_per_aggregate, nodesIds)
+            total_reads = total_reads + 1
+        all_csv_writer.writerow(generated_row)
+        bench_csv_writer.writerow(generated_row)
+        progress.update()
+    progress.close()
+    bench_csvfile.close()
+    all_csvfile.close()
+
+
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.')
-    parser.add_argument('--update_ratio', type=float, default=0.85,)
-    parser.add_argument('--seed', type=int, default=12345,)
-    parser.add_argument('--doc_limit', type=int, default=100000,)
-    parser.add_argument('--total_benchmark_commands', type=int, default=10000,)
-    parser.add_argument('--max_skus_per_aggregate', type=int, default=100,)
-    parser.add_argument('--max_nodes_per_aggregate', type=int, default=100,)
-    parser.add_argument('--indexname', type=str, default="inventory",)
-    parser.add_argument('--benchmark_output_file_prefix', type=str, default="inventory.redisearch.commands",)
-    parser.add_argument('--benchmark_config_file', type=str, default="inventory.redisearch.cfg.json",)
-    parser.add_argument('--input_data_filename', type=str, default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv",)
+    parser.add_argument('--update-ratio', type=float, default=0.85, )
+    parser.add_argument('--seed', type=int, default=12345, )
+    parser.add_argument('--doc-limit', type=int, default=100000, )
+    parser.add_argument('--total-benchmark-commands', type=int, default=10000, )
+    parser.add_argument('--max-skus-per-aggregate', type=int, default=100, )
+    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100, )
+    parser.add_argument('--indexname', type=str, default="inventory", )
+    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK")
+    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05")
+    parser.add_argument('--benchmark-output-file-prefix', type=str, default="ecommerce-inventory.redisearch.commands", )
+    parser.add_argument('--benchmark-config-file', type=str, default="ecommerce-inventory.redisearch.cfg.json", )
+    parser.add_argument('--input-data-filename', type=str,
+                        default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv", )
     args = parser.parse_args()
     seed = args.seed
     update_ratio = args.update_ratio
@@ -265,87 +345,35 @@ if (__name__ == "__main__"):
     total_deletes = 0
     description = "benchmark focused on updates and aggregate performance"
     test_name = "ecommerce-inventory"
+    print("-- Benchmark: {} -- ".format(description))
+    print("-- Description: {} -- ".format(description))
 
-    countries_alpha_3 = ["US", "CA", "FR", "IL", "UK"]
-    countries_alpha_p = [0.8, 0.05, 0.05, 0.05, 0.05]
+    countries_alpha_3 = args.countries_alpha3.split(",")
+    countries_alpha_p = [float(x) for x in args.countries_alpha3_probability.split(",")]
     docs_map = {}
     nodes = {}
     skusIds = {}
     total_nodes = 0
     total_docs = 0
 
+    countries_p_str = []
+    for idx, country in enumerate(countries_alpha_3):
+        countries_p_str.append("{} {}%".format(country, countries_alpha_p[idx] * 100.0))
+    print("Using {0} countries with the following probabilities {1}".format(len(countries_alpha_3),
+                                                                            " ".join(countries_p_str)))
     print("Using random seed {0}".format(args.seed))
     random.seed(args.seed)
 
-    docs = []
-    print("-- generating the write commands -- ")
-    print("Reading csv data to generate docs")
-    progress = tqdm(unit="docs", total=doc_limit)
-    while total_docs < doc_limit:
-        with open(input_data_filename, newline='') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',')
-            for row in spamreader:
-                nodes, total_nodes, docs_map, added_docs, skusIds = process_inventory(row, 5, nodes, total_nodes,
-                                                                                      docs_map, skusIds, countries_alpha_3,
-                                                                                      countries_alpha_p)
-                total_docs = total_docs + added_docs
-                if total_docs > doc_limit:
-                    break
-                progress.update(added_docs)
-        if total_docs > doc_limit:
-            break
+    generate_setup_commands()
+    print("\t saving to {} and {}".format(setup_fname, all_fname))
+    save_setup_csv_command_list()
 
-    progress.close()
-    total_skids = len(list(skusIds.keys()))
-    print("Generated {} total docs with {} distinct skids and {} distinct nodes".format(total_docs, total_skids, total_nodes))
     print("-- generating the ft.create commands -- ")
     ft_create_cmd = generate_ft_create_row(indexname, list(docs_map.values())[0])
     print(" ".join(ft_create_cmd))
     setup_commands.append(ft_create_cmd)
-    print("-- generating {} ft.add commands -- ".format(total_docs))
-    print("\t saving to {} and {}".format(setup_fname, all_fname))
 
-    all_csvfile = open( all_fname, 'w', newline='')
-    setup_csvfile = open( setup_fname, 'w', newline='')
-    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
-    setup_csv_writer = csv.writer(setup_csvfile, delimiter=',')
-    progress = tqdm(unit="docs", total=total_docs)
-    for doc in docs_map.values():
-        generated_row = generate_ft_add_row(indexname, doc)
-        all_csv_writer.writerow(generated_row)
-        setup_csv_writer.writerow(generated_row)
-        progress.update()
-    progress.close()
-    setup_csvfile.close()
-
-    print("-- generating {} update/read commands -- ".format(total_benchmark_commands))
-    print("\t saving to {} and {}".format(bench_fname, all_fname))
-    bench_csvfile = open( bench_fname, 'w', newline='')
-    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
-
-    docs_list = list(docs_map.values())
-    skusIds_list = list(skusIds.keys())
-    nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
-    csv_writer = csv.writer(csvfile, delimiter=',')
-    progress = tqdm(unit="docs", total=total_benchmark_commands)
-    for _ in range(0, total_benchmark_commands):
-        choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
-        if choice == "update":
-            random_doc_pos = random.randint(0, total_docs - 1)
-            doc = docs_list[random_doc_pos]
-            generated_row = generate_ft_add_update_row(indexname, doc)
-            total_updates = total_updates + 1
-        elif choice == "read":
-            generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p, max_skus_per_aggregate, skusIds_list,
-                                                      max_nodes_per_aggregate, nodesIds)
-            total_reads = total_reads + 1
-        all_csv_writer.writerow(generated_row)
-        bench_csv_writer.writerow(generated_row)
-        progress.update()
-    progress.close()
-
-    bench_csvfile.close()
-    all_csvfile.close()
+    generate_benchmark_commands()
 
     with open(benchmark_config_file, "w") as setupf:
         setup_json = generate_setup_json(test_name, description, setup_commands, teardown_commands, used_indices,
