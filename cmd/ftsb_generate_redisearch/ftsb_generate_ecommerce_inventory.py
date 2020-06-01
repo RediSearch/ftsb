@@ -373,6 +373,7 @@ if (__name__ == "__main__"):
     remote_url_setup = "{}{}".format(s3_uri, setup_fname_compressed)
     remote_url_bench = "{}{}".format(s3_uri, bench_fname_compressed)
     json_version = "0.1"
+    benchmark_repetitions_require_teardown_and_resetup = False
 
     print("-- Benchmark: {} -- ".format(description))
     print("-- Description: {} -- ".format(description))
@@ -455,7 +456,11 @@ if (__name__ == "__main__"):
                                          total_commands,
                                          total_setup_commands,
                                          total_benchmark_commands, total_docs, total_writes, total_updates, total_reads,
-                                         total_deletes)
+                                         total_deletes,
+                                         benchmark_repetitions_require_teardown_and_resetup,
+                                         ["setup"],
+                                         ["benchmark"]
+                                         )
         json.dump(setup_json, setupf, indent=2)
 
     if args.upload_artifacts_s3:

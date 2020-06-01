@@ -48,8 +48,10 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 // INSERT IF BETWEEN [updateLimit,1)
 func connectionProcessor(p *processor) {
 	for row := range p.rows {
-		cmdType, cmd, docFields, bytelen, _ := rowToHash(row)
-		sendFlatCmd(p, cmdType, cmd, docFields, bytelen, 1)
+		cmdType, cmd, docFields, bytelen, err := preProcessCmd(row)
+		if err == nil {
+			sendFlatCmd(p, cmdType, cmd, docFields, bytelen, 1)
+		}
 	}
 
 	p.wg.Done()
@@ -157,7 +159,7 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (outstat load.Stat) 
 func (p *processor) Close(_ bool) {
 }
 
-func rowToHash(row string) (cmdType string, cmd string, args []string, bytelen uint64, err error) {
+func preProcessCmd(row string) (cmdType string, cmd string, args []string, bytelen uint64, err error) {
 
 	argsStr := strings.Split(row, ",")
 
@@ -167,6 +169,8 @@ func rowToHash(row string) (cmdType string, cmd string, args []string, bytelen u
 		cmd = argsStr[1]
 		args = argsStr[2:]
 		bytelen = uint64(len(row)) - uint64(len(cmdType))
+	} else {
+		err = fmt.Errorf("input string does not have the minimum required size of 2: %s",row)
 	}
 
 	return

@@ -51,7 +51,7 @@ def download_url(url, output_path):
 
 def generate_setup_json(json_version, use_case_specific_arguments, test_name, description, inputs, setup_commands, teardown_commands, used_indices,
                         total_commands, total_setup_commands, total_benchmark_commands, total_docs, total_writes,
-                        total_updates, total_reads, total_deletes):
+                        total_updates, total_reads, total_deletes, benchmark_repetitions_require_teardown_and_resetup, setup_input_files,benchmark_input_files):
     setup_json = {
         "specifications-version": json_version,
         "name": test_name,
@@ -59,7 +59,12 @@ def generate_setup_json(json_version, use_case_specific_arguments, test_name, de
         "use-case-specific-arguments" : use_case_specific_arguments,
         "inputs": inputs,
         "setup": {
-            "commands": setup_commands
+            "commands": setup_commands,
+            "input-files" : setup_input_files
+        },
+        "benchmark":{
+                "repetitions-require-teardown-and-re-setup" : benchmark_repetitions_require_teardown_and_resetup,
+                "input-files" : benchmark_input_files
         },
         "teardown": {
             "commands": teardown_commands

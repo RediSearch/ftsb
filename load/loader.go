@@ -286,16 +286,11 @@ func GetBenchmarkRunner() *BenchmarkRunner {
 // with specified batch size.
 func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	// fill flag fields of BenchmarkRunner struct
-	flag.StringVar(&loader.dbName, "index", "idx1", "Name of index")
-	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
 	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
-	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")
+	flag.Uint64Var(&loader.limit, "requests", 0, "Number of total requests to issue (0 = all of the present in input file).")
 	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
-	flag.BoolVar(&loader.doCreateDB, "do-create-db", true, "Whether to create the database. Disable on all but one client if running on a multi client setup.")
-	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
-	flag.StringVar(&loader.JsonOutFile, "json-config-file", "", "Name of json config file to read the setup/teardown info. If not set, will not do any of those and simple issue the commands from --file.")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	return loader
@@ -453,7 +448,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	// Scan incoming databuild
-	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
+	return scanWithIndexer(channels, 1, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
 }
 
 // work is the processing function for each worker in the loader
