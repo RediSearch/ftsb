@@ -192,6 +192,11 @@ def generate_ft_create_row(index, doc):
     return cmd
 
 
+def generate_ft_drop_row(index):
+    cmd = ["FT.DROP", "{index}".format(index=index)]
+    return cmd
+
+
 def generate_ft_add_update_row(indexname, doc):
     cmd = ["UPDATE", "FT.ADD", "{index}".format(index=indexname),
            "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
@@ -353,6 +358,17 @@ if (__name__ == "__main__"):
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
+    compare_mode = [{
+        "metric-family": "throughput",
+        "metric-name": "OverallRates.overallOpsRate",
+        "metric-type": "numeric",
+        "comparison": "higher-better"
+    }, {
+        "metric-family": "latency",
+        "metric-name": "OverallQuantiles.allCommands.q50",
+        "metric-type": "numeric",
+        "comparison": "lower-better"
+    }]
     total_writes = 0
     total_reads = 0
     total_updates = 0
@@ -403,6 +419,11 @@ if (__name__ == "__main__"):
     print(" ".join(ft_create_cmd))
     setup_commands.append(ft_create_cmd)
 
+    print("-- generating the ft.drop commands -- ")
+    ft_drop_cmd = generate_ft_drop_row(indexname)
+    print(" ".join(ft_drop_cmd))
+    teardown_commands.append(ft_drop_cmd)
+
     generate_benchmark_commands()
     total_setup_commands = total_docs
     total_commands = total_setup_commands + total_benchmark_commands
@@ -449,7 +470,8 @@ if (__name__ == "__main__"):
     inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
 
     with open(benchmark_config_file, "w") as setupf:
-        setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description, inputs,
+        setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
+                                         compare_mode, inputs,
                                          setup_commands,
                                          teardown_commands,
                                          used_indices,

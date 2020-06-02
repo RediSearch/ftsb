@@ -183,8 +183,8 @@ if (__name__ == "__main__"):
         if found_redisearch is False:
             print('Unable to find RediSearch Module at {}! Exiting..'.format(args.redis_url))
             sys.exit(1)
-        benchmark_output_dict["db-config"]["redisearch-version"]=redisearch_version
-        benchmark_output_dict["db-config"]["git_sha"]=redisearch_git_sha
+        benchmark_output_dict["db-config"]["redisearch-version"] = redisearch_version
+        benchmark_output_dict["db-config"]["git_sha"] = redisearch_git_sha
 
         server_info = aux_client.info("Server")
         db_machine_1 = {"machine_info": None, "redis_info": server_info}
@@ -261,6 +261,18 @@ if (__name__ == "__main__"):
         ftsb_process.communicate()
         with open(benchmark_run_json_output_fullpath) as json_result:
             benchmark_output_dict["benchmark"][benchmark_run_key] = json.load(json_result)
+
+        if benchmark_repetitions_require_teardown is True or repetition == args.repetitions:
+            print("Running tear down steps...")
+            for command in benchmark_config["teardown"]["commands"]:
+                try:
+                    aux_client.execute_command(" ".join(command))
+                except redis.connection.ConnectionError as e:
+                    print(
+                        'Error while issuing teardown command to Redis.Command {}! Error message: {} Exiting..'.format(
+                            command,
+                            e.__str__()))
+                    sys.exit(1)
 
     end_time = dt.datetime.now()
     start_time_str = start_time.strftime("%Y-%m-%d-%H-%M-%S")
