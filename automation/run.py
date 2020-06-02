@@ -1,9 +1,10 @@
 #!/usr/bin/python3
-# FTSB benchmark suite
+# FTSB benchmark suite wrapper. used for automation
 # Python 3.X
 # Version 0.1
 
 import argparse
+import datetime as dt
 import gzip
 import json
 import os
@@ -13,9 +14,12 @@ import subprocess
 import sys
 from zipfile import ZipFile
 
+import humanize
 import redis
 import requests
 from cpuinfo import cpuinfo
+
+EPOCH = dt.datetime.utcfromtimestamp(0)
 
 
 def whereis(program):
@@ -50,6 +54,10 @@ def decompress_file(compressed_filename, uncompressed_filename):
                 shutil.copyfileobj(f_in, f_out)
 
 
+def ts_milli(at_dt):
+    return int((at_dt - dt.datetime(1970, 1, 1)).total_seconds() * 1000)
+
+
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(
         description='RediSearch FTSB benchmark run helper. A wrapper around ftsb_redisearch.',
@@ -66,8 +74,9 @@ if (__name__ == "__main__"):
                         help="uploads the result files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
     parser.add_argument('--redis-url', type=str, default="redis://localhost:6379", help='The url for Redis connection')
     parser.add_argument('--local-dir', type=str, default="./", help='local dir to use as storage')
-    parser.add_argument('--benchmark-output-file', default="results.json", type=str,
-                        help="benchmark output file containing the overall results")
+    parser.add_argument('--deployment-type', type=str, default="docker-oss",
+                        help='one of docker-oss,docker-oss-cluster,docker-enterprise,oss,oss-cluster,enterprise')
+    parser.add_argument('--output-file-prefix', type=str, default="", help='prefix to quickly tag some files')
 
     args = parser.parse_args()
     use_case_specific_arguments = dict(args.__dict__)
@@ -81,8 +90,14 @@ if (__name__ == "__main__"):
     workers = args.workers
     benchmark_machine_info = cpuinfo.get_cpu_info()
     total_cores = benchmark_machine_info['count']
+    redisearch_version = None
+    redisearch_git_sha = None
 
-    benchmark_suite_result = {"benchmark_machine_info": benchmark_machine_info, "redisearch_machine_info": None}
+    benchmark_infra = {"total-benchmark-machines": 0, "benchmark-machines": {}, "total-db-machines": 0,
+                       "db-machines": {}}
+    benchmark_machine_1 = {"machine_info": benchmark_machine_info}
+    benchmark_infra["benchmark-machines"]["benchmark-machine-1"] = benchmark_machine_1
+    benchmark_infra["total-benchmark-machines"] += 1
 
     if workers == 0:
         print('Setting number of workers equal to machine VCPUs {}'.format(total_cores))
@@ -109,8 +124,9 @@ if (__name__ == "__main__"):
     run_stages_inputs = {
 
     }
-    run_stages_outputs = {
-        "setup":{},"benchmark":{}
+    benchmark_output_dict = {
+        "db-config": {"redisearch-version": None, "git_sha": None}, "benchmark-config": benchmark_config, "setup": {},
+        "benchmark": {}, "infastructure": benchmark_infra
     }
 
     print("Checking required inputs are in place...")
@@ -150,8 +166,30 @@ if (__name__ == "__main__"):
     aux_client = None
     print("Checking RediSearch is reachable at {}".format(args.redis_url))
     try:
+        found_redisearch = False
         aux_client = redis.from_url(args.redis_url)
-        aux_client.ping()
+        module_list_reply = aux_client.execute_command("module list")
+        for module in module_list_reply:
+            module_name = module[1].decode()
+            module_version = module[3]
+            if module_name == "ft":
+                found_redisearch = True
+                redisearch_version = module_version
+                debug_gitsha_reply = aux_client.execute_command("ft.debug git_sha")
+                redisearch_git_sha = debug_gitsha_reply.decode()
+                print(
+                    'Found RediSearch Module at {}! version: {} git_sha: {}'.format(args.redis_url, redisearch_version,
+                                                                                    redisearch_git_sha))
+        if found_redisearch is False:
+            print('Unable to find RediSearch Module at {}! Exiting..'.format(args.redis_url))
+            sys.exit(1)
+        benchmark_output_dict["db-config"]["redisearch-version"]=redisearch_version
+        benchmark_output_dict["db-config"]["git_sha"]=redisearch_git_sha
+
+        server_info = aux_client.info("Server")
+        db_machine_1 = {"machine_info": None, "redis_info": server_info}
+        benchmark_infra["db-machines"]["db-machine-1"] = db_machine_1
+        benchmark_infra["total-db-machines"] += 1
     except redis.connection.ConnectionError as e:
         print('Error establishing connection to Redis at {}! Message: {} Exiting..'.format(args.redis_url, e.__str__()))
         sys.exit(1)
@@ -176,6 +214,7 @@ if (__name__ == "__main__"):
         'stderr': stderrPipe,
         'env': environ,
     }
+    start_time = dt.datetime.now()
 
     for repetition in range(1, args.repetitions + 1):
         benchmark_repetitions_require_teardown = benchmark_config["benchmark"][
@@ -200,7 +239,7 @@ if (__name__ == "__main__"):
             ftsb_process.communicate()
             # run_stages_outputs["setup"]
             with open(setup_run_json_output_fullpath) as json_result:
-                run_stages_outputs["setup"][setup_run_key]=json.load(json_result)
+                benchmark_output_dict["setup"][setup_run_key] = json.load(json_result)
 
         ######################
         # Benchmark commands #
@@ -210,7 +249,8 @@ if (__name__ == "__main__"):
         benchmark_run_json_output_fullpath = "{}/{}".format(local_path, benchmark_run_key)
         ftsb_args += [ftsb_redisearch_path, "--host={}".format(args.redis_url),
                       "--file={}".format(run_stages_inputs["benchmark"]), "--workers={}".format(workers),
-                      "--json-out-file={}".format(benchmark_run_json_output_fullpath), "--requests={}".format(args.benchmark_requests)]
+                      "--json-out-file={}".format(benchmark_run_json_output_fullpath),
+                      "--requests={}".format(args.benchmark_requests)]
 
         ftsb_process = subprocess.Popen(args=ftsb_args, **options)
 
@@ -220,7 +260,22 @@ if (__name__ == "__main__"):
 
         ftsb_process.communicate()
         with open(benchmark_run_json_output_fullpath) as json_result:
-            run_stages_outputs["benchmark"][benchmark_run_key]=json.load(json_result)
+            benchmark_output_dict["benchmark"][benchmark_run_key] = json.load(json_result)
 
-    with open(args.benchmark_output_file,"w") as json_out_file:
-        json.dump(run_stages_outputs, json_out_file, indent=2)
+    end_time = dt.datetime.now()
+    start_time_str = start_time.strftime("%Y-%m-%d-%H-%M-%S")
+    end_time_str = end_time.strftime("%Y-%m-%d-%H-%M-%S")
+    duration_ms = ts_milli(end_time) - ts_milli(start_time)
+    start_time_ms = ts_milli(start_time)
+    end_time_ms = ts_milli(end_time)
+    duration_humanized = humanize.naturaldelta((end_time - start_time))
+    benchmark_output_filename = "{prefix}{time_str}-{deployment_type}-{use_case}-{version}-{git_sha}.json".format(
+        prefix=args.output_file_prefix,
+        time_str=start_time_str, deployment_type=args.deployment_type, use_case=benchmark_config["name"],
+        version=redisearch_version, git_sha=redisearch_git_sha)
+    run_info = {"start-time-ms": start_time_ms, "start-time-humanized": start_time_str, "end-time-ms": end_time_ms,
+                "end-time-humanized": end_time_str, "duration-ms": duration_ms,
+                "duration-humanized": duration_humanized}
+    benchmark_output_dict["run-info"] = run_info
+    with open(benchmark_output_filename, "w") as json_out_file:
+        json.dump(benchmark_output_dict, json_out_file, indent=2)
