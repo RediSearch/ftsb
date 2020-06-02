@@ -7,12 +7,15 @@ import argparse
 import datetime as dt
 import gzip
 import json
+import operator
 import os
 import os.path
 import shutil
 import subprocess
 import sys
+from functools import reduce
 from zipfile import ZipFile
+import pandas as pd
 
 import humanize
 import redis
@@ -53,6 +56,8 @@ def decompress_file(compressed_filename, uncompressed_filename):
             with open(uncompressed_filename, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
+def findJsonPath(element, json):
+    return reduce(operator.getitem, element.split('.'), json)
 
 def ts_milli(at_dt):
     return int((at_dt - dt.datetime(1970, 1, 1)).total_seconds() * 1000)
@@ -275,6 +280,33 @@ if (__name__ == "__main__"):
                     sys.exit(1)
 
     end_time = dt.datetime.now()
+    best_run = None
+    df_dict = {"run-name":[]}
+    metric_names = []
+    metric_sorting_dir = []
+    for metric in benchmark_config["compare-mode"]:
+        metric_name = metric["metric-name"]
+        metric_names.append(metric_name)
+        df_dict[metric_name]=[]
+        metric_sorting_dir.append(False if metric["comparison"] == "higher-better" else True )
+    for run_name, result_run in benchmark_output_dict["benchmark"].items():
+        df_dict["run-name"].append(run_name)
+        for metric in metric_names:
+            metric_value = findJsonPath(metric,result_run)
+            # print(metric,metric_value)
+            df_dict[metric].append(metric_value)
+    # print(metric_names,metric_sorting_dir)
+    dfObj = pd.DataFrame(df_dict)
+    dfObj.sort_values(metric_names, ascending=metric_sorting_dir, inplace=True)
+    print(dfObj)
+    # stddev of the dataframe
+    print(dfObj.std())
+    # variance of the dataframe
+    print(dfObj.var())
+    benchmark_output_dict["results-comparison"] = {}
+    benchmark_output_dict["results-comparison"]["table"] = dfObj.to_json(orient='records')
+    benchmark_output_dict["results-comparison"]["reliability-analysis"] = {'var':dfObj.var().to_json(),'stddev':dfObj.std().to_json()}
+
     start_time_str = start_time.strftime("%Y-%m-%d-%H-%M-%S")
     end_time_str = end_time.strftime("%Y-%m-%d-%H-%M-%S")
     duration_ms = ts_milli(end_time) - ts_milli(start_time)

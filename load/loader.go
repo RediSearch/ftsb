@@ -738,6 +738,8 @@ func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
 	configs["update"] = update
 	_, delete := generateQuantileMap(b.deleteHistogram)
 	configs["delete"] = delete
+	_, all := generateQuantileMap(b.totalHistogram)
+	configs["allCommands"] = all
 	return configs
 }
 
