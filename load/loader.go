@@ -29,13 +29,6 @@ const (
 	WorkerPerQueue = 0
 	// SingleQueue is the value for using a single shared queue across all workers
 	SingleQueue = 1
-
-)
-
-// change for more useful testing
-var (
-	printFn = fmt.Printf
-	fatal   = log.Fatalf
 )
 
 // Benchmark is an interface that represents the skeleton of a program
@@ -85,11 +78,11 @@ func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 
 	//TotalRxBytes
 	configs["RxBytes"] = b.rxTotalBytes
-
-	for k, _ := range b.detailedMapHistograms {
-		fmt.Println(k)
-		//configs[k] = v.TotalCount()
-	}
+	//
+	//for k, _ := range b.detailedMapHistograms {
+	//	fmt.Println(k)
+	//	//configs[k] = v.TotalCount()
+	//}
 
 	return configs
 }
@@ -201,7 +194,6 @@ func (b *BenchmarkRunner) GetTimeSeriesMap() map[string]interface{} {
 // flags across all database systems and ultimately running a supplied Benchmark
 type BenchmarkRunner struct {
 	// flag fields
-	dbName          string
 	JsonOutFile     string
 	Metadata        string
 	batchSize       uint
@@ -209,8 +201,6 @@ type BenchmarkRunner struct {
 	maxRPS          uint64
 	limit           uint64
 	doLoad          bool
-	doCreateDB      bool
-	doAbortOnExist  bool
 	reportingPeriod time.Duration
 	fileName        string
 	start           time.Time
@@ -337,7 +327,6 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.TimeSeries = l.GetTimeSeriesMap()
 	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
 	l.testResult.Limit = l.limit
-	l.testResult.DbName = l.dbName
 	l.testResult.Workers = l.workers
 	l.summary()
 }
@@ -349,7 +338,7 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 			// Read from specified file
 			file, err := os.Open(l.fileName)
 			if err != nil {
-				fatal("cannot open file for read %s: %v", l.fileName, err)
+				log.Fatalf("cannot open file for read %s: %v", l.fileName, err)
 				return nil
 			}
 			l.br = bufio.NewReaderSize(file, defaultReadSize)
@@ -420,16 +409,16 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
 			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
 			labelStr := string(cmdStat.Label())
-			querystr := string(cmdStat.CmdQueryId())
-			groupAndQuery := labelStr + "." + querystr
-			var detailHist *hdrhistogram.Histogram
-			_, exist := l.detailedMapHistograms[groupAndQuery]
-			if !exist {
-				detailHist = hdrhistogram.New(1, 1000000, 3)
-				detailHist.RecordValue(int64(cmdStat.Latency()))
-				l.detailedMapHistograms[groupAndQuery] = detailHist
-				fmt.Println(groupAndQuery)
-			}
+			//querystr := string(cmdStat.CmdQueryId())
+			//groupAndQuery := labelStr + "." + querystr
+			//var detailHist *hdrhistogram.Histogram
+			//_, exist := l.detailedMapHistograms[groupAndQuery]
+			//if !exist {
+			//	detailHist = hdrhistogram.New(1, 1000000, 3)
+			//	detailHist.RecordValue(int64(cmdStat.Latency()))
+			//	l.detailedMapHistograms[groupAndQuery] = detailHist
+			//	fmt.Println(groupAndQuery)
+			//}
 			//detailedHistogram.RecordValue(int64(cmdStat.Latency()))
 			//l.detailedMapHistograms[groupAndQuery] = detailedHistogram
 
@@ -516,9 +505,9 @@ func (l *BenchmarkRunner) summary() {
 	l.testResult.Metadata = l.Metadata
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
-	printFn("\nSummary:\n")
-	printFn("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
-	printFn("\tOverall stats:\n\t"+
+	fmt.Printf("\nSummary:\n")
+	fmt.Printf("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
+	fmt.Printf("\tOverall stats:\n\t"+
 		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
 		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
 		"- Writes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
@@ -541,8 +530,8 @@ func (l *BenchmarkRunner) summary() {
 		deleteRate,
 		float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
 	)
-	printFn("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
-	printFn("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
+	fmt.Printf("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
+	fmt.Printf("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
 
 	if strings.Compare(l.JsonOutFile, "") != 0 {
 

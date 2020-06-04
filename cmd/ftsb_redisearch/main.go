@@ -67,7 +67,6 @@ func (b *benchmark) GetProcessor() load.Processor {
 	return &processor{}
 }
 
-
 func main() {
 	//if singleWorkerQueue {
 	b := benchmark{}
