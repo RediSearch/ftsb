@@ -10,38 +10,44 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.7.x, 1.13.x]
+        platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
-    - name: setup env
-      shell: bash
-      run: |
-        echo "::set-env name=GOPATH::${{ github.workspace }}/go"
-        echo "::add-path::${{ github.workspace }}/go/bin"
-    - name: Install Go
-      if: success()
-      uses: actions/setup-go@v1
-      with:
-        go-version: 1.13.x
-    - name: checkout
-      uses: actions/checkout@v1
-      with:
-        fetch-depth: 1
-        path: podcast/go/src/github.com/${{ github.repository }}
-    - name: Run tests
-      run: |
-        go test -v -covermode=count
+      - name: setup env
+        shell: bash
+        run: |
+          echo "::set-env name=GOPATH::${{ github.workspace }}/go"
+          echo "::add-path::${{ github.workspace }}/go/bin"
+      - name: Install Go
+        if: success()
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          path: go/src/github.com/${{ github.repository }}
+      - name: Run tests
+        shell: bash
+        run: |
+          cd $GOPATH/src/github.com/${{ github.repository }}
+          go test -v -covermode=count
 
-    - name: Get Python dependencies
-      run: |
-        sudo apt install python3.6 -y
-        sudo apt install python3-pip -y
-        sudo apt-get install python3-setuptools -y
-        python3 -m pip install -r automation/requirements.txt
+      - name: Get Python dependencies
+        run: |
+          sudo apt install python3.6 -y
+          sudo apt install python3-pip -y
+          sudo apt-get install python3-setuptools -y
+          python3 -m pip install -r automation/requirements.txt
 
-    - name: Run CI benchmarks
-      run: |
-        ./automation/run.py \
-             --repetitions 7 \
-             --output-file-prefix github-actions \
-             --upload-results-s3 \
-             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json.
+      - name: Run CI benchmarks
+        run: |
+          ./automation/run.py \
+               --repetitions 7 \
+               --output-file-prefix github-actions \
+               --upload-results-s3 \
+               --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json.
