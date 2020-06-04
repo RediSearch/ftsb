@@ -5,15 +5,14 @@
 
 import argparse
 import datetime as dt
-import gzip
 import json
 import operator
 import os
 import os.path
-import shutil
 import subprocess
 import sys
 import tarfile
+from bisect import bisect_left
 from functools import reduce
 from zipfile import ZipFile
 
@@ -47,7 +46,7 @@ def required_utilities(utility_list):
 
 
 def decompress_file(compressed_filename, uncompressed_filename):
-    if compressed_filename.endswith( ".zip"):
+    if compressed_filename.endswith(".zip"):
         with ZipFile(compressed_filename, 'r') as zipObj:
             zipObj.extractall()
 
@@ -97,7 +96,6 @@ if (__name__ == "__main__"):
     benchmark_config = None
     s3_bucket_name = "benchmarks.redislabs"
 
-
     required_utilities_list = ["ftsb_redisearch"]
     if required_utilities(required_utilities_list) == 0:
         print('Utilities Missing! Exiting..')
@@ -140,7 +138,7 @@ if (__name__ == "__main__"):
 
     s3_bucket_path = "redisearch/results/".format(test_name)
     if args.output_file_prefix != "":
-        s3_bucket_path = "{}/{}/".format(s3_bucket_path,args.output_file_prefix)
+        s3_bucket_path = "{}/{}/".format(s3_bucket_path, args.output_file_prefix)
     s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
                                                                            bucket_path=s3_bucket_path)
 
@@ -151,7 +149,7 @@ if (__name__ == "__main__"):
     benchmark_output_dict = {
         "key-configs": {"deployment-type": args.deployment_type, "deployment-shards": args.deployment_shards,
                         "redisearch-version": None, "git_sha": None},
-        "key-results":{},
+        "key-results": {},
         "benchmark-config": benchmark_config,
         "setup": {},
         "benchmark": {},
@@ -244,10 +242,17 @@ if (__name__ == "__main__"):
         'env': environ,
     }
     start_time = dt.datetime.now()
+    benchmark_repetitions_require_teardown = benchmark_config["benchmark"][
+        "repetitions-require-teardown-and-re-setup"]
 
+    total_steps = args.repetitions
+    if benchmark_repetitions_require_teardown is True:
+        total_steps += total_steps
+    else:
+        total_steps += 1
+    progress = tqdm(unit="bench steps", total=total_steps)
     for repetition in range(1, args.repetitions + 1):
-        benchmark_repetitions_require_teardown = benchmark_config["benchmark"][
-            "repetitions-require-teardown-and-re-setup"]
+
         if benchmark_repetitions_require_teardown is True or repetition == 1:
             ##################
             # Setup commands #
@@ -269,6 +274,8 @@ if (__name__ == "__main__"):
             # run_stages_outputs["setup"]
             with open(setup_run_json_output_fullpath) as json_result:
                 benchmark_output_dict["setup"][setup_run_key] = json.load(json_result)
+
+            progress.update()
 
         ######################
         # Benchmark commands #
@@ -303,7 +310,10 @@ if (__name__ == "__main__"):
                             e.__str__()))
                     sys.exit(1)
 
+        progress.update()
+
     end_time = dt.datetime.now()
+    progress.close()
 
     ##################################
     # Repetitions Results Comparison #
@@ -312,7 +322,7 @@ if (__name__ == "__main__"):
     step_df_dict = {}
     benchmark_output_dict["results-comparison"] = {}
 
-    for step in ["setup","benchmark"]:
+    for step in ["setup", "benchmark"]:
         step_df_dict[step] = {}
         step_df_dict[step]["df_dict"] = {"run-name": []}
         step_df_dict[step]["sorting_metric_names"] = []
@@ -326,9 +336,10 @@ if (__name__ == "__main__"):
         step_df_dict[step]["sorting_metric_names"].append(metric_name)
         step_df_dict[step]["metric_json_path"].append(metric_json_path)
         step_df_dict[step]["df_dict"][metric_name] = []
-        step_df_dict[step]["sorting_metric_sorting_direction"].append(False if metric["comparison"] == "higher-better" else True)
+        step_df_dict[step]["sorting_metric_sorting_direction"].append(
+            False if metric["comparison"] == "higher-better" else True)
 
-    for step in ["setup","benchmark"]:
+    for step in ["setup", "benchmark"]:
         for run_name, result_run in benchmark_output_dict[step].items():
             step_df_dict[step]["df_dict"]["run-name"].append(run_name)
             for pos, metric_json_path in enumerate(step_df_dict[step]["metric_json_path"]):
@@ -337,16 +348,30 @@ if (__name__ == "__main__"):
                 try:
                     metric_value = findJsonPath(metric_json_path, result_run)
                 except KeyError:
-                    print("Error retrieving {} metric from JSON PATH {} on file {}".format(metric_name,metric_json_path,run_name))
+                    print(
+                        "Error retrieving {} metric from JSON PATH {} on file {}".format(metric_name, metric_json_path,
+                                                                                         run_name))
                     pass
                 step_df_dict[step]["df_dict"][metric_name].append(metric_value)
         dfObj = pd.DataFrame(step_df_dict[step]["df_dict"])
-        dfObj.sort_values(step_df_dict[step]["sorting_metric_names"], ascending=step_df_dict[step]["sorting_metric_sorting_direction"], inplace=True)
+        dfObj.sort_values(step_df_dict[step]["sorting_metric_names"],
+                          ascending=step_df_dict[step]["sorting_metric_sorting_direction"], inplace=True)
         print(dfObj)
-        benchmark_output_dict["key-results"][step]= {}
+        benchmark_output_dict["key-results"][step] = {}
         benchmark_output_dict["key-results"][step]["table"] = json.loads(dfObj.to_json(orient='records'))
+        best_result = dfObj.head(n=1)
+        worst_result = dfObj.tail(n=1)
+        first_sorting_col = step_df_dict[step]["sorting_metric_names"][0]
+        first_sorting_median = dfObj[first_sorting_col].median()
+        result_index = dfObj[first_sorting_col].sub(first_sorting_median).abs().idxmin()
+        median_result = dfObj.loc[[result_index]]
+
+        benchmark_output_dict["key-results"][step]["best-result"] = json.loads(best_result.to_json(orient='records'))
+        benchmark_output_dict["key-results"][step]["median-result"] = json.loads(median_result.to_json(orient='records'))
+        benchmark_output_dict["key-results"][step]["worst-result"] = json.loads(worst_result.to_json(orient='records'))
         benchmark_output_dict["key-results"][step]["reliability-analysis"] = {'var': json.loads(dfObj.var().to_json()),
-                                                                               'stddev': json.loads(dfObj.std().to_json())}
+                                                                              'stddev': json.loads(
+                                                                                  dfObj.std().to_json())}
 
     #####################
     # Run Info Metadata #
