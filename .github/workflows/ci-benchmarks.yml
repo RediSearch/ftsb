@@ -33,7 +33,7 @@ jobs:
 
     - name: Build
       run: |
-        make
+        make ftsb_redisearch
 
     - name: Get Python dependencies
       run: |
