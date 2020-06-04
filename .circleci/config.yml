@@ -24,6 +24,22 @@ jobs:
       - checkout
       - run: make test
 
+  ci-benchmark: # test nightly with redisearch:edge
+    docker:
+      - image: circleci/golang:1.13
+      - image: redislabs/redisearch:edge
+
+    working_directory: /go/src/github.com/RediSearch/ftsb
+    steps:
+      - checkout
+      - run: make
+      - run: python3 install -r automation/requirements.txt
+      - run: |
+             ./automation/run.py \
+             --repetitions 10 \
+             --output-file-prefix circleci \
+             --benchmark-config-file  https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
+
   build-multiarch-docker:
     machine:
       enabled: true
@@ -54,3 +70,14 @@ workflows:
     jobs:
       - build-edge
       - build-latest
+
+  ci_benchmarks:
+    triggers:
+      - schedule:
+          cron: "0,10,20,30,40,50 * * * *"
+          filters:
+            branches:
+              only:
+                - automation
+    jobs:
+      - ci-benchmark

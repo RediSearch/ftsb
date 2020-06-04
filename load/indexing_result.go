@@ -26,9 +26,7 @@ type TestResult struct {
 	// Test Configs
 	Metadata            string `json:"Metadata"`
 	ResultFormatVersion string `json:"ResultFormatVersion"`
-	BatchSize           int64  `json:"BatchSize"`
 	Limit               uint64 `json:"Limit"`
-	DbName              string `json:"DbName"`
 	Workers             uint   `json:"Workers"`
 
 	// DB Spefic Configs

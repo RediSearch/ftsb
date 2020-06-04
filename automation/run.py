@@ -17,11 +17,13 @@ import tarfile
 from functools import reduce
 from zipfile import ZipFile
 
+import boto3
 import humanize
 import pandas as pd
 import redis
 import requests
 from cpuinfo import cpuinfo
+from tqdm import tqdm
 
 EPOCH = dt.datetime.utcfromtimestamp(0)
 
@@ -93,6 +95,9 @@ if (__name__ == "__main__"):
     args = parser.parse_args()
     use_case_specific_arguments = dict(args.__dict__)
     benchmark_config = None
+    s3_bucket_name = "benchmarks.redislabs"
+
+
     required_utilities_list = ["ftsb_redisearch"]
     if required_utilities(required_utilities_list) == 0:
         print('Utilities Missing! Exiting..')
@@ -129,8 +134,15 @@ if (__name__ == "__main__"):
         with open(args.benchmark_config_file, "r") as json_file:
             benchmark_config = json.load(json_file)
 
-    print("Preparing to run test: {}.\nDescription: {}.".format(benchmark_config["name"],
+    test_name = benchmark_config["name"]
+    print("Preparing to run test: {}.\nDescription: {}.".format(test_name,
                                                                 benchmark_config["description"]))
+
+    s3_bucket_path = "redisearch/results/".format(test_name)
+    if args.output_file_prefix != "":
+        s3_bucket_path = "{}/{}/".format(s3_bucket_path,args.output_file_prefix)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
+                                                                           bucket_path=s3_bucket_path)
 
     run_stages = ["setup", "benchmark"]
     run_stages_inputs = {
@@ -321,15 +333,16 @@ if (__name__ == "__main__"):
             step_df_dict[step]["df_dict"]["run-name"].append(run_name)
             for pos, metric_json_path in enumerate(step_df_dict[step]["metric_json_path"]):
                 metric_name = step_df_dict[step]["sorting_metric_names"][pos]
-                metric_value = findJsonPath(metric_json_path, result_run)
+                metric_value = None
+                try:
+                    metric_value = findJsonPath(metric_json_path, result_run)
+                except KeyError:
+                    print("Error retrieving {} metric from JSON PATH {} on file {}".format(metric_name,metric_json_path,run_name))
+                    pass
                 step_df_dict[step]["df_dict"][metric_name].append(metric_value)
         dfObj = pd.DataFrame(step_df_dict[step]["df_dict"])
         dfObj.sort_values(step_df_dict[step]["sorting_metric_names"], ascending=step_df_dict[step]["sorting_metric_sorting_direction"], inplace=True)
         print(dfObj)
-        # stddev of the dataframe
-        print(dfObj.std())
-        # variance of the dataframe
-        print(dfObj.var())
         benchmark_output_dict["key-results"][step]= {}
         benchmark_output_dict["key-results"][step]["table"] = json.loads(dfObj.to_json(orient='records'))
         benchmark_output_dict["key-results"][step]["reliability-analysis"] = {'var': json.loads(dfObj.var().to_json()),
@@ -357,3 +370,17 @@ if (__name__ == "__main__"):
 
     with open(benchmark_output_filename, "w") as json_out_file:
         json.dump(benchmark_output_dict, json_out_file, indent=2)
+
+    if args.upload_results_s3:
+        print("-- uploading results to s3 -- ")
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(s3_bucket_name)
+        artifacts = [benchmark_output_filename]
+        progress = tqdm(unit="files", total=len(artifacts))
+        for input in artifacts:
+            object_key = '{bucket_path}{filename}'.format(bucket_path=s3_bucket_path, filename=input)
+            bucket.upload_file(input, object_key)
+            object_acl = s3.ObjectAcl(s3_bucket_name, object_key)
+            response = object_acl.put(ACL='public-read')
+            progress.update()
+        progress.close()

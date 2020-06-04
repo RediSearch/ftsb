@@ -155,6 +155,13 @@ func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
 	overallOpsRate := calculateRateMetrics(totalOps, 0, took)
 	configs["overallOpsRate"] = overallOpsRate
 
+	for k, v := range l.detailedMapHistograms {
+		rateStr := k + "Rate"
+		count := v.TotalCount()
+		rate := calculateRateMetrics(count, 0, took)
+		configs[rateStr] = rate
+	}
+
 	overallTxByteRate := calculateRateMetrics(int64(txTotalBytes), 0, took)
 	configs["overallTxByteRate"] = overallTxByteRate
 
@@ -207,11 +214,12 @@ type BenchmarkRunner struct {
 	end             time.Time
 
 	// non-flag fields
-	br                       *bufio.Reader
-	detailedMapHistograms    map[string]*hdrhistogram.Histogram
-	setupWriteHistogram      *hdrhistogram.Histogram
-	inst_setupWriteHistogram *hdrhistogram.Histogram
-	setupWriteTs             []DataPoint
+	br                         *bufio.Reader
+	detailedMapHistogramsMutex sync.RWMutex
+	detailedMapHistograms      map[string]*hdrhistogram.Histogram
+	setupWriteHistogram        *hdrhistogram.Histogram
+	inst_setupWriteHistogram   *hdrhistogram.Histogram
+	setupWriteTs               []DataPoint
 
 	writeHistogram      *hdrhistogram.Histogram
 	inst_writeHistogram *hdrhistogram.Histogram
@@ -409,18 +417,14 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
 			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
 			labelStr := string(cmdStat.Label())
-			//querystr := string(cmdStat.CmdQueryId())
-			//groupAndQuery := labelStr + "." + querystr
-			//var detailHist *hdrhistogram.Histogram
-			//_, exist := l.detailedMapHistograms[groupAndQuery]
-			//if !exist {
-			//	detailHist = hdrhistogram.New(1, 1000000, 3)
-			//	detailHist.RecordValue(int64(cmdStat.Latency()))
-			//	l.detailedMapHistograms[groupAndQuery] = detailHist
-			//	fmt.Println(groupAndQuery)
-			//}
-			//detailedHistogram.RecordValue(int64(cmdStat.Latency()))
-			//l.detailedMapHistograms[groupAndQuery] = detailedHistogram
+			querystr := string(cmdStat.CmdQueryId())
+			groupAndQuery := labelStr + "-" + querystr
+			l.detailedMapHistogramsMutex.Lock()
+			if _, exist := l.detailedMapHistograms[groupAndQuery]; !exist {
+				l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, 1000000, 3)
+			}
+			l.detailedMapHistograms[groupAndQuery].RecordValue(int64(cmdStat.Latency()))
+			l.detailedMapHistogramsMutex.Unlock()
 
 			switch labelStr {
 			case "SETUP_WRITE":
@@ -501,7 +505,6 @@ func (l *BenchmarkRunner) summary() {
 	l.testResult.StartTime = l.start.Unix()
 	l.testResult.EndTime = l.end.Unix()
 	l.testResult.DurationMillis = took.Milliseconds()
-	l.testResult.BatchSize = int64(l.batchSize)
 	l.testResult.Metadata = l.Metadata
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
@@ -662,16 +665,22 @@ func (l *BenchmarkRunner) addRateMetricsDatapoints(datapoints []DataPoint, now t
 
 func generateQuantileMap(hist *hdrhistogram.Histogram) (int64, map[string]float64) {
 	ops := hist.TotalCount()
+	q0 := 0.0
 	q50 := 0.0
 	q95 := 0.0
 	q99 := 0.0
+	q999 := 0.0
+	q100 := 0.0
 	if ops > 0 {
+		q0 = float64(hist.ValueAtQuantile(0.0)) / 10e2
 		q50 = float64(hist.ValueAtQuantile(50.0)) / 10e2
 		q95 = float64(hist.ValueAtQuantile(95.0)) / 10e2
 		q99 = float64(hist.ValueAtQuantile(99.0)) / 10e2
+		q999 = float64(hist.ValueAtQuantile(99.90)) / 10e2
+		q100 = float64(hist.ValueAtQuantile(100.0)) / 10e2
 	}
 
-	mp := map[string]float64{"q50": q50, "q95": q95, "q99": q99}
+	mp := map[string]float64{"q0": q0, "q50": q50, "q95": q95, "q99": q99, "q999": q999, "q100": q100}
 	return ops, mp
 }
 
@@ -692,10 +701,10 @@ func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
 	_, all := generateQuantileMap(b.totalHistogram)
 	configs["allCommands"] = all
 
-	//for k, v := range b.detailedMapHistograms {
-	//	_, all := generateQuantileMap(v)
-	//	configs[k] = all
-	//}
+	for k, hist := range b.detailedMapHistograms {
+		_, quantilesMap := generateQuantileMap(hist)
+		configs[k] = quantilesMap
+	}
 
 	return configs
 }
