@@ -13,6 +13,7 @@ import os.path
 import shutil
 import subprocess
 import sys
+import tarfile
 from functools import reduce
 from zipfile import ZipFile
 
@@ -44,17 +45,19 @@ def required_utilities(utility_list):
 
 
 def decompress_file(compressed_filename, uncompressed_filename):
-    splitted = os.path.splitext(compressed_filename)
-    filetype = splitted[1]
-
-    if (filetype == ".zip"):
+    if compressed_filename.endswith( ".zip"):
         with ZipFile(compressed_filename, 'r') as zipObj:
             zipObj.extractall()
 
-    elif (filetype == ".gz"):
-        with gzip.open(compressed_filename, 'rb') as f_in:
-            with open(uncompressed_filename, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+    elif compressed_filename.endswith("tar.gz"):
+        tar = tarfile.open(compressed_filename, "r:gz")
+        tar.extractall()
+        tar.close()
+
+    elif compressed_filename.endswith("tar"):
+        tar = tarfile.open(compressed_filename, "r:")
+        tar.extractall()
+        tar.close()
 
 
 def findJsonPath(element, json):
