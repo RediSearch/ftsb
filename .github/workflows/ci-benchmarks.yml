@@ -26,6 +26,7 @@ jobs:
       run: |
         sudo apt install python3.6 -y
         sudo apt install python3-pip -y
+        sudo apt-get install python3-setuptools -y
         python3 -m pip install -r automation/requirements.txt
 
     - name: Get Go dependencies
