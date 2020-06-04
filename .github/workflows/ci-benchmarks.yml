@@ -7,35 +7,19 @@ on:
     branches: [ automation ]
 
 jobs:
-
   build:
-    name: Build
+    runs-on: ubuntu-16.04
     strategy:
       matrix:
-        go-version: [1.7.x, 1.13.x]
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+        go: [ '1.13', '1.12' ]
+    name: Go ${{ matrix.go }} sample
     steps:
-      - name: setup env
-        shell: bash
-        run: |
-          echo "::set-env name=GOPATH::${{ github.workspace }}/go"
-          echo "::add-path::${{ github.workspace }}/go/bin"
-      - name: Install Go
-        if: success()
+      - uses: actions/checkout@v2
+      - name: Setup go
         uses: actions/setup-go@v1
         with:
-          go-version: ${{ matrix.go-version }}
-      - name: checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-          path: go/src/github.com/${{ github.repository }}
-      - name: Run tests
-        shell: bash
-        run: |
-          cd $GOPATH/src/github.com/${{ github.repository }}
-          go test -v -covermode=count
+          go-version: ${{ matrix.go }}
+      - run: go get ./...
 
       - name: Get Python dependencies
         run: |
