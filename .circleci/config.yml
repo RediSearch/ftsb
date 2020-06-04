@@ -34,7 +34,7 @@ jobs:
       - checkout
       - run: make
       - run: sudo apt-get install python3.6 -y
-      - run: python3 install -r automation/requirements.txt
+      - run: python3 -m pip install -r automation/requirements.txt
       - run: |
              ./automation/run.py \
              --repetitions 10 \
