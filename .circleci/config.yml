@@ -33,7 +33,8 @@ jobs:
     steps:
       - checkout
       - run: make
-      - run: sudo apt-get install python3.6 -y
+      - run: sudo apt install python3.6 -y
+      - run: sudo apt install python3-pip -y
       - run: python3 -m pip install -r automation/requirements.txt
       - run: |
              ./automation/run.py \
