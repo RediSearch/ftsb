@@ -30,7 +30,6 @@ func init() {
 }
 
 type benchmark struct {
-	dbc *dbCreator
 }
 
 func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
@@ -65,17 +64,14 @@ func (b *benchmark) GetCommandIndexer(maxPartitions uint) load.DocIndexer {
 }
 
 func (b *benchmark) GetProcessor() load.Processor {
-	return &processor{dbc: b.dbc}
+	return &processor{}
 }
 
-func (b *benchmark) GetDBCreator() load.DBCreator {
-	return b.dbc
-}
 
 func main() {
-	var creator = dbCreator{}
 	//if singleWorkerQueue {
-	loader.RunBenchmark(&benchmark{dbc: &creator}, load.SingleQueue)
+	b := benchmark{}
+	loader.RunBenchmark(&b, load.SingleQueue)
 	//} else {
 	//	loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
 	//}

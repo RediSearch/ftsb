@@ -30,7 +30,6 @@ const (
 	// SingleQueue is the value for using a single shared queue across all workers
 	SingleQueue = 1
 
-	errDBExistsFmt = "database \"%s\" exists: aborting."
 )
 
 // change for more useful testing
@@ -53,9 +52,6 @@ type Benchmark interface {
 
 	// GetProcessor returns the Processor to use for this Benchmark
 	GetProcessor() Processor
-
-	// GetDBCreator returns the DBCreator to use for this Benchmark
-	GetDBCreator() DBCreator
 
 	// GetConfigurationParametersMap returns the map of specific configurations used in the benchmark
 	GetConfigurationParametersMap() map[string]interface{}
@@ -89,6 +85,11 @@ func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 
 	//TotalRxBytes
 	configs["RxBytes"] = b.rxTotalBytes
+
+	for k, _ := range b.detailedMapHistograms {
+		fmt.Println(k)
+		//configs[k] = v.TotalCount()
+	}
 
 	return configs
 }
@@ -205,6 +206,7 @@ type BenchmarkRunner struct {
 	Metadata        string
 	batchSize       uint
 	workers         uint
+	maxRPS          uint64
 	limit           uint64
 	doLoad          bool
 	doCreateDB      bool
@@ -215,8 +217,8 @@ type BenchmarkRunner struct {
 	end             time.Time
 
 	// non-flag fields
-	br *bufio.Reader
-
+	br                       *bufio.Reader
+	detailedMapHistograms    map[string]*hdrhistogram.Histogram
 	setupWriteHistogram      *hdrhistogram.Histogram
 	inst_setupWriteHistogram *hdrhistogram.Histogram
 	setupWriteTs             []DataPoint
@@ -274,6 +276,7 @@ var loader = &BenchmarkRunner{
 	totalHistogram:           hdrhistogram.New(1, 1000000, 3),
 	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
 	totalTs:                  make([]DataPoint, 0, 10),
+	detailedMapHistograms:    make(map[string]*hdrhistogram.Histogram),
 }
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
@@ -291,24 +294,16 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
+	flag.Uint64Var(&loader.maxRPS, "max-rps", 0, "enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal \"modus operandi\" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	return loader
-}
-
-// DatabaseName returns the value of the --db-name flag (name of the database to store databuild)
-func (l *BenchmarkRunner) DatabaseName() string {
-	return l.dbName
 }
 
 // RunBenchmark takes in a Benchmark b, a bufio.Reader br, and holders for number of metrics and rows
 // and reads those to run the benchmark benchmark
 func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.br = l.GetBufferedReader()
-
-	// Create required DB
-	cleanupFn := l.useDBCreator(b.GetDBCreator())
-	defer cleanupFn()
 
 	channels := l.createChannels(workQueues)
 	// Launch all worker processes in background
@@ -364,52 +359,6 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 		}
 	}
 	return l.br
-}
-
-// useDBCreator handles a DBCreator by running it according to flags set by the
-// user. The function returns a function that the caller should defer or run
-// when the benchmark is finished
-func (l *BenchmarkRunner) useDBCreator(dbc DBCreator) func() {
-	// Empty function to 'defer' from caller
-	closeFn := func() {}
-
-	if l.doLoad {
-		// DBCreator should still be Init'd even if -do-create-db is false since
-		// it can initialize the connecting session
-		dbc.Init()
-
-		switch dbcc := dbc.(type) {
-		case DBCreatorCloser:
-			closeFn = dbcc.Close
-		}
-
-		// Check whether required DB already exists
-		exists := dbc.DBExists(l.dbName)
-		if exists && l.doAbortOnExist {
-			panic(fmt.Sprintf(errDBExistsFmt, l.dbName))
-		}
-
-		// Create required DB if need be
-		// In case DB already exists - delete it
-		if l.doCreateDB {
-			if exists {
-				err := dbc.RemoveOldDB(l.dbName)
-				if err != nil {
-					panic(err)
-				}
-			}
-			err := dbc.CreateDB(l.dbName)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		switch dbcp := dbc.(type) {
-		case DBCreatorPost:
-			dbcp.PostCreateDB(l.dbName)
-		}
-	}
-	return closeFn
 }
 
 // createChannels create channels from which workers would receive tasks
@@ -471,6 +420,19 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
 			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
 			labelStr := string(cmdStat.Label())
+			querystr := string(cmdStat.CmdQueryId())
+			groupAndQuery := labelStr + "." + querystr
+			var detailHist *hdrhistogram.Histogram
+			_, exist := l.detailedMapHistograms[groupAndQuery]
+			if !exist {
+				detailHist = hdrhistogram.New(1, 1000000, 3)
+				detailHist.RecordValue(int64(cmdStat.Latency()))
+				l.detailedMapHistograms[groupAndQuery] = detailHist
+				fmt.Println(groupAndQuery)
+			}
+			//detailedHistogram.RecordValue(int64(cmdStat.Latency()))
+			//l.detailedMapHistograms[groupAndQuery] = detailedHistogram
+
 			switch labelStr {
 			case "SETUP_WRITE":
 				_ = l.setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
@@ -740,6 +702,12 @@ func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
 	configs["delete"] = delete
 	_, all := generateQuantileMap(b.totalHistogram)
 	configs["allCommands"] = all
+
+	//for k, v := range b.detailedMapHistograms {
+	//	_, all := generateQuantileMap(v)
+	//	configs[k] = all
+	//}
+
 	return configs
 }
 

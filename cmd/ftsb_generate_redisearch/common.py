@@ -59,7 +59,7 @@ def generate_setup_json(json_version, use_case_specific_arguments, test_name, de
         "name": test_name,
         "description": description,
         "use-case-specific-arguments": use_case_specific_arguments,
-        "compare-mode": compare_mode,
+        "key-metrics": compare_mode,
         "inputs": inputs,
         "setup": {
             "commands": setup_commands,

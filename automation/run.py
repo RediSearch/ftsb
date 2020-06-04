@@ -15,9 +15,9 @@ import subprocess
 import sys
 from functools import reduce
 from zipfile import ZipFile
-import pandas as pd
 
 import humanize
+import pandas as pd
 import redis
 import requests
 from cpuinfo import cpuinfo
@@ -56,8 +56,10 @@ def decompress_file(compressed_filename, uncompressed_filename):
             with open(uncompressed_filename, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
+
 def findJsonPath(element, json):
     return reduce(operator.getitem, element.split('.'), json)
+
 
 def ts_milli(at_dt):
     return int((at_dt - dt.datetime(1970, 1, 1)).total_seconds() * 1000)
@@ -81,6 +83,8 @@ if (__name__ == "__main__"):
     parser.add_argument('--local-dir', type=str, default="./", help='local dir to use as storage')
     parser.add_argument('--deployment-type', type=str, default="docker-oss",
                         help='one of docker-oss,docker-oss-cluster,docker-enterprise,oss,oss-cluster,enterprise')
+    parser.add_argument('--deployment-shards', type=int, default=1,
+                        help='number of database shards used in the deployment')
     parser.add_argument('--output-file-prefix', type=str, default="", help='prefix to quickly tag some files')
 
     args = parser.parse_args()
@@ -130,8 +134,13 @@ if (__name__ == "__main__"):
 
     }
     benchmark_output_dict = {
-        "db-config": {"redisearch-version": None, "git_sha": None}, "benchmark-config": benchmark_config, "setup": {},
-        "benchmark": {}, "infastructure": benchmark_infra
+        "key-configs": {"deployment-type": args.deployment_type, "deployment-shards": args.deployment_shards,
+                        "redisearch-version": None, "git_sha": None},
+        "key-results":{},
+        "benchmark-config": benchmark_config,
+        "setup": {},
+        "benchmark": {},
+        "infastructure": benchmark_infra
     }
 
     print("Checking required inputs are in place...")
@@ -188,8 +197,8 @@ if (__name__ == "__main__"):
         if found_redisearch is False:
             print('Unable to find RediSearch Module at {}! Exiting..'.format(args.redis_url))
             sys.exit(1)
-        benchmark_output_dict["db-config"]["redisearch-version"] = redisearch_version
-        benchmark_output_dict["db-config"]["git_sha"] = redisearch_git_sha
+        benchmark_output_dict["key-configs"]["redisearch-version"] = redisearch_version
+        benchmark_output_dict["key-configs"]["git_sha"] = redisearch_git_sha
 
         server_info = aux_client.info("Server")
         db_machine_1 = {"machine_info": None, "redis_info": server_info}
@@ -280,46 +289,68 @@ if (__name__ == "__main__"):
                     sys.exit(1)
 
     end_time = dt.datetime.now()
-    best_run = None
-    df_dict = {"run-name":[]}
-    metric_names = []
-    metric_sorting_dir = []
-    for metric in benchmark_config["compare-mode"]:
-        metric_name = metric["metric-name"]
-        metric_names.append(metric_name)
-        df_dict[metric_name]=[]
-        metric_sorting_dir.append(False if metric["comparison"] == "higher-better" else True )
-    for run_name, result_run in benchmark_output_dict["benchmark"].items():
-        df_dict["run-name"].append(run_name)
-        for metric in metric_names:
-            metric_value = findJsonPath(metric,result_run)
-            # print(metric,metric_value)
-            df_dict[metric].append(metric_value)
-    # print(metric_names,metric_sorting_dir)
-    dfObj = pd.DataFrame(df_dict)
-    dfObj.sort_values(metric_names, ascending=metric_sorting_dir, inplace=True)
-    print(dfObj)
-    # stddev of the dataframe
-    print(dfObj.std())
-    # variance of the dataframe
-    print(dfObj.var())
-    benchmark_output_dict["results-comparison"] = {}
-    benchmark_output_dict["results-comparison"]["table"] = dfObj.to_json(orient='records')
-    benchmark_output_dict["results-comparison"]["reliability-analysis"] = {'var':dfObj.var().to_json(),'stddev':dfObj.std().to_json()}
 
+    ##################################
+    # Repetitions Results Comparison #
+    ##################################
+
+    step_df_dict = {}
+    benchmark_output_dict["results-comparison"] = {}
+
+    for step in ["setup","benchmark"]:
+        step_df_dict[step] = {}
+        step_df_dict[step]["df_dict"] = {"run-name": []}
+        step_df_dict[step]["sorting_metric_names"] = []
+        step_df_dict[step]["sorting_metric_sorting_direction"] = []
+        step_df_dict[step]["metric_json_path"] = []
+
+    for metric in benchmark_config["key-metrics"]:
+        step = metric["step"]
+        metric_name = metric["metric-name"]
+        metric_json_path = metric["metric-json-path"]
+        step_df_dict[step]["sorting_metric_names"].append(metric_name)
+        step_df_dict[step]["metric_json_path"].append(metric_json_path)
+        step_df_dict[step]["df_dict"][metric_name] = []
+        step_df_dict[step]["sorting_metric_sorting_direction"].append(False if metric["comparison"] == "higher-better" else True)
+
+    for step in ["setup","benchmark"]:
+        for run_name, result_run in benchmark_output_dict[step].items():
+            step_df_dict[step]["df_dict"]["run-name"].append(run_name)
+            for pos, metric_json_path in enumerate(step_df_dict[step]["metric_json_path"]):
+                metric_name = step_df_dict[step]["sorting_metric_names"][pos]
+                metric_value = findJsonPath(metric_json_path, result_run)
+                step_df_dict[step]["df_dict"][metric_name].append(metric_value)
+        dfObj = pd.DataFrame(step_df_dict[step]["df_dict"])
+        dfObj.sort_values(step_df_dict[step]["sorting_metric_names"], ascending=step_df_dict[step]["sorting_metric_sorting_direction"], inplace=True)
+        print(dfObj)
+        # stddev of the dataframe
+        print(dfObj.std())
+        # variance of the dataframe
+        print(dfObj.var())
+        benchmark_output_dict["key-results"][step]= {}
+        benchmark_output_dict["key-results"][step]["table"] = json.loads(dfObj.to_json(orient='records'))
+        benchmark_output_dict["key-results"][step]["reliability-analysis"] = {'var': json.loads(dfObj.var().to_json()),
+                                                                               'stddev': json.loads(dfObj.std().to_json())}
+
+    #####################
+    # Run Info Metadata #
+    #####################
     start_time_str = start_time.strftime("%Y-%m-%d-%H-%M-%S")
     end_time_str = end_time.strftime("%Y-%m-%d-%H-%M-%S")
     duration_ms = ts_milli(end_time) - ts_milli(start_time)
     start_time_ms = ts_milli(start_time)
     end_time_ms = ts_milli(end_time)
     duration_humanized = humanize.naturaldelta((end_time - start_time))
-    benchmark_output_filename = "{prefix}{time_str}-{deployment_type}-{use_case}-{version}-{git_sha}.json".format(
-        prefix=args.output_file_prefix,
-        time_str=start_time_str, deployment_type=args.deployment_type, use_case=benchmark_config["name"],
-        version=redisearch_version, git_sha=redisearch_git_sha)
+
     run_info = {"start-time-ms": start_time_ms, "start-time-humanized": start_time_str, "end-time-ms": end_time_ms,
                 "end-time-humanized": end_time_str, "duration-ms": duration_ms,
                 "duration-humanized": duration_humanized}
     benchmark_output_dict["run-info"] = run_info
+
+    benchmark_output_filename = "{prefix}{time_str}-{deployment_type}-{use_case}-{version}-{git_sha}.json".format(
+        prefix=args.output_file_prefix,
+        time_str=start_time_str, deployment_type=args.deployment_type, use_case=benchmark_config["name"],
+        version=redisearch_version, git_sha=redisearch_git_sha)
+
     with open(benchmark_output_filename, "w") as json_out_file:
         json.dump(benchmark_output_dict, json_out_file, indent=2)

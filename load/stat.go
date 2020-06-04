@@ -16,12 +16,13 @@ func (s *Stat) SetCmdStats(cmdStats []CmdStat) {
 }
 
 type CmdStat struct {
-	label    []byte
-	latency  uint64 // microseconds latency
-	error    bool
-	timedOut bool
-	rx       uint64 // bytes received
-	tx       uint64 // bytes received
+	cmdQueryGroup []byte // READ, WRITE, etc...
+	cmdQueryId    []byte // R1, R2, etc...
+	latency       uint64 // microseconds latency
+	error         bool
+	timedOut      bool
+	rx            uint64 // bytes received
+	tx            uint64 // bytes received
 }
 
 func (c *CmdStat) Tx() uint64 {
@@ -49,15 +50,19 @@ func (c *CmdStat) SetLatency(latency uint64) {
 }
 
 func (c *CmdStat) Label() []byte {
-	return c.label
+	return c.cmdQueryGroup
 }
 
 func (c *CmdStat) SetLabel(label []byte) {
-	c.label = label
+	c.cmdQueryGroup = label
 }
 
-func NewCmdStat(label []byte, latency uint64, error bool, timedOut bool, rx uint64, tx uint64) *CmdStat {
-	return &CmdStat{label: label, latency: latency, error: error, timedOut: timedOut, rx: rx, tx: tx}
+func (c *CmdStat) CmdQueryId() []byte {
+	return c.cmdQueryId
+}
+
+func NewCmdStat(cmdGroup []byte, cmdQueryId []byte, latency uint64, error bool, timedOut bool, rx uint64, tx uint64) *CmdStat {
+	return &CmdStat{cmdQueryGroup: cmdGroup, cmdQueryId: cmdQueryId, latency: latency, error: error, timedOut: timedOut, rx: rx, tx: tx}
 }
 
 func NewStat() *Stat {
@@ -67,9 +72,9 @@ func NewStat() *Stat {
 	}
 }
 
-func (s *Stat) AddEntry(label []byte, latencyUs uint64, error bool, timedOut bool, rx, tx uint64) *Stat {
+func (s *Stat) AddEntry(cmdGroup []byte, cmdQueryId []byte, latencyUs uint64, error bool, timedOut bool, rx, tx uint64) *Stat {
 	s.totalCmds++
-	entry := CmdStat{label, latencyUs, error, timedOut, rx, tx}
+	entry := CmdStat{cmdGroup, cmdQueryId, latencyUs, error, timedOut, rx, tx}
 	s.cmdStats = append(s.cmdStats, entry)
 	return s
 }

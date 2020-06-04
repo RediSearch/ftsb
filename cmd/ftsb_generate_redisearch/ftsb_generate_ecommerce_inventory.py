@@ -161,7 +161,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
     skuId_list = random.choices(skus, k=maxSkusList)
     nodeId_list = random.choices(nodes, k=maxNodesList)
 
-    cmd = ["READ", "FT.AGGREGATE", "{index}".format(index=index),
+    cmd = ["READ", "R1", "FT.AGGREGATE", "{index}".format(index=index),
            "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(market,
                                                                    "|".join(skuId_list),
                                                                    "|".join(nodeId_list))
@@ -174,7 +174,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
 
 
 def generate_ft_add_row(index, doc):
-    cmd = ["SETUP_WRITE", "FT.ADD", "{index}".format(index=index),
+    cmd = ["SETUP_WRITE", "S1", "FT.ADD", "{index}".format(index=index),
            "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]), 1.0, "REPLACE", "FIELDS"]
     for f, v in doc["schema"].items():
         cmd.append(f)
@@ -198,7 +198,7 @@ def generate_ft_drop_row(index):
 
 
 def generate_ft_add_update_row(indexname, doc):
-    cmd = ["UPDATE", "FT.ADD", "{index}".format(index=indexname),
+    cmd = ["UPDATE", "U1", "FT.ADD", "{index}".format(index=indexname),
            "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
            "REPLACE", "PARTIAL", "FIELDS"]
     TRUES = "true"
@@ -255,6 +255,7 @@ def save_setup_csv_command_list():
         setup_csv_writer.writerow(generated_row)
         progress.update()
     progress.close()
+    all_csvfile.close()
     setup_csvfile.close()
 
 
@@ -264,11 +265,11 @@ def generate_benchmark_commands():
     print("\t saving to {} and {}".format(bench_fname, all_fname))
     all_csvfile = open(all_fname, 'a', newline='')
     bench_csvfile = open(bench_fname, 'w', newline='')
+    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
     bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
     docs_list = list(docs_map.values())
     skusIds_list = list(skusIds.keys())
     nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
-    csv_writer = csv.writer(csvfile, delimiter=',')
     progress = tqdm(unit="docs", total=total_benchmark_commands)
     for _ in range(0, total_benchmark_commands):
         choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
@@ -358,17 +359,47 @@ if (__name__ == "__main__"):
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
-    compare_mode = [{
-        "metric-family": "throughput",
-        "metric-name": "OverallRates.overallOpsRate",
-        "metric-type": "numeric",
-        "comparison": "higher-better"
-    }, {
-        "metric-family": "latency",
-        "metric-name": "OverallQuantiles.allCommands.q50",
-        "metric-type": "numeric",
-        "comparison": "lower-better"
-    }]
+    key_metrics = [
+        {
+            "step": "benchmark",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.overallOpsRate",
+            "metric-name": "Overall Updates and Aggregates query rate",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": 1,
+        }, {
+            "step": "benchmark",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.allCommands.q50",
+            "metric-name": "Overall Updates and Aggregates query q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": 2,
+        },
+        {
+            "step": "setup",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.overallOpsRate",
+            "metric-name": "Overall Ingestion speed",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": 1,
+        },
+        {
+            "step": "setup",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.allCommands.q50",
+            "metric-name": "Overall Ingestion q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": 2,
+        },
+    ]
     total_writes = 0
     total_reads = 0
     total_updates = 0
@@ -471,7 +502,7 @@ if (__name__ == "__main__"):
 
     with open(benchmark_config_file, "w") as setupf:
         setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
-                                         compare_mode, inputs,
+                                         key_metrics, inputs,
                                          setup_commands,
                                          teardown_commands,
                                          used_indices,
