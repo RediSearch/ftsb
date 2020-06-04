@@ -138,7 +138,7 @@ if (__name__ == "__main__"):
 
     s3_bucket_path = "redisearch/results/".format(test_name)
     if args.output_file_prefix != "":
-        s3_bucket_path = "{}/{}/".format(s3_bucket_path, args.output_file_prefix)
+        s3_bucket_path = "{}{}/".format(s3_bucket_path, args.output_file_prefix)
     s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
                                                                            bucket_path=s3_bucket_path)
 

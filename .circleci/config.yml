@@ -38,7 +38,7 @@ jobs:
       - run: python3 -m pip install -r automation/requirements.txt
       - run: |
              ./automation/run.py \
-             --repetitions 5 \
+             --repetitions 7 \
              --output-file-prefix circleci \
              --upload-results-s3 \
              --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
