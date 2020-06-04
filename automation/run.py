@@ -270,8 +270,11 @@ if (__name__ == "__main__"):
                 print('Error while issuing setup commands. FTSB process is not alive. Exiting..')
                 sys.exit(1)
 
-            ftsb_process.communicate()
-            # run_stages_outputs["setup"]
+            output = ftsb_process.communicate()
+            if ftsb_process.returncode != 0:
+                print('FTSB process returned non-zero exit status {}. Exiting..'.format(ftsb_process.returncode))
+                print('catched output:\n\t{}'.format(output))
+                sys.exit(1)
             with open(setup_run_json_output_fullpath) as json_result:
                 benchmark_output_dict["setup"][setup_run_key] = json.load(json_result)
 
@@ -294,7 +297,11 @@ if (__name__ == "__main__"):
             print('Error while issuing benchmark commands. FTSB process is not alive. Exiting..')
             sys.exit(1)
 
-        ftsb_process.communicate()
+        output = ftsb_process.communicate()
+        if ftsb_process.returncode != 0:
+            print('FTSB process returned non-zero exit status {}. Exiting..'.format(ftsb_process.returncode))
+            print('catched output:\n\t{}'.format(output))
+            sys.exit(1)
         with open(benchmark_run_json_output_fullpath) as json_result:
             benchmark_output_dict["benchmark"][benchmark_run_key] = json.load(json_result)
 
