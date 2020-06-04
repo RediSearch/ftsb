@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go }}
-      - run: go get ./...
+      - run: go get -v -u github.com/${GITHUB_REPOSITORY}
 
       - name: Get Python dependencies
         run: |
