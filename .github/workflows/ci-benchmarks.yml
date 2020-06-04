@@ -31,22 +31,16 @@ jobs:
         sudo apt-get install python3-setuptools -y
         python3 -m pip install -r automation/requirements.txt
 
-    - name: Build
+    - name: Set GOPATH
+      # temporary fix
+      # see https://github.com/actions/setup-go/issues/14
       run: |
-#        export GOPATH=$HOME/go
-#        export GOBIN=$(go env GOPATH)/bin
-#        export PATH=$PATH:$GOPATH
-#        export PATH=$PATH:$GOBIN
-#        mkdir -p $GOPATH/pkg
-#        mkdir -p $GOBIN
-#        mkdir -p $GOPATH/src/github.com/$GITHUB_REPOSITORY
-#        mv $(pwd)/* $GOPATH/src/github.com/$GITHUB_REPOSITORY
-#        cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
-        make
+        echo "##[set-env name=GOPATH;]$(dirname $GITHUB_WORKSPACE)"
+        echo "##[add-path]$(dirname $GITHUB_WORKSPACE)/bin"
+      shell: bash
 
     - name: Run CI benchmarks
       run: |
-#        cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
         ./automation/run.py \
              --repetitions 7 \
              --output-file-prefix github-actions \
