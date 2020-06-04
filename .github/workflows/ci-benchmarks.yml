@@ -14,8 +14,6 @@ jobs:
     steps:
     - uses: actions/setup-go@v2
     - uses: actions/checkout@v2
-      with:
-        go-version: 1.14.4
     - name: Set GOPATH
       # temporary fix
       # see https://github.com/actions/setup-go/issues/12
@@ -33,7 +31,9 @@ jobs:
 
     - name: Build
       run: |
-        make ftsb_redisearch
+        go build ./...
+        go test ./...
+        go install ./...
 
     - name: Get Python dependencies
       run: |
