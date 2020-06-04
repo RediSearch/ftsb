@@ -27,7 +27,7 @@ benchmark: ftsb_redisearch
 #	go build -o bin/$@ ./cmd/$@
 #	go install ./cmd/$@
 
-ftsb_redisearch: get
+ftsb_redisearch:
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@
 
