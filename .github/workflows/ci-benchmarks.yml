@@ -44,8 +44,8 @@ jobs:
 
     - name: Run CI benchmarks
       run: |
-      cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
-      ./automation/run.py \
+        cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
+        ./automation/run.py \
              --repetitions 7 \
              --output-file-prefix github-actions \
              --upload-results-s3 \
