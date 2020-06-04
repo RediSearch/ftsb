@@ -1,0 +1,40 @@
+name: CI benchmark
+
+on:
+  push:
+    branches: [ automation ]
+  pull_request:
+    branches: [ automation ]
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.13
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Get Python dependencies
+      run: |
+        sudo apt install python3.6 -y
+        sudo apt install python3-pip -y
+        python3 -m pip install -r automation/requirements.txt
+
+    - name: Get Go dependencies
+      run: |
+        make
+
+    - name: Run CI benchmarks
+      run: ./automation/run.py \
+             --repetitions 5 \
+             --output-file-prefix github-actions \
+             --upload-results-s3 \
+             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json.
