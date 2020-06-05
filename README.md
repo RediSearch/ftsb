@@ -19,233 +19,124 @@ Current databases supported:
 + RediSearch
 
 ## Overview
+The Full-Text Search Benchmark (FTSB) is a collection of Python and Go programs that are used to generate datasets (Python) and then benchmark(Go) read and write performance of various databases. The intent is to make the FTSB extensible so that a variety of use cases (e.g., ecommerce, jsondata, logs, etc.), query types, and databases can be included and benchmarked.
+To this end, we hope to help SAs, and prospective database administrators find the best database for their needs and their workloads.
 
-The **Full-Text Search Benchmark (FTSB)** is a collection of Python and Go
-programs that are used to generate datasets(Python) and then benchmark(Go) read
-and write performance of various databases. 
-The intent is to make the
-FTSB extensible so that a variety of use cases (e.g., wikipedia, ecommerce, jsondata,
-etc.), query types, and databases can be included and benchmarked.  
-To this end we hope to help prospective database administrators find the
-best database for their needs and their workloads.   
-Further, if you
-are the developer of a Full-Text Search database and want to include your
-database in the FTSB, feel free to open a pull request to add it!
 
 ## What the FTSB tests
 
-FTSB is used to benchmark bulk load performance and
-query execution performance. 
-To accomplish this in a fair way, the data to be inserted and the
-queries to run are pre-generated and native Go clients are used
-wherever possible to connect to each database.
+FTSB is used to benchmark bulk load performance and query execution performance. To accomplish this in a fair way, the data to be inserted and the queries to run are always pre-generated and native Go clients are used wherever possible to connect to each database.
 
 
-## Current use cases
+### Installation
 
-Currently, FTSB supports three use cases:
- - **ecommerce-inventory**, From a base dataset of [10K fashion products on Amazon.com](https://data.world/promptcloud/fashion-products-on-amazon-com/workspace/file?filename=amazon_co-ecommerce_sample.csv) which are then multiplexed by categories, sellers, and countries to produce larger datasets > 1M docs. This benchmark focuses on updates and aggregate performance, splitting into Reads (FT.AGGREGATE), Cursor Reads (FT.CURSOR), and Updates (FT.ADD) the performance numbers. 
- The use case generates an index with 10 TAG fields (3 sortable and 1 non indexed), and 16 NUMERIC sortable non indexed fields per document.
- The aggregate queries are designed to be extremely costly both on computation and network TX, given that on each query we're aggregating and filtering over a large portion of the dataset while additionally loading 21 fields. 
- Both the update and read rates can be adjusted.
- 
- 
- - **enwiki-abstract**, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates
-3 TEXT fields per document.
-
-
- - **enwiki-pages**, From English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions, containing processed metadata  extracted from the full Wikipedia XML dump.
- This use case generates 4 TEXT fields ( 2 sortable ), 1 sortable TAG field, and 6 sortable NUMERIC fields per document.
-              
-              
-                                                                                                                                                                                                                   
-## Installation
-
-FTSB is a collection of Go programs (with some auxiliary bash and Python
-scripts). The easiest way to get and install the Go programs is to use
-`go get` and then `go install`:
-```bash
+FTSB is a collection of Go programs (with some auxiliary bash and Python scripts). The easiest way to get and install the Go programs is to use go get and then  issuing make:
+```
 # Fetch FTSB and its dependencies
 go get github.com/RediSearch/ftsb
-cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
+cd $GOPATH/src/github.com/RediSearch/ftsb
 
-# Install desired binaries. At a minimum this includes ftsb_generate_data,
-# ftsb_generate_queries, one ftsb_load_* binary, and one ftsb_run_queries_*
-# binary:
-cd $GOPATH/src/github.com/RediSearch/ftsb/cmd
+# Install desired binaries. At a minimum this includes ftsb_redisearch binary:
 make
 ```
 
-## How to use FTSB
+## How to use it?
 
-Using FTSB for benchmarking involves 2 phases: data and query
-generation, and query execution.
+Using FTSB for benchmarking involves 2 phases: data and query generation, and query execution.
 
-### Data and query generation
 
-So that benchmarking results are not affected by generating data or
-queries on-the-fly, with FTSB you generate the data and queries you want
-to benchmark first, and then you can (re-)use it as input to the
-benchmarking phases.
+### Data and query generation ( single time step )
 
-#### Data generation
+So that benchmarking results are not affected by generating data or queries on-the-fly, with FTSB you generate the data and queries you want to benchmark first, and then you can (re-)use it as input to the benchmarking phase. You can either use one of the pre-baked benchmark suites or develop one of your own. The requirement is that of the generated benchmark input file(s) they all respect the following:
 
-Variables needed:
-1. a use case. E.g., `enwiki-abstract` (currently `ecommerce-inventory`, `enwiki-abstract` and `enwiki-pages`)
-1. the file from which to read the data from, compliant with the use case. E.g. `enwiki-latest-abstract1.xml.gz`
-1. and which database(s) you want to generate for. E.g., `redisearch` (currently only `redisearch`)
-1. the number of queries to generate. E.g., `100000`
-1. the type of query you'd like to generate. E.g., `2word-intersection-query`
-1. the seed to pass to the Pseudorandom number generator. By passing the same seed you always generated the same deterministic dataset. E.g., `12345`
-1. and the stop-words to discard on query generation. When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query. This list of stop-words should match the one used for the index creation. We use as default the [RediSearch list of stop-words](https://oss.redislabs.com/redisearch/Stopwords.html), namely `a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with`
+- CSV format, with one command per line. 
 
-For the last step there are numerous queries to choose from, which are
-listed in [Appendix I](#appendix-i-query-types). 
+- On each line, the first two columns are related to the query type (READ, WRITE, UPDATE, DELETE, SETUP_WRITE) and query group ( any unique identifier you like. example Q1 ). 
 
-### Benchmarking query execution performance
+- The columns >2 are the command and command arguments themselves, with one column per command argument. 
 
-To measure query execution performance in FTSB, you first need to load
-the data using the previous section and generate the queries as
-described earlier. Once the data is loaded and the queries are generated,
-just use the corresponding `ftsb_run_queries_` binary for the database
-being tested:
-```bash
-ftsb_run_queries_redisearch \
-       -file /tmp/redisearch-queries-enwiki-latest-abstract1-2word-intersection-query-100K-queries-1-0-0 \
-       -max-queries 100000 -workers 8 -print-interval 20000 
+Here is an example of a CSV line:
 ```
+WRITE,U1,FT.ADD,idx,doc1,1.0,FIELDS,title,hello world
+```
+which will translate to the following command being issued:
+```
+FT.ADD idx doc1 1.0 FIELDS title "hello world"
+```
+The following links deep dive on:
 
-#### Sustainable Throughput benchmark
-To really understand a system behavior we also can't relay solely on doing the full percentile analysis while stressing the system to it's maximum RPS. 
+- Generating inputs from pre-baked benchmark suites (ecommerce-inventory , enwiki-abstract , enwiki-pages) [LINK]
 
-We need to be able to compare the behavior under different throughput and/or configurations, to be able to get the best "Sustainable Throughput: The throughput achieved while safely maintaining service levels.
- To enabling full percentile spectrum and Sustainable Throughput analysis you can use:
-- `--hdr-latencies` : enable writing the High Dynamic Range (HDR) Histogram of Response Latencies to the file with the name specified by this. By default no file will be saved.
-- `--max-rps` : enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal "modus operandi" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.
+- Generating your own use cases [LINK]
 
-#### Level of parallel queries 
-You can change the value of the `--workers` flag to
-control the level of parallel queries run at the same time. 
+Apart from the CSV files, and not mandatory, there is a benchmark suite specification that enables you to describe in detail the benchmark, what key metrics it provides, and how to automatically run more complex suites (with several steps, etc… ). This is not mandatory and for a simple benchmark, you just need to feed the CSV file as input. 
 
-#### Understanding the output 
+
+### Query execution ( benchmarking )
+
+So that benchmarking results are not affected by generating data or queries on-the-fly, you are always required to feed an input file to the benchmark runner that respects the previous specification format. The overall idea is that the benchmark runner only concerns himself on executing the queries as fast as possible while enabling client runtime variations that influence performance ( and are not related to the use-case himself ) like, command pipelining ( auto pipelining based on time or number of commands ), cluster support, number of concurrent clients, rate limiting ( to find sustainable throughputs ), etc… 
+
+Running a benchmark is as simple as feeding an input file to the DB benchmark runner ( in this case ftsb_redisearch ):
+```
+ftsb_redisearch --file ecommerce-inventory.redisearch.commands.BENCH.csv
+```
 The resulting stdout output will look similar to this:
-```text
-(...)
-after 80000 queries with 16 workers:
-All queries                                                                                               :
-+ Query execution latency:
-	min:     0.33 ms,  mean:    34.05 ms, q25:    18.13 ms, med(q50):    18.13 ms, q75:    18.13 ms, q99:   158.38 ms, max:   581.23 ms, stddev:    50.28ms, sum: 2724.082 sec, count: 80000
+```
+$ ftsb_redisearch --file ecommerce-inventory.redisearch.commands.BENCH.csv 
+    setup writes/sec          writes/sec         updates/sec           reads/sec    cursor reads/sec         deletes/sec     current ops/sec           total ops             TX BW/sRX BW/s
+          0 (0.000)           0 (0.000)        1571 (2.623)         288 (7.451)           0 (0.000)           0 (0.000)        1859 (3.713)                1860             3.1KB/s  1.4MB/s
+          0 (0.000)           0 (0.000)        1692 (2.627)         287 (7.071)           0 (0.000)           0 (0.000)        1979 (3.597)                3839             3.3KB/s  1.4MB/s
+          0 (0.000)           0 (0.000)        1571 (2.761)         293 (7.087)           0 (0.000)           0 (0.000)        1864 (3.679)                5703             3.1KB/s  1.4MB/s
+          0 (0.000)           0 (0.000)        1541 (2.983)         280 (7.087)           0 (0.000)           0 (0.000)        1821 (3.739)                7524             3.1KB/s  1.4MB/s
+          0 (0.000)           0 (0.000)        1441 (2.989)         255 (7.375)           0 (0.000)           0 (0.000)        1696 (3.773)                9220             2.8KB/s  1.3MB/s
 
-+ Query response size(number docs) statistics:
-	min(q0):   350.81 docs, q25:   350.81 docs, med(q50):   350.81 docs, q75:   350.81 docs, q99: 45839.32 docs, max(q100): 252995.00 docs, sum: 176735188 docs
-
-RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
-+ Query execution latency:
-	min:     0.33 ms,  mean:    34.05 ms, q25:    18.13 ms, med(q50):    18.13 ms, q75:    18.13 ms, q99:   158.38 ms, max:   581.23 ms, stddev:    50.28ms, sum: 2724.082 sec, count: 80000
-
-+ Query response size(number docs) statistics:
-	min(q0):   350.81 docs, q25:   350.81 docs, med(q50):   350.81 docs, q75:   350.81 docs, q99: 45839.32 docs, max(q100): 252995.00 docs, sum: 176735188 docs
-
-
-after 90000 queries with 16 workers:
-All queries                                                                                               :
-+ Query execution latency:
-	min:     0.33 ms,  mean:    35.32 ms, q25:    18.29 ms, med(q50):    18.29 ms, q75:    18.29 ms, q99:   157.98 ms, max:   581.23 ms, stddev:    51.84ms, sum: 3178.594 sec, count: 90000
-
-+ Query response size(number docs) statistics:
-	min(q0):   346.37 docs, q25:   346.37 docs, med(q50):   346.37 docs, q75:   346.37 docs, q99: 45593.99 docs, max(q100): 252995.00 docs, sum: 210779012 docs
-
-RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
-+ Query execution latency:
-	min:     0.33 ms,  mean:    35.32 ms, q25:    18.29 ms, med(q50):    18.29 ms, q75:    18.29 ms, q99:   157.98 ms, max:   581.23 ms, stddev:    51.84ms, sum: 3178.594 sec, count: 90000
-
-+ Query response size(number docs) statistics:
-	min(q0):   346.37 docs, q25:   346.37 docs, med(q50):   346.37 docs, q75:   346.37 docs, q99: 45593.99 docs, max(q100): 252995.00 docs, sum: 210779012 docs
-
-
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Run complete after 100000 queries with 16 workers:
-All queries                                                                                               :
-+ Query execution latency:
-	min:     0.33 ms,  mean:    36.24 ms, q25:    18.43 ms, med(q50):    18.43 ms, q75:    18.43 ms, q99:   158.22 ms, max:   581.23 ms, stddev:    52.98ms, sum: 3624.437 sec, count: 100000
-
-+ Query response size(number docs) statistics:
-	min(q0):   341.94 docs, q25:   341.94 docs, med(q50):   341.94 docs, q75:   341.94 docs, q99: 45312.15 docs, max(q100): 252995.00 docs, sum: 242417188 docs
-
-RediSearch 2 Word Intersection Query - English-language Wikipedia:Database page abstracts (random in set words).:
-+ Query execution latency:
-	min:     0.33 ms,  mean:    36.24 ms, q25:    18.43 ms, med(q50):    18.43 ms, q75:    18.43 ms, q99:   158.22 ms, max:   581.23 ms, stddev:    52.98ms, sum: 3624.437 sec, count: 100000
-
-+ Query response size(number docs) statistics:
-	min(q0):   341.94 docs, q25:   341.94 docs, med(q50):   341.94 docs, q75:   341.94 docs, q99: 45312.15 docs, max(q100): 252995.00 docs, sum: 242417188 docs
-
-Took:  226.577 sec
+Summary:
+Issued 9885 Commands in 5.455sec with 8 workers
+        Overall stats:
+        - Total 1812 ops/sec                    q50 lat 3.819 ms
+        - Setup Writes 0 ops/sec                q50 lat 0.000 ms
+        - Writes 0 ops/sec                      q50 lat 0.000 ms
+        - Reads 276 ops/sec                     q50 lat 7.531 ms
+        - Cursor Reads 0 ops/sec                q50 lat 0.000 ms
+        - Updates 1536 ops/sec                  q50 lat 3.117 ms
+        - Deletes 0 ops/sec                     q50 lat 0.000 ms
+        Overall TX Byte Rate: 3KB/sec
+        Overall RX Byte Rate: 1.4MB/sec
+```
+Apart from the input file, you should also always specify the name of JSON output file to output benchmark results, in order to do more complex analysis or store the results. Here is the full list of supported options:
+```
+$ ftsb_redisearch -h
+Usage of ftsb_redisearch:
+  -cluster-mode
+        If set to true, it will run the client in cluster mode.
+  -debug int
+        Debug printing (choices: 0, 1, 2). (default 0)
+  -do-benchmark
+        Whether to write databuild. Set this flag to false to check input read speed. (default true)
+  -file string
+        File name to read databuild from
+  -host string
+        The host:port for Redis connection (default "localhost:6379")
+  -json-out-file string
+        Name of json output file to output benchmark results. If not set, will not print to json.
+  -max-rps uint
+        enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal "modus operandi" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.
+  -metadata-string string
+        Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.
+  -pipeline-max-size int
+        If limit is zero then no limit will be used and pipelines will only be limited by the specified time window (default 100)
+  -pipeline-window-ms float
+        If window is zero then implicit pipelining will be disabled (default 0.5)
+  -reporting-period duration
+        Period to report write stats (default 1s)
+  -requests uint
+        Number of total requests to issue (0 = all of the present in input file).
+  -workers uint
+        Number of parallel clients inserting (default 8)
 ```
 
+For more complex usages of the tools, deep dive on the following links:
 
-## Appendix I: Query types <a name="appendix-i-query-types"></a>
+- How to compare two distinct benchmark results [LINK]
 
-### Appendix I.I - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts.
-#### Full text search queries
-|Query type|Description|Example|Status|
-|:---|:---|:---|:---|
-|simple-1word-query| Simple 1 Word Query | `Abraham` | :heavy_check_mark:
-|2word-union-query| 2 Word Union Query | `Abraham Lincoln` | :heavy_check_mark:
-|2word-intersection-query| 2 Word Intersection Query| `Abraham`&#124;`Lincoln` | :heavy_check_mark:
-|exact-3word-match| Exact 3 Word Match| `"President Abraham Lincoln"` |:heavy_multiplication_x:
-|autocomplete-1100-top3| Autocomplete -1100 Top 2-3 Letter Prefixes|  | :heavy_multiplication_x:
-|2field-2word-intersection-query| 2 Fields, one word each, Intersection query | `@text_field1: text_value1 @text_field2: text_value2` | :heavy_multiplication_x:
-|2field-1word-intersection-1numeric-range-query| 2 Fields, one text and another numeric, Intersection and numeric range query | `@text_field: text_value @numeric_field:[{min} {max}]` |:heavy_multiplication_x:
-
-#### Spell Check queries
-
-Performs spelling correction on a query, returning suggestions for misspelled terms.
-To simmulate misspelled terms, for each word a deterministic random number of edits in the range 0..Min(word.length/2 , 4) is chosen. 
-
-
-For each edit a random type of edit (delete, insert random char, replace with random char, switch adjacent chars).
-
-|Query type|Description|Example|Status|
-|:---|:---|:---|:---|
-| simple-1word-spellcheck | Simple 1 Word Spell Check Query | `FT.SPELLCHECK {index} reids DISTANCE 1` | :heavy_check_mark:
-
-#### Autocomplete queries
-|Query type|Description|Example|Status|
-|:---|:---|:---|:---|
-| |  | `` | :heavy_multiplication_x:
-
-
-#### Aggregate queries
-
-Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
-
-|Query type|Description|Clauses included|Status|
-|:---|:---|:---|:---|
-| |  | `` | :heavy_multiplication_x:
-
-#### Synonym queries
-|Query type|Description|Example|Status|
-|:---|:---|:---|:---|
-| |  | `` | :heavy_multiplication_x:
-
-
-### Appendix I.II - English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions.
-
-#### Aggregate queries
-
-Aggregations are a way to process the results of a search query, group, sort and transform them - and extract analytic insights from them. Much like aggregation queries in other databases and search engines, they can be used to create analytics reports, or perform Faceted Search style queries. 
-
-|Query #|Query type|Description| Status|
-|:---|:---|:---|:---|
-| 1 | agg-1-editor-1year-exact-page-contributions-by-day |  One year period, Exact Number of contributions by day, ordered chronologically, for a given editor [(supplemental docs)](docs/redisearch.md#Q1) | :heavy_check_mark:
-| 2 | agg-2-*-1month-exact-distinct-editors-by-hour | One month period, Exact Number of distinct editors contributions by hour, ordered chronologically  [(supplemental docs)](docs/redisearch.md#Q2) |:heavy_check_mark:
-| 3 | agg-3-*-1month-approximate-distinct-editors-by-hour | One month period, Approximate Number of distinct editors contributions by hour, ordered chronologically  [(supplemental docs)](docs/redisearch.md#Q3) | :heavy_check_mark:
-| 4 | agg-4-*-1day-approximate-page-contributions-by-5minutes-by-editor-username | One day period, Approximate Number of contributions by 5minutes interval by editor username, ordered first chronologically and second alphabetically by Revision editor username  [(supplemental docs)](docs/redisearch.md#Q4) |:heavy_check_mark:
-| 5 | agg-5-*-1month-approximate-top10-editor-usernames | One month period, Approximate All time Top 10 Revision editor usernames. [(supplemental docs)](docs/redisearch.md#Q5) | :heavy_check_mark:
-| 6 | agg-6-*-1month-approximate-top10-editor-usernames-by-namespace |  One month period, Approximate All time Top 10 Revision editor usernames by number of Revisions broken by namespace (TAG field) [(supplemental docs)](docs/redisearch.md#Q6) | :heavy_check_mark:
-| 7 | agg-7-*-1month-avg-revision-content-length-by-editor-username |  One month period, Top 10 editor username by average revision content [(supplemental docs)](docs/redisearch.md#Q7) | :heavy_check_mark:
-| 8 | agg-8-editor-approximate-avg-editor-contributions-by-year |  Approximate average number of contributions by year each editor makes [(supplemental docs)](docs/redisearch.md#Q8) | :heavy_check_mark:
-
-
-
-    
+- Fully automate the benchmark inputs retrieval, benchmark running, and results processing ( CI example ) [LINK]
