@@ -5,6 +5,8 @@ on:
     branches: [ automation ]
   pull_request:
     branches: [ automation ]
+  schedule:
+    - cron:  '0 0,8,16 * * *'
 
 jobs:
   build:
