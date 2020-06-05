@@ -1,10 +1,7 @@
 # FTSB outputs #
 ################
 
-cmd/ftsb_generate_data/ftsb_generate_data
-cmd/ftsb_generate_queries/ftsb_generate_queries
-cmd/ftsb_load_redisearch/ftsb_load_redisearch
-cmd/ftsb_run_queries_redisearch/ftsb_run_queries_redisearch
+cmd/ftsb_generate_redisearch/__pycache__/*
 cmd/ftsb_redisearch/ftsb_redisearch
 
 *.txt

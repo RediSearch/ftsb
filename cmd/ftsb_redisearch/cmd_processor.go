@@ -11,7 +11,6 @@ import (
 )
 
 type processor struct {
-	dbc            *dbCreator
 	rows           chan string
 	cmdChan        chan load.Stat
 	wg             *sync.WaitGroup
@@ -48,8 +47,10 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 // INSERT IF BETWEEN [updateLimit,1)
 func connectionProcessor(p *processor) {
 	for row := range p.rows {
-		cmdType, cmd, docFields, bytelen, _ := rowToHash(row)
-		sendFlatCmd(p, cmdType, cmd, docFields, bytelen, 1)
+		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
+		if err == nil {
+			sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1)
+		}
 	}
 
 	p.wg.Done()
@@ -70,7 +71,7 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, cmdType, cmd string, docfields []string, txBytesCount uint64, insertCount uint64) {
+func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64) {
 	var err error = nil
 	var rcv interface{}
 	rxBytesCount := uint64(0)
@@ -88,7 +89,7 @@ func sendFlatCmd(p *processor, cmdType, cmd string, docfields []string, txBytesC
 	}
 	took += uint64(time.Since(start).Microseconds())
 	rxBytesCount += getRxLen(rcv)
-	stat := load.NewStat().AddEntry([]byte(cmdType), took, false, false, txBytesCount, rxBytesCount)
+	stat := load.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
 
 	if cmd == "FT.AGGREGATE" && rcv != nil {
 		var aggreply []interface{}
@@ -109,7 +110,7 @@ func sendFlatCmd(p *processor, cmdType, cmd string, docfields []string, txBytesC
 			}
 			took += uint64(time.Since(start).Microseconds())
 			rxBytesCount += getRxLen(rcv)
-			stat.AddCmdStatEntry(*load.NewCmdStat([]byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
+			stat.AddCmdStatEntry(*load.NewCmdStat([]byte("CURSOR_READ"), []byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
 			cursor_id = 0
 			if len(aggreply) == 2 {
 				cursor_id = aggreply[1].(int64)
@@ -157,16 +158,21 @@ func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (outstat load.Stat) 
 func (p *processor) Close(_ bool) {
 }
 
-func rowToHash(row string) (cmdType string, cmd string, args []string, bytelen uint64, err error) {
+func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, args []string, bytelen uint64, err error) {
 
 	argsStr := strings.Split(row, ",")
 
 	// we need at least the cmdType and command
-	if len(argsStr) >= 2 {
+	if len(argsStr) >= 3 {
 		cmdType = argsStr[0]
-		cmd = argsStr[1]
-		args = argsStr[2:]
+		cmdQueryId = argsStr[1]
+		cmd = argsStr[2]
+		if len(argsStr) > 3 {
+			args = argsStr[3:]
+		}
 		bytelen = uint64(len(row)) - uint64(len(cmdType))
+	} else {
+		err = fmt.Errorf("input string does not have the minimum required size of 2: %s", row)
 	}
 
 	return

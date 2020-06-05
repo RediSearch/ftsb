@@ -6,6 +6,9 @@ import re
 import time
 import uuid
 
+# package local imports
+import boto3 as boto3
+from common import generate_setup_json, compress_files
 from tqdm import tqdm
 
 
@@ -158,7 +161,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
     skuId_list = random.choices(skus, k=maxSkusList)
     nodeId_list = random.choices(nodes, k=maxNodesList)
 
-    cmd = ["READ", "FT.AGGREGATE", "{index}".format(index=index),
+    cmd = ["READ", "R1", "FT.AGGREGATE", "{index}".format(index=index),
            "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(market,
                                                                    "|".join(skuId_list),
                                                                    "|".join(nodeId_list))
@@ -171,7 +174,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
 
 
 def generate_ft_add_row(index, doc):
-    cmd = ["SETUP_WRITE", "FT.ADD", "{index}".format(index=index),
+    cmd = ["SETUP_WRITE", "S1", "FT.ADD", "{index}".format(index=index),
            "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]), 1.0, "REPLACE", "FIELDS"]
     for f, v in doc["schema"].items():
         cmd.append(f)
@@ -189,8 +192,13 @@ def generate_ft_create_row(index, doc):
     return cmd
 
 
+def generate_ft_drop_row(index):
+    cmd = ["FT.DROP", "{index}".format(index=index)]
+    return cmd
+
+
 def generate_ft_add_update_row(indexname, doc):
-    cmd = ["UPDATE", "FT.ADD", "{index}".format(index=indexname),
+    cmd = ["UPDATE", "U1", "FT.ADD", "{index}".format(index=indexname),
            "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
            "REPLACE", "PARTIAL", "FIELDS"]
     TRUES = "true"
@@ -206,30 +214,6 @@ def generate_ft_add_update_row(indexname, doc):
     cmd.extend(new)
 
     return cmd
-
-
-def generate_setup_json(test_name, description, setup_commands, teardown_commands, used_indices,
-                        total_benchmark_commands, total_docs, total_writes, total_updates, total_reads, total_deletes):
-    setup_json = {
-        "name": test_name,
-        "description": description,
-        "setup": {
-            "commands": setup_commands
-        },
-        "teardown": {
-            "commands": teardown_commands
-        },
-        "used_indices": used_indices,
-        "total_benchmark_commands": total_benchmark_commands,
-        "command_category": {
-            "setup_writes": total_docs,
-            "writes": total_writes,
-            "updates": total_updates,
-            "reads": total_reads,
-            "deletes": total_deletes,
-        }
-    }
-    return setup_json
 
 
 def generate_setup_commands():
@@ -271,6 +255,7 @@ def save_setup_csv_command_list():
         setup_csv_writer.writerow(generated_row)
         progress.update()
     progress.close()
+    all_csvfile.close()
     setup_csvfile.close()
 
 
@@ -280,11 +265,11 @@ def generate_benchmark_commands():
     print("\t saving to {} and {}".format(bench_fname, all_fname))
     all_csvfile = open(all_fname, 'a', newline='')
     bench_csvfile = open(bench_fname, 'w', newline='')
+    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
     bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
     docs_list = list(docs_map.values())
     skusIds_list = list(skusIds.keys())
     nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
-    csv_writer = csv.writer(csvfile, delimiter=',')
     progress = tqdm(unit="docs", total=total_benchmark_commands)
     for _ in range(0, total_benchmark_commands):
         choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
@@ -306,22 +291,60 @@ def generate_benchmark_commands():
     all_csvfile.close()
 
 
+""" Returns a human readable string reprentation of bytes"""
+
+
+def humanized_bytes(bytes, units=[' bytes', 'KB', 'MB', 'GB', 'TB']):
+    return str(bytes) + " " + units[0] if bytes < 1024 else humanized_bytes(bytes >> 10, units[1:])
+
+
+def generate_inputs_dict_item(type, all_fname, description, remote_url, uncompressed_size, compressed_filename,
+                              compressed_size, total_commands, command_category):
+    dict = {
+        "local-uncompressed-filename": all_fname,
+        "local-compressed-filename": compressed_filename,
+        "type": type,
+        "description": description,
+        "remote-url": remote_url,
+        "compressed-bytes": compressed_size,
+        "compressed-bytes-humanized": humanized_bytes(compressed_size),
+        "uncompressed-bytes": uncompressed_size,
+        "uncompressed-bytes-humanized": humanized_bytes(uncompressed_size),
+        "total-commands": total_commands,
+        "command-category": command_category,
+    }
+    return dict
+
+
 if (__name__ == "__main__"):
-    parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.')
+    parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--update-ratio', type=float, default=0.85, )
     parser.add_argument('--seed', type=int, default=12345, )
-    parser.add_argument('--doc-limit', type=int, default=100000, )
-    parser.add_argument('--total-benchmark-commands', type=int, default=10000, )
+    parser.add_argument('--doc-limit', type=int, default=1000000, )
+    parser.add_argument('--total-benchmark-commands', type=int, default=1000000, )
     parser.add_argument('--max-skus-per-aggregate', type=int, default=100, )
     parser.add_argument('--max-nodes-per-aggregate', type=int, default=100, )
     parser.add_argument('--indexname', type=str, default="inventory", )
+    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", )
+    parser.add_argument('--test-description', type=str,
+                        default="benchmark focused on updates and aggregate performance", )
     parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK")
     parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05")
     parser.add_argument('--benchmark-output-file-prefix', type=str, default="ecommerce-inventory.redisearch.commands", )
     parser.add_argument('--benchmark-config-file', type=str, default="ecommerce-inventory.redisearch.cfg.json", )
+    parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
+                        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
     parser.add_argument('--input-data-filename', type=str,
                         default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv", )
     args = parser.parse_args()
+    use_case_specific_arguments = dict(args.__dict__)
+    del use_case_specific_arguments["upload_artifacts_s3"]
+    del use_case_specific_arguments["test_name"]
+    del use_case_specific_arguments["test_description"]
+    del use_case_specific_arguments["benchmark_config_file"]
+    del use_case_specific_arguments["benchmark_output_file_prefix"]
+    print(use_case_specific_arguments)
     seed = args.seed
     update_ratio = args.update_ratio
     read_ratio = 1 - update_ratio
@@ -333,18 +356,110 @@ if (__name__ == "__main__"):
     input_data_filename = args.input_data_filename
     benchmark_output_file = args.benchmark_output_file_prefix
     benchmark_config_file = args.benchmark_config_file
-    all_fname = "{}.ALL.csv".format(benchmark_output_file)
-    setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
-    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
+    key_metrics = [
+        {
+            "step": "benchmark",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.overallOpsRate",
+            "metric-name": "Overall Updates and Aggregates query rate",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": 1,
+        }, {
+            "step": "benchmark",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.allCommands.q50",
+            "metric-name": "Overall Updates and Aggregates query q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": 2,
+        },
+        {
+            "step": "benchmark",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.READ-R1Rate",
+            "metric-name": "Overall Aggregates query rate",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": None,
+        }, {
+            "step": "benchmark",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.READ-R1.q50",
+            "metric-name": "Overall Aggregates query q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": None,
+        },
+        {
+            "step": "benchmark",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.UPDATE-U1Rate",
+            "metric-name": "Overall Updates query rate",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": None,
+        }, {
+            "step": "benchmark",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.UPDATE-U1.q50",
+            "metric-name": "Overall Updates query q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": None,
+        },
+        {
+            "step": "setup",
+            "metric-family": "throughput",
+            "metric-json-path": "OverallRates.overallOpsRate",
+            "metric-name": "Overall Ingestion speed",
+            "unit": "docs/sec",
+            "metric-type": "numeric",
+            "comparison": "higher-better",
+            "per-step-comparison-metric-priority": 1,
+        },
+        {
+            "step": "setup",
+            "metric-family": "latency",
+            "metric-json-path": "OverallQuantiles.allCommands.q50",
+            "metric-name": "Overall Ingestion q50 latency",
+            "unit": "ms",
+            "metric-type": "numeric",
+            "comparison": "lower-better",
+            "per-step-comparison-metric-priority": 2,
+        },
+    ]
     total_writes = 0
     total_reads = 0
     total_updates = 0
     total_deletes = 0
-    description = "benchmark focused on updates and aggregate performance"
-    test_name = "ecommerce-inventory"
+    description = args.test_description
+    test_name = args.test_name
+    s3_bucket_name = "benchmarks.redislabs"
+    s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
+                                                                           bucket_path=s3_bucket_path)
+    all_fname = "{}.ALL.csv".format(benchmark_output_file)
+    setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
+    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
+    all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
+    setup_fname_compressed = "{}.SETUP.tar.gz".format(benchmark_output_file)
+    bench_fname_compressed = "{}.BENCH.tar.gz".format(benchmark_output_file)
+    remote_url_all = "{}{}".format(s3_uri, all_fname_compressed)
+    remote_url_setup = "{}{}".format(s3_uri, setup_fname_compressed)
+    remote_url_bench = "{}{}".format(s3_uri, bench_fname_compressed)
+    json_version = "0.1"
+    benchmark_repetitions_require_teardown_and_resetup = False
+
     print("-- Benchmark: {} -- ".format(description))
     print("-- Description: {} -- ".format(description))
 
@@ -373,10 +488,82 @@ if (__name__ == "__main__"):
     print(" ".join(ft_create_cmd))
     setup_commands.append(ft_create_cmd)
 
+    print("-- generating the ft.drop commands -- ")
+    ft_drop_cmd = generate_ft_drop_row(indexname)
+    print(" ".join(ft_drop_cmd))
+    teardown_commands.append(ft_drop_cmd)
+
     generate_benchmark_commands()
+    total_setup_commands = total_docs
+    total_commands = total_setup_commands + total_benchmark_commands
+    cmd_category_all = {
+        "setup-writes": total_docs,
+        "writes": total_writes,
+        "updates": total_updates,
+        "reads": total_reads,
+        "deletes": total_deletes,
+    }
+    cmd_category_setup = {
+        "setup-writes": total_docs,
+        "writes": 0,
+        "updates": 0,
+        "reads": 0,
+        "deletes": 0,
+    }
+    cmd_category_benchmark = {
+        "setup-writes": 0,
+        "writes": total_writes,
+        "updates": total_updates,
+        "reads": total_reads,
+        "deletes": total_deletes,
+    }
+
+    status, uncompressed_size, compressed_size = compress_files([all_fname], all_fname_compressed)
+    inputs_entry_all = generate_inputs_dict_item("all", all_fname, "contains both setup and benchmark commands",
+                                                 remote_url_all, uncompressed_size, all_fname_compressed,
+                                                 compressed_size, total_commands, cmd_category_all)
+
+    status, uncompressed_size, compressed_size = compress_files([setup_fname], setup_fname_compressed)
+    inputs_entry_setup = generate_inputs_dict_item("setup", setup_fname,
+                                                   "contains only the commands required to populate the dataset",
+                                                   remote_url_setup, uncompressed_size, setup_fname_compressed,
+                                                   compressed_size, total_setup_commands, cmd_category_setup)
+
+    status, uncompressed_size, compressed_size = compress_files([bench_fname], bench_fname_compressed)
+    inputs_entry_benchmark = generate_inputs_dict_item("benchmark", bench_fname,
+                                                       "contains only the benchmark commands (required the dataset to have been previously populated)",
+                                                       remote_url_bench, uncompressed_size, bench_fname_compressed,
+                                                       compressed_size, total_benchmark_commands,
+                                                       cmd_category_benchmark)
+
+    inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
 
     with open(benchmark_config_file, "w") as setupf:
-        setup_json = generate_setup_json(test_name, description, setup_commands, teardown_commands, used_indices,
+        setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
+                                         key_metrics, inputs,
+                                         setup_commands,
+                                         teardown_commands,
+                                         used_indices,
+                                         total_commands,
+                                         total_setup_commands,
                                          total_benchmark_commands, total_docs, total_writes, total_updates, total_reads,
-                                         total_deletes)
-        json.dump(setup_json, setupf)
+                                         total_deletes,
+                                         benchmark_repetitions_require_teardown_and_resetup,
+                                         ["setup"],
+                                         ["benchmark"]
+                                         )
+        json.dump(setup_json, setupf, indent=2)
+
+    if args.upload_artifacts_s3:
+        print("-- uploading dataset to s3 -- ")
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(s3_bucket_name)
+        artifacts = [benchmark_config_file, all_fname_compressed, setup_fname_compressed, bench_fname_compressed]
+        progress = tqdm(unit="files", total=len(artifacts))
+        for input in artifacts:
+            object_key = '{bucket_path}{filename}'.format(bucket_path=s3_bucket_path, filename=input)
+            bucket.upload_file(input, object_key)
+            object_acl = s3.ObjectAcl(s3_bucket_name, object_key)
+            response = object_acl.put(ACL='public-read')
+            progress.update()
+        progress.close()

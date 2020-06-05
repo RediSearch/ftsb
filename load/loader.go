@@ -29,14 +29,6 @@ const (
 	WorkerPerQueue = 0
 	// SingleQueue is the value for using a single shared queue across all workers
 	SingleQueue = 1
-
-	errDBExistsFmt = "database \"%s\" exists: aborting."
-)
-
-// change for more useful testing
-var (
-	printFn = fmt.Printf
-	fatal   = log.Fatalf
 )
 
 // Benchmark is an interface that represents the skeleton of a program
@@ -53,9 +45,6 @@ type Benchmark interface {
 
 	// GetProcessor returns the Processor to use for this Benchmark
 	GetProcessor() Processor
-
-	// GetDBCreator returns the DBCreator to use for this Benchmark
-	GetDBCreator() DBCreator
 
 	// GetConfigurationParametersMap returns the map of specific configurations used in the benchmark
 	GetConfigurationParametersMap() map[string]interface{}
@@ -89,6 +78,11 @@ func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 
 	//TotalRxBytes
 	configs["RxBytes"] = b.rxTotalBytes
+	//
+	//for k, _ := range b.detailedMapHistograms {
+	//	fmt.Println(k)
+	//	//configs[k] = v.TotalCount()
+	//}
 
 	return configs
 }
@@ -161,6 +155,13 @@ func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
 	overallOpsRate := calculateRateMetrics(totalOps, 0, took)
 	configs["overallOpsRate"] = overallOpsRate
 
+	for k, v := range l.detailedMapHistograms {
+		rateStr := k + "Rate"
+		count := v.TotalCount()
+		rate := calculateRateMetrics(count, 0, took)
+		configs[rateStr] = rate
+	}
+
 	overallTxByteRate := calculateRateMetrics(int64(txTotalBytes), 0, took)
 	configs["overallTxByteRate"] = overallTxByteRate
 
@@ -200,26 +201,25 @@ func (b *BenchmarkRunner) GetTimeSeriesMap() map[string]interface{} {
 // flags across all database systems and ultimately running a supplied Benchmark
 type BenchmarkRunner struct {
 	// flag fields
-	dbName          string
 	JsonOutFile     string
 	Metadata        string
 	batchSize       uint
 	workers         uint
+	maxRPS          uint64
 	limit           uint64
 	doLoad          bool
-	doCreateDB      bool
-	doAbortOnExist  bool
 	reportingPeriod time.Duration
 	fileName        string
 	start           time.Time
 	end             time.Time
 
 	// non-flag fields
-	br *bufio.Reader
-
-	setupWriteHistogram      *hdrhistogram.Histogram
-	inst_setupWriteHistogram *hdrhistogram.Histogram
-	setupWriteTs             []DataPoint
+	br                         *bufio.Reader
+	detailedMapHistogramsMutex sync.RWMutex
+	detailedMapHistograms      map[string]*hdrhistogram.Histogram
+	setupWriteHistogram        *hdrhistogram.Histogram
+	inst_setupWriteHistogram   *hdrhistogram.Histogram
+	setupWriteTs               []DataPoint
 
 	writeHistogram      *hdrhistogram.Histogram
 	inst_writeHistogram *hdrhistogram.Histogram
@@ -274,6 +274,7 @@ var loader = &BenchmarkRunner{
 	totalHistogram:           hdrhistogram.New(1, 1000000, 3),
 	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
 	totalTs:                  make([]DataPoint, 0, 10),
+	detailedMapHistograms:    make(map[string]*hdrhistogram.Histogram),
 }
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
@@ -286,34 +287,21 @@ func GetBenchmarkRunner() *BenchmarkRunner {
 // with specified batch size.
 func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	// fill flag fields of BenchmarkRunner struct
-	flag.StringVar(&loader.dbName, "index", "idx1", "Name of index")
-	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together in a single insert")
 	flag.UintVar(&loader.workers, "workers", 8, "Number of parallel clients inserting")
-	flag.Uint64Var(&loader.limit, "limit", 0, "Number of items to insert (0 = all of them).")
+	flag.Uint64Var(&loader.limit, "requests", 0, "Number of total requests to issue (0 = all of the present in input file).")
 	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
-	flag.BoolVar(&loader.doCreateDB, "do-create-db", true, "Whether to create the database. Disable on all but one client if running on a multi client setup.")
-	flag.BoolVar(&loader.doAbortOnExist, "do-abort-on-exist", false, "Whether to abort if a database with the given name already exists.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
 	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
-	flag.StringVar(&loader.JsonOutFile, "json-config-file", "", "Name of json config file to read the setup/teardown info. If not set, will not do any of those and simple issue the commands from --file.")
+	flag.Uint64Var(&loader.maxRPS, "max-rps", 0, "enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal \"modus operandi\" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	return loader
-}
-
-// DatabaseName returns the value of the --db-name flag (name of the database to store databuild)
-func (l *BenchmarkRunner) DatabaseName() string {
-	return l.dbName
 }
 
 // RunBenchmark takes in a Benchmark b, a bufio.Reader br, and holders for number of metrics and rows
 // and reads those to run the benchmark benchmark
 func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.br = l.GetBufferedReader()
-
-	// Create required DB
-	cleanupFn := l.useDBCreator(b.GetDBCreator())
-	defer cleanupFn()
 
 	channels := l.createChannels(workQueues)
 	// Launch all worker processes in background
@@ -347,7 +335,6 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.TimeSeries = l.GetTimeSeriesMap()
 	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
 	l.testResult.Limit = l.limit
-	l.testResult.DbName = l.dbName
 	l.testResult.Workers = l.workers
 	l.summary()
 }
@@ -359,7 +346,7 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 			// Read from specified file
 			file, err := os.Open(l.fileName)
 			if err != nil {
-				fatal("cannot open file for read %s: %v", l.fileName, err)
+				log.Fatalf("cannot open file for read %s: %v", l.fileName, err)
 				return nil
 			}
 			l.br = bufio.NewReaderSize(file, defaultReadSize)
@@ -369,52 +356,6 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 		}
 	}
 	return l.br
-}
-
-// useDBCreator handles a DBCreator by running it according to flags set by the
-// user. The function returns a function that the caller should defer or run
-// when the benchmark is finished
-func (l *BenchmarkRunner) useDBCreator(dbc DBCreator) func() {
-	// Empty function to 'defer' from caller
-	closeFn := func() {}
-
-	if l.doLoad {
-		// DBCreator should still be Init'd even if -do-create-db is false since
-		// it can initialize the connecting session
-		dbc.Init()
-
-		switch dbcc := dbc.(type) {
-		case DBCreatorCloser:
-			closeFn = dbcc.Close
-		}
-
-		// Check whether required DB already exists
-		exists := dbc.DBExists(l.dbName)
-		if exists && l.doAbortOnExist {
-			panic(fmt.Sprintf(errDBExistsFmt, l.dbName))
-		}
-
-		// Create required DB if need be
-		// In case DB already exists - delete it
-		if l.doCreateDB {
-			if exists {
-				err := dbc.RemoveOldDB(l.dbName)
-				if err != nil {
-					panic(err)
-				}
-			}
-			err := dbc.CreateDB(l.dbName)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		switch dbcp := dbc.(type) {
-		case DBCreatorPost:
-			dbcp.PostCreateDB(l.dbName)
-		}
-	}
-	return closeFn
 }
 
 // createChannels create channels from which workers would receive tasks
@@ -453,7 +394,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	// Scan incoming databuild
-	return scanWithIndexer(channels, l.batchSize, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
+	return scanWithIndexer(channels, 1, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
 }
 
 // work is the processing function for each worker in the loader
@@ -476,6 +417,15 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
 			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
 			labelStr := string(cmdStat.Label())
+			querystr := string(cmdStat.CmdQueryId())
+			groupAndQuery := labelStr + "-" + querystr
+			l.detailedMapHistogramsMutex.Lock()
+			if _, exist := l.detailedMapHistograms[groupAndQuery]; !exist {
+				l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, 1000000, 3)
+			}
+			l.detailedMapHistograms[groupAndQuery].RecordValue(int64(cmdStat.Latency()))
+			l.detailedMapHistogramsMutex.Unlock()
+
 			switch labelStr {
 			case "SETUP_WRITE":
 				_ = l.setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
@@ -555,13 +505,12 @@ func (l *BenchmarkRunner) summary() {
 	l.testResult.StartTime = l.start.Unix()
 	l.testResult.EndTime = l.end.Unix()
 	l.testResult.DurationMillis = took.Milliseconds()
-	l.testResult.BatchSize = int64(l.batchSize)
 	l.testResult.Metadata = l.Metadata
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
-	printFn("\nSummary:\n")
-	printFn("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
-	printFn("\tOverall stats:\n\t"+
+	fmt.Printf("\nSummary:\n")
+	fmt.Printf("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
+	fmt.Printf("\tOverall stats:\n\t"+
 		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
 		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
 		"- Writes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
@@ -584,8 +533,8 @@ func (l *BenchmarkRunner) summary() {
 		deleteRate,
 		float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
 	)
-	printFn("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
-	printFn("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
+	fmt.Printf("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
+	fmt.Printf("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
 
 	if strings.Compare(l.JsonOutFile, "") != 0 {
 
@@ -716,16 +665,22 @@ func (l *BenchmarkRunner) addRateMetricsDatapoints(datapoints []DataPoint, now t
 
 func generateQuantileMap(hist *hdrhistogram.Histogram) (int64, map[string]float64) {
 	ops := hist.TotalCount()
+	q0 := 0.0
 	q50 := 0.0
 	q95 := 0.0
 	q99 := 0.0
+	q999 := 0.0
+	q100 := 0.0
 	if ops > 0 {
+		q0 = float64(hist.ValueAtQuantile(0.0)) / 10e2
 		q50 = float64(hist.ValueAtQuantile(50.0)) / 10e2
 		q95 = float64(hist.ValueAtQuantile(95.0)) / 10e2
 		q99 = float64(hist.ValueAtQuantile(99.0)) / 10e2
+		q999 = float64(hist.ValueAtQuantile(99.90)) / 10e2
+		q100 = float64(hist.ValueAtQuantile(100.0)) / 10e2
 	}
 
-	mp := map[string]float64{"q50": q50, "q95": q95, "q99": q99}
+	mp := map[string]float64{"q0": q0, "q50": q50, "q95": q95, "q99": q99, "q999": q999, "q100": q100}
 	return ops, mp
 }
 
@@ -743,6 +698,14 @@ func (b *BenchmarkRunner) GetOverallQuantiles() map[string]interface{} {
 	configs["update"] = update
 	_, delete := generateQuantileMap(b.deleteHistogram)
 	configs["delete"] = delete
+	_, all := generateQuantileMap(b.totalHistogram)
+	configs["allCommands"] = all
+
+	for k, hist := range b.detailedMapHistograms {
+		_, quantilesMap := generateQuantileMap(hist)
+		configs[k] = quantilesMap
+	}
+
 	return configs
 }
 
