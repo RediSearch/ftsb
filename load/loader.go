@@ -2,11 +2,9 @@ package load
 
 import (
 	"bufio"
-	"code.cloudfoundry.org/bytefmt"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/filipecosta90/hdrhistogram"
 	"io/ioutil"
 	"log"
 	"math"
@@ -17,6 +15,9 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 	"time"
+
+	"code.cloudfoundry.org/bytefmt"
+	"github.com/filipecosta90/hdrhistogram"
 )
 
 const (
@@ -291,7 +292,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.Uint64Var(&loader.limit, "requests", 0, "Number of total requests to issue (0 = all of the present in input file).")
 	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
-	flag.StringVar(&loader.fileName, "file", "", "File name to read databuild from")
+	flag.StringVar(&loader.fileName, "input", "", "File name to read databuild from")
 	flag.Uint64Var(&loader.maxRPS, "max-rps", 0, "enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal \"modus operandi\" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
