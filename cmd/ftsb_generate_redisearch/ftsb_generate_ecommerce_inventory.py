@@ -319,24 +319,24 @@ def generate_inputs_dict_item(type, all_fname, description, remote_url, uncompre
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--update-ratio', type=float, default=0.85, )
-    parser.add_argument('--seed', type=int, default=12345, )
-    parser.add_argument('--doc-limit', type=int, default=1000000, )
-    parser.add_argument('--total-benchmark-commands', type=int, default=1000000, )
-    parser.add_argument('--max-skus-per-aggregate', type=int, default=100, )
-    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100, )
-    parser.add_argument('--indexname', type=str, default="inventory", )
-    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", )
+    parser.add_argument('--update-ratio', type=float, default=0.85, help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
+    parser.add_argument('--seed', type=int, default=12345, help='the random seed used to generate random deterministic outputs')
+    parser.add_argument('--doc-limit', type=int, default=1000000, help='the total documents to generate to be added in the setup stage')
+    parser.add_argument('--total-benchmark-commands', type=int, default=1000000, help='the total commands to generate to be issued in the benchmark stage')
+    parser.add_argument('--max-skus-per-aggregate', type=int, default=100, help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command' )
+    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,  help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command' )
+    parser.add_argument('--indexname', type=str, default="inventory", help='the name of the RediSearch index to be used')
+    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", help='the name of the test' )
     parser.add_argument('--test-description', type=str,
-                        default="benchmark focused on updates and aggregate performance", )
-    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK")
-    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05")
-    parser.add_argument('--benchmark-output-file-prefix', type=str, default="ecommerce-inventory.redisearch.commands", )
-    parser.add_argument('--benchmark-config-file', type=str, default="ecommerce-inventory.redisearch.cfg.json", )
+                        default="benchmark focused on updates and aggregate performance", help='the full description of the test' )
+    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK", help='comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability' )
+    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05", help='comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3' )
+    parser.add_argument('--benchmark-output-file-prefix', type=str, default="ecommerce-inventory.redisearch.commands", help='prefix to be used when generating the artifacts' )
+    parser.add_argument('--benchmark-config-file', type=str, default="ecommerce-inventory.redisearch.cfg.json", help='name of the output config file used to store the full benchmark suite steps and description' )
     parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
                         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
     parser.add_argument('--input-data-filename', type=str,
-                        default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv", )
+                        default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv", help='path of the input file containing the origin CSV dataset to read the data from.' )
     args = parser.parse_args()
     use_case_specific_arguments = dict(args.__dict__)
     del use_case_specific_arguments["upload_artifacts_s3"]
@@ -344,7 +344,6 @@ if (__name__ == "__main__"):
     del use_case_specific_arguments["test_description"]
     del use_case_specific_arguments["benchmark_config_file"]
     del use_case_specific_arguments["benchmark_output_file_prefix"]
-    print(use_case_specific_arguments)
     seed = args.seed
     update_ratio = args.update_ratio
     read_ratio = 1 - update_ratio
@@ -485,12 +484,10 @@ if (__name__ == "__main__"):
 
     print("-- generating the ft.create commands -- ")
     ft_create_cmd = generate_ft_create_row(indexname, list(docs_map.values())[0])
-    print(" ".join(ft_create_cmd))
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
     ft_drop_cmd = generate_ft_drop_row(indexname)
-    print(" ".join(ft_drop_cmd))
     teardown_commands.append(ft_drop_cmd)
 
     generate_benchmark_commands()
@@ -567,3 +564,16 @@ if (__name__ == "__main__"):
             response = object_acl.put(ACL='public-read')
             progress.update()
         progress.close()
+
+    artifacts = [benchmark_config_file, all_fname_compressed, setup_fname_compressed, bench_fname_compressed]
+
+    print("############################################")
+    print("All artifacts generated.")
+    print("If you want to use the ./automation/run.py script, at the root project folder run:")
+    print("./automation/run.py --benchmark-config-file ./cmd/ftsb_generate_redisearch/{}".format(benchmark_config_file))
+    print("")
+    print("If you want to run a specific step, issue first the FT.CREATE command:")
+    print("{}".format(" ".join(ft_create_cmd)))
+    print("")
+    print("And then ftsb_redisearh --input {}".format(setup_fname))
+    print("      or ftsb_redisearh --input {}".format(bench_fname))
