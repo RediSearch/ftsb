@@ -17,10 +17,10 @@ jobs:
     strategy:
       matrix:
         go: [ '1.14']
-    name: Go ${{ matrix.go }} sample
+    name: Benchmark with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
-      - name: Build
+      - name: Build and Run Benchmark
         run: |
           export GOPATH=$HOME/go
           export GOBIN=$(go env GOPATH)/bin
@@ -41,7 +41,6 @@ jobs:
           python3 -m pip install -r automation/requirements.txt
           python3 ./automation/run.py \
                --repetitions 7 \
-               --workers 1 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
                --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
