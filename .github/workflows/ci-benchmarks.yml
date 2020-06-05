@@ -20,10 +20,17 @@ jobs:
     name: Go ${{ matrix.go }} sample
     steps:
       - uses: actions/checkout@v2
-      - name: Setup go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ matrix.go }}
+      - name: Build
+        run: |
+          export GOPATH=$HOME/go
+          export GOBIN=$(go env GOPATH)/bin
+          export PATH=$PATH:$GOPATH
+          export PATH=$PATH:$GOBIN
+          mkdir -p $GOPATH/pkg
+          mkdir -p $GOBIN
+          mkdir -p $GOPATH/src/github.com/$GITHUB_REPOSITORY
+          mv $(pwd)/* $GOPATH/src/github.com/$GITHUB_REPOSITORY
+          cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
       - run: go get -v -u github.com/${GITHUB_REPOSITORY}/...
       - run: go test github.com/${GITHUB_REPOSITORY}/...
       - run: go install github.com/${GITHUB_REPOSITORY}/...
