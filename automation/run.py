@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# FTSB benchmark suite wrapper. used for automation
+# FTSB benchmark suite wrapper. Used for test automation and results comparison
 # Python 3.X
 # Version 0.1
 
@@ -287,7 +287,7 @@ if (__name__ == "__main__"):
         benchmark_run_key = "benchmark-run-{}.json".format(repetition)
         benchmark_run_json_output_fullpath = "{}/{}".format(local_path, benchmark_run_key)
         ftsb_args += [ftsb_redisearch_path, "--host={}".format(args.redis_url),
-                      "--file={}".format(run_stages_inputs["benchmark"]), "--workers={}".format(workers),
+                      "--input={}".format(run_stages_inputs["benchmark"]), "--workers={}".format(workers),
                       "--json-out-file={}".format(benchmark_run_json_output_fullpath),
                       "--requests={}".format(args.benchmark_requests)]
 
