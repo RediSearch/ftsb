@@ -2,9 +2,7 @@ name: CI benchmark
 
 on:
   push:
-    branches: [ automation ]
   pull_request:
-    branches: [ automation ]
   schedule:
     - cron:  '0 0,8,16 * * *'
 

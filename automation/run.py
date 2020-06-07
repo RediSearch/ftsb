@@ -261,7 +261,7 @@ if (__name__ == "__main__"):
             setup_run_json_output_fullpath = "{}/{}".format(local_path, setup_run_key)
             ftsb_args = []
             ftsb_args += [ftsb_redisearch_path, "--host={}".format(args.redis_url),
-                          "--file={}".format(run_stages_inputs["setup"]), "--workers={}".format(workers),
+                          "--input={}".format(run_stages_inputs["setup"]), "--workers={}".format(workers),
                           "--json-out-file={}".format(setup_run_json_output_fullpath)]
 
             ftsb_process = subprocess.Popen(args=ftsb_args, **options)
