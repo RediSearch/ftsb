@@ -3,14 +3,10 @@
 # Check https://circleci.com/docs/2.0/language-go/ for more details
 version: 2
 jobs:
-  build: # test with redisearch:latest
-    parameters:
-      version:
-        type: string
-        default: edge
+  build-edge: # test with redisearch:edge
     docker:
       - image: circleci/golang:1.13
-      - image: redislabs/redisearch:<<parameters.version>>
+      - image: redislabs/redisearch:edge
 
     working_directory: /go/src/github.com/RediSearch/ftsb
     steps:
@@ -18,7 +14,17 @@ jobs:
       - run: make test
       - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
 
-  ci-benchmark: # test nightly with redisearch:edge
+  build-latest: # test with redisearch:latest
+    docker:
+      - image: circleci/golang:1.13
+      - image: redislabs/redisearch:latest
+
+    working_directory: /go/src/github.com/RediSearch/ftsb
+    steps:
+      - checkout
+      - run: make test
+
+  ci-benchmark-edge: # test nightly with redisearch:edge
     docker:
       - image: circleci/golang:1.13
       - image: redislabs/redisearch:edge
@@ -37,6 +43,26 @@ jobs:
              --upload-results-s3 \
              --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
 
+  ci-benchmark-latest: # test nightly with redisearch:edge
+    docker:
+      - image: circleci/golang:1.13
+      - image: redislabs/redisearch:latest
+
+    working_directory: /go/src/github.com/RediSearch/ftsb
+    steps:
+      - checkout
+      - run: make
+      - run: sudo apt install python3.6 -y
+      - run: sudo apt install python3-pip -y
+      - run: python3 -m pip install redisbench-admin==0.1.6
+      - run: |
+          redisbench-admin run \
+          --repetitions 7 \
+          --output-file-prefix circleci \
+          --upload-results-s3 \
+          --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
+
+
   build-multiarch-docker:
     machine:
       enabled: true
@@ -54,11 +80,10 @@ workflows:
   version: 2
   commit:
     jobs:
-      - build:
-          version: latest
-      - build:
-          version: edge
-      - ci-benchmark
+      - build-edge
+      - build-latest
+      - ci-benchmark-edge
+      - ci-benchmark-latest
 
   ci_benchmarks:
     triggers:
@@ -69,4 +94,5 @@ workflows:
               only:
                 - master
     jobs:
-      - ci-benchmark
+      - ci-benchmark-edge
+      - ci-benchmark-latest
