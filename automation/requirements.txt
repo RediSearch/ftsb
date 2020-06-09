@@ -1,7 +1,0 @@
-humanize==1.0.0
-requests==2.20.0
-py_cpuinfo==5.0.0
-redis==2.10.5
-boto3==1.13.19
-tqdm==4.41.1
-pandas==1.0.3

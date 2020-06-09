@@ -19,13 +19,7 @@ DOCKER_LATEST:="${DOCKER_REPO}:latest"
 .PHONY: all benchmark
 all: get test benchmark
 
-#dataset: ftsb_generate_redisearch
-
 benchmark: ftsb_redisearch
-#
-#ftsb_generate_redisearch: get
-#	go build -o bin/$@ ./cmd/$@
-#	go install ./cmd/$@
 
 ftsb_redisearch:
 	go build -o bin/$@ ./cmd/$@
@@ -36,18 +30,6 @@ get:
 
 test: get
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-
-
-collect-detach:
-	docker-compose -f contrib/docker-compose.yml up --force-recreate -d
-	sleep 5
-	open http://localhost:3000/d/1/redisearch?orgId=1&refresh=5s
-
-collect:
-	docker-compose -f contrib/docker-compose.yml up --force-recreate
-
-collect-stop:
-	docker-compose -f contrib/docker-compose.yml down
 
 # DOCKER TASKS
 # Build the container

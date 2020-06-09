@@ -9,15 +9,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redislabs/redisearch:edge
-        ports:
-          - 6379:6379
     strategy:
       matrix:
         go: [ '1.14']
-    name: Benchmark with Go ${{ matrix.go }}
+        redisearch_version: ['edge','latest']
+    services:
+      redis:
+        image: redislabs/redisearch:${{ matrix.redisearch_version }}
+        ports:
+          - 6379:6379
+    name: Benchmark redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
       - name: Build and Run Benchmark
@@ -41,8 +42,9 @@ jobs:
           sudo apt install python3-pip -y
           sudo apt-get install python3-setuptools -y
           cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
-          python3 -m pip install -r automation/requirements.txt
-          python3 ./automation/run.py \
+          sudo python3 -m pip install wheel
+          python3 -m pip install redisbench-admin==0.1.6
+          ~/.local/bin/redisbench-admin run \
                --repetitions 7 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
