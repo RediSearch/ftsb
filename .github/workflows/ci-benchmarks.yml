@@ -41,8 +41,8 @@ jobs:
           sudo apt install python3-pip -y
           sudo apt-get install python3-setuptools -y
           cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
-          python3 -m pip install -r automation/requirements.txt
-          python3 ./automation/run.py \
+          python3 -m pip install redisbench-admin==0.1.5
+          redisbench-admin run \
                --repetitions 7 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
