@@ -35,7 +35,7 @@ jobs:
       - run: make
       - run: sudo apt install python3.6 -y
       - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install redisbench-admin==0.1.5
+      - run: python3 -m pip install redisbench-admin==0.1.6
       - run: |
              redisbench-admin run \
              --repetitions 7 \
