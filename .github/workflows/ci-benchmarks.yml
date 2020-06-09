@@ -15,7 +15,7 @@ jobs:
         redisearch_version: ['edge','latest']
     services:
       redis:
-        image: redislabs/redisearch:${{ redisearch_version.go }}
+        image: redislabs/redisearch:${{ redisearch_version }}
         ports:
           - 6379:6379
     name: Benchmark with Go ${{ matrix.go }}
