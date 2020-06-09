@@ -9,14 +9,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redislabs/redisearch:edge
-        ports:
-          - 6379:6379
     strategy:
       matrix:
         go: [ '1.14']
+        redisearch_version: ['edge','latest']
+    services:
+      redis:
+        image: redislabs/redisearch:${{ redisearch_version.go }}
+        ports:
+          - 6379:6379
     name: Benchmark with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
