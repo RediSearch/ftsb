@@ -3,26 +3,20 @@
 # Check https://circleci.com/docs/2.0/language-go/ for more details
 version: 2
 jobs:
-  build-latest: # test with redisearch:latest
+  build: # test with redisearch:latest
+    parameters:
+      version:
+        type: string
+        default: edge
     docker:
       - image: circleci/golang:1.13
-      - image: redislabs/redisearch:latest
+      - image: redislabs/redisearch:<<parameters.version>>
 
     working_directory: /go/src/github.com/RediSearch/ftsb
     steps:
       - checkout
       - run: make test
       - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
-
-  build-edge: # test nightly with redisearch:edge
-    docker:
-      - image: circleci/golang:1.13
-      - image: redislabs/redisearch:edge
-
-    working_directory: /go/src/github.com/RediSearch/ftsb
-    steps:
-      - checkout
-      - run: make test
 
   ci-benchmark: # test nightly with redisearch:edge
     docker:
@@ -60,8 +54,10 @@ workflows:
   version: 2
   commit:
     jobs:
-      - build-edge
-      - build-latest
+      - build:
+          version: latest
+      - build:
+          version: edge
       - ci-benchmark
 
   ci_benchmarks:
