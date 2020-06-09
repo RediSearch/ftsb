@@ -43,8 +43,8 @@ jobs:
           sudo apt-get install python3-setuptools -y
           cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
           sudo python3 -m pip install wheel
-          sudo python3 -m pip install redisbench-admin==0.1.6
-          redisbench-admin run \
+          python3 -m pip install redisbench-admin==0.1.6
+          ~/.local/bin/redisbench-admin run \
                --repetitions 7 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
