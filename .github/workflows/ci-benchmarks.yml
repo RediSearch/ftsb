@@ -15,10 +15,10 @@ jobs:
         redisearch_version: ['edge','latest']
     services:
       redis:
-        image: redislabs/redisearch:${{ redisearch_version }}
+        image: redislabs/redisearch:${{ matrix.redisearch_version }}
         ports:
           - 6379:6379
-    name: Benchmark with Go ${{ matrix.go }}
+    name: Benchmark with Go ${{ matrix.go }} using ${{ matrix.redisearch_version }}
     steps:
       - uses: actions/checkout@v2
       - name: Build and Run Benchmark
