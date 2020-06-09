@@ -18,7 +18,7 @@ jobs:
         image: redislabs/redisearch:${{ matrix.redisearch_version }}
         ports:
           - 6379:6379
-    name: Benchmark with Go ${{ matrix.go }} using ${{ matrix.redisearch_version }}
+    name: Benchmark redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
       - name: Build and Run Benchmark
