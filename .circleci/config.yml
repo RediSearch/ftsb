@@ -63,17 +63,6 @@ workflows:
       - build-edge
       - build-latest
       - ci-benchmark
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - build-edge
-      - build-latest
 
   ci_benchmarks:
     triggers:
@@ -82,6 +71,6 @@ workflows:
           filters:
             branches:
               only:
-                - automation
+                - master
     jobs:
       - ci-benchmark

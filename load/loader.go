@@ -2,11 +2,9 @@ package load
 
 import (
 	"bufio"
-	"code.cloudfoundry.org/bytefmt"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/filipecosta90/hdrhistogram"
 	"io/ioutil"
 	"log"
 	"math"
@@ -17,6 +15,9 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 	"time"
+
+	"code.cloudfoundry.org/bytefmt"
+	"github.com/filipecosta90/hdrhistogram"
 )
 
 const (
