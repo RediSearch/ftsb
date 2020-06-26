@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 import (
 	"bufio"

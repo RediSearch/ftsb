@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 // Stat represents one statistical measurement, typically used to store the
 // latency of a command

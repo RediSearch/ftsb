@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 // Processor is a type that processes the work for a loading worker
 type Processor interface {

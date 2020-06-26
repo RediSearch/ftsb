@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 import (
 	"bufio"
@@ -32,23 +32,59 @@ const (
 	SingleQueue = 1
 )
 
-// Benchmark is an interface that represents the skeleton of a program
-// needed to run an insert or benchmark benchmark.
-type Benchmark interface {
-	// GetCmdDecoder returns the DocDecoder to use for this Benchmark
-	GetCmdDecoder(br *bufio.Reader) DocDecoder
+// BenchmarkRunner is responsible for initializing and storing common
+// flags across all database systems and ultimately running a supplied Benchmark
+type BenchmarkRunner struct {
+	// flag fields
+	JsonOutFile     string
+	Metadata        string
+	batchSize       uint
+	workers         uint
+	maxRPS          uint64
+	limit           uint64
+	doLoad          bool
+	reportingPeriod time.Duration
+	fileName        string
+	start           time.Time
+	end             time.Time
 
-	// GetBatchFactory returns the BatchFactory to use for this Benchmark
-	GetBatchFactory() BatchFactory
+	// non-flag fields
+	br                         *bufio.Reader
+	detailedMapHistogramsMutex sync.RWMutex
+	detailedMapHistograms      map[string]*hdrhistogram.Histogram
+	setupWriteHistogram        *hdrhistogram.Histogram
+	inst_setupWriteHistogram   *hdrhistogram.Histogram
+	setupWriteTs               []DataPoint
 
-	// GetCommandIndexer returns the DocIndexer to use for this Benchmark
-	GetCommandIndexer(maxPartitions uint) DocIndexer
+	writeHistogram      *hdrhistogram.Histogram
+	inst_writeHistogram *hdrhistogram.Histogram
 
-	// GetProcessor returns the Processor to use for this Benchmark
-	GetProcessor() Processor
+	writeTs []DataPoint
 
-	// GetConfigurationParametersMap returns the map of specific configurations used in the benchmark
-	GetConfigurationParametersMap() map[string]interface{}
+	updateHistogram      *hdrhistogram.Histogram
+	inst_updateHistogram *hdrhistogram.Histogram
+	updateTs             []DataPoint
+
+	readHistogram      *hdrhistogram.Histogram
+	inst_readHistogram *hdrhistogram.Histogram
+	readTs             []DataPoint
+
+	readCursorHistogram      *hdrhistogram.Histogram
+	inst_readCursorHistogram *hdrhistogram.Histogram
+	readCursorTs             []DataPoint
+
+	deleteHistogram      *hdrhistogram.Histogram
+	inst_deleteHistogram *hdrhistogram.Histogram
+	deleteTs             []DataPoint
+
+	totalHistogram      *hdrhistogram.Histogram
+	inst_totalHistogram *hdrhistogram.Histogram
+	totalTs             []DataPoint
+
+	txTotalBytes uint64
+	rxTotalBytes uint64
+
+	testResult TestResult
 }
 
 func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
@@ -196,61 +232,6 @@ func (b *BenchmarkRunner) GetTimeSeriesMap() map[string]interface{} {
 
 	return configs
 
-}
-
-// BenchmarkRunner is responsible for initializing and storing common
-// flags across all database systems and ultimately running a supplied Benchmark
-type BenchmarkRunner struct {
-	// flag fields
-	JsonOutFile     string
-	Metadata        string
-	batchSize       uint
-	workers         uint
-	maxRPS          uint64
-	limit           uint64
-	doLoad          bool
-	reportingPeriod time.Duration
-	fileName        string
-	start           time.Time
-	end             time.Time
-
-	// non-flag fields
-	br                         *bufio.Reader
-	detailedMapHistogramsMutex sync.RWMutex
-	detailedMapHistograms      map[string]*hdrhistogram.Histogram
-	setupWriteHistogram        *hdrhistogram.Histogram
-	inst_setupWriteHistogram   *hdrhistogram.Histogram
-	setupWriteTs               []DataPoint
-
-	writeHistogram      *hdrhistogram.Histogram
-	inst_writeHistogram *hdrhistogram.Histogram
-
-	writeTs []DataPoint
-
-	updateHistogram      *hdrhistogram.Histogram
-	inst_updateHistogram *hdrhistogram.Histogram
-	updateTs             []DataPoint
-
-	readHistogram      *hdrhistogram.Histogram
-	inst_readHistogram *hdrhistogram.Histogram
-	readTs             []DataPoint
-
-	readCursorHistogram      *hdrhistogram.Histogram
-	inst_readCursorHistogram *hdrhistogram.Histogram
-	readCursorTs             []DataPoint
-
-	deleteHistogram      *hdrhistogram.Histogram
-	inst_deleteHistogram *hdrhistogram.Histogram
-	deleteTs             []DataPoint
-
-	totalHistogram      *hdrhistogram.Histogram
-	inst_totalHistogram *hdrhistogram.Histogram
-	totalTs             []DataPoint
-
-	txTotalBytes uint64
-	rxTotalBytes uint64
-
-	testResult TestResult
 }
 
 var loader = &BenchmarkRunner{

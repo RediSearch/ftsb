@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 // duplexChannel acts as a two-way channel for communicating from a scan routine
 // to a worker goroutine. The toWorker channel sends databuild to the worker for it

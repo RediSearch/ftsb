@@ -1,4 +1,4 @@
-package load
+package benchmark_runner
 
 type DataPoint struct {
 	Timestamp   int64              `json:"Timestamp"`

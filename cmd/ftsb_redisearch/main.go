@@ -3,14 +3,14 @@ package main
 import (
 	"bufio"
 	"flag"
-	"github.com/RediSearch/ftsb/load"
+	"github.com/RediSearch/ftsb/benchmark_runner"
 )
 
 // Program option vars:
 var (
 	host                    string
 	debug                   int
-	loader                  *load.BenchmarkRunner
+	loader                  *benchmark_runner.BenchmarkRunner
 	PoolPipelineConcurrency int
 	PoolPipelineWindow      float64
 	clusterMode             bool
@@ -19,7 +19,7 @@ var (
 
 // Parse args:
 func init() {
-	loader = load.GetBenchmarkRunnerWithBatchSize(10)
+	loader = benchmark_runner.GetBenchmarkRunnerWithBatchSize(10)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
@@ -47,30 +47,33 @@ type RedisIndexer struct {
 	partitions uint
 }
 
-func (i *RedisIndexer) GetIndex(itemsRead uint64, p *load.DocHolder) int {
+func (i *RedisIndexer) GetIndex(itemsRead uint64, p *benchmark_runner.DocHolder) int {
 	return int(uint(itemsRead) % i.partitions)
 }
 
-func (b *benchmark) GetCmdDecoder(br *bufio.Reader) load.DocDecoder {
-	return &decoder{scanner: bufio.NewScanner(br)}
+func (b *benchmark) GetCmdDecoder(br *bufio.Reader) benchmark_runner.DocDecoder {
+	scanner := bufio.NewScanner(br)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	return &decoder{scanner: scanner}
 }
 
-func (b *benchmark) GetBatchFactory() load.BatchFactory {
+func (b *benchmark) GetBatchFactory() benchmark_runner.BatchFactory {
 	return &factory{}
 }
 
-func (b *benchmark) GetCommandIndexer(maxPartitions uint) load.DocIndexer {
+func (b *benchmark) GetCommandIndexer(maxPartitions uint) benchmark_runner.DocIndexer {
 	return &RedisIndexer{partitions: maxPartitions}
 }
 
-func (b *benchmark) GetProcessor() load.Processor {
+func (b *benchmark) GetProcessor() benchmark_runner.Processor {
 	return &processor{}
 }
 
 func main() {
 	//if singleWorkerQueue {
 	b := benchmark{}
-	loader.RunBenchmark(&b, load.SingleQueue)
+	loader.RunBenchmark(&b, benchmark_runner.SingleQueue)
 	//} else {
 	//	loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
 	//}
