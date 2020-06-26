@@ -321,8 +321,8 @@ if (__name__ == "__main__"):
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--update-ratio', type=float, default=0.85, help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
     parser.add_argument('--seed', type=int, default=12345, help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=1000000, help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=1000000, help='the total commands to generate to be issued in the benchmark stage')
+    parser.add_argument('--doc-limit', type=int, default=100000, help='the total documents to generate to be added in the setup stage')
+    parser.add_argument('--total-benchmark-commands', type=int, default=100000, help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--max-skus-per-aggregate', type=int, default=100, help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command' )
     parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,  help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command' )
     parser.add_argument('--indexname', type=str, default="inventory", help='the name of the RediSearch index to be used')
@@ -534,9 +534,12 @@ if (__name__ == "__main__"):
                                                        cmd_category_benchmark)
 
     inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
-
+    deployment_requirements = {"utilities": { "ftsb_redisearch" : {} }, "benchmark-tool": "ftsb_redisearch", "redis-server": {"modules": {"ft": {}}}}
+    run_stages = ["setup","benchmark"]
     with open(benchmark_config_file, "w") as setupf:
         setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
+                                         run_stages,
+                                         deployment_requirements,
                                          key_metrics, inputs,
                                          setup_commands,
                                          teardown_commands,

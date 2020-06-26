@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/RediSearch/ftsb/load"
+	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix"
 	"log"
 	"strings"
@@ -12,7 +12,7 @@ import (
 
 type processor struct {
 	rows           chan string
-	cmdChan        chan load.Stat
+	cmdChan        chan benchmark_runner.Stat
 	wg             *sync.WaitGroup
 	vanillaClient  *radix.Pool
 	vanillaCluster *radix.Cluster
@@ -34,11 +34,8 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
-
 		}
-
 	}
-
 }
 
 // using random between [0,1) to determine whether it is an delete,update, or insert
@@ -89,7 +86,7 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 	}
 	took += uint64(time.Since(start).Microseconds())
 	rxBytesCount += getRxLen(rcv)
-	stat := load.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
+	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
 
 	if cmd == "FT.AGGREGATE" && rcv != nil {
 		var aggreply []interface{}
@@ -110,7 +107,7 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 			}
 			took += uint64(time.Since(start).Microseconds())
 			rxBytesCount += getRxLen(rcv)
-			stat.AddCmdStatEntry(*load.NewCmdStat([]byte("CURSOR_READ"), []byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
+			stat.AddCmdStatEntry(*benchmark_runner.NewCmdStat([]byte("CURSOR_READ"), []byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
 			cursor_id = 0
 			if len(aggreply) == 2 {
 				cursor_id = aggreply[1].(int64)
@@ -126,14 +123,14 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
-func (p *processor) ProcessBatch(b load.Batch, doLoad bool) (outstat load.Stat) {
-	outstat = *load.NewStat()
+func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat benchmark_runner.Stat) {
+	outstat = *benchmark_runner.NewStat()
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
 	if doLoad {
 		buflen := rowCnt + 1
 
-		p.cmdChan = make(chan load.Stat, buflen)
+		p.cmdChan = make(chan benchmark_runner.Stat, buflen)
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
