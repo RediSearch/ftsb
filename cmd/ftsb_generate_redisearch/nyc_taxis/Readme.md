@@ -42,6 +42,13 @@ python3 ftsb_generate_nyc_taxis.py
 
 This will download 12 files for a temporary folder and preprocess them to be ingested. On total you should expected a large `nyc_taxis.redisearch.commands.ALL.tar.gz` file to be generated with 140M commands to be issued to the DB, alongside it's config json `nyc_taxis.redisearch.cfg.json`.
 
+Note: to generate a dataset proper for CI runs, issue the following command that will produce 12M commands to be issued to the DB.
+```
+python3 ftsb_generate_nyc_taxis.py --yellow-tripdata-end-month 1 \
+        --benchmark-output-file-prefix nyc_taxis-CI.redisearch.commands \
+        --benchmark-config-file nyc_taxis-CI.redisearch.cfg.json
+```
+
 ### Index properties
 The use case generates an secondary index with 18 fields per document:
 - 5 TAG sortable fields.
