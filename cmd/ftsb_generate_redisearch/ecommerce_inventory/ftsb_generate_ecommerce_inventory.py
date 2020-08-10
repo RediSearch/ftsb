@@ -293,7 +293,6 @@ def generate_benchmark_commands():
 
 """ Returns a human readable string reprentation of bytes"""
 
-
 def humanized_bytes(bytes, units=[' bytes', 'KB', 'MB', 'GB', 'TB']):
     return str(bytes) + " " + units[0] if bytes < 1024 else humanized_bytes(bytes >> 10, units[1:])
 

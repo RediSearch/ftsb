@@ -2,7 +2,7 @@ import gzip
 import os
 import shutil
 import tarfile
-import urllib
+import urllib.request
 from zipfile import ZipFile
 
 from tqdm import tqdm
