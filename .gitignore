@@ -2,6 +2,7 @@
 ################
 
 cmd/ftsb_generate_redisearch/__pycache__/*
+cmd/ftsb_generate_redisearch/nyc_taxis/tmp/*
 cmd/ftsb_redisearch/ftsb_redisearch
 
 *.txt

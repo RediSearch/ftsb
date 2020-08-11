@@ -1,15 +1,21 @@
-import argparse
-import csv
-import json
-import random
 import re
 import time
 import uuid
+import argparse
+import csv
+import json
+import os
+import random
+import sys
+from tqdm import tqdm
 
 # package local imports
-import boto3 as boto3
-from common import generate_setup_json, compress_files
-from tqdm import tqdm
+sys.path.append(os.getcwd() + '/..')
+
+from common import download_url, generate_setup_json, compress_files, generate_inputs_dict_item, humanized_bytes, \
+    del_non_use_case_specific_keys, add_key_metric, upload_dataset_artifacts_s3, \
+    add_deployment_requirements_redis_server_module, add_deployment_requirements_benchmark_tool, \
+    add_deployment_requirements_utilities, init_deployment_requirement, remove_file_if_exists
 
 
 def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_ids, countries_alpha_3,
@@ -291,59 +297,75 @@ def generate_benchmark_commands():
     all_csvfile.close()
 
 
-""" Returns a human readable string reprentation of bytes"""
-
-
-def humanized_bytes(bytes, units=[' bytes', 'KB', 'MB', 'GB', 'TB']):
-    return str(bytes) + " " + units[0] if bytes < 1024 else humanized_bytes(bytes >> 10, units[1:])
-
-
-def generate_inputs_dict_item(type, all_fname, description, remote_url, uncompressed_size, compressed_filename,
-                              compressed_size, total_commands, command_category):
-    dict = {
-        "local-uncompressed-filename": all_fname,
-        "local-compressed-filename": compressed_filename,
-        "type": type,
-        "description": description,
-        "remote-url": remote_url,
-        "compressed-bytes": compressed_size,
-        "compressed-bytes-humanized": humanized_bytes(compressed_size),
-        "uncompressed-bytes": uncompressed_size,
-        "uncompressed-bytes-humanized": humanized_bytes(uncompressed_size),
-        "total-commands": total_commands,
-        "command-category": command_category,
-    }
-    return dict
-
-
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--update-ratio', type=float, default=0.85, help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
-    parser.add_argument('--seed', type=int, default=12345, help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=100000, help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=100000, help='the total commands to generate to be issued in the benchmark stage')
-    parser.add_argument('--max-skus-per-aggregate', type=int, default=100, help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command' )
-    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,  help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command' )
-    parser.add_argument('--indexname', type=str, default="inventory", help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", help='the name of the test' )
+    parser.add_argument('--project', type=str, default="redisearch",
+                        help='the project being tested')
+    parser.add_argument('--update-ratio', type=float, default=0.85,
+                        help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
+    parser.add_argument('--seed', type=int, default=12345,
+                        help='the random seed used to generate random deterministic outputs')
+    parser.add_argument('--doc-limit', type=int, default=100000,
+                        help='the total documents to generate to be added in the setup stage')
+    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
+                        help='the total commands to generate to be issued in the benchmark stage')
+    parser.add_argument('--max-skus-per-aggregate', type=int, default=100,
+                        help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command')
+    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,
+                        help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command')
+    parser.add_argument('--index-name', type=str, default="inventory",
+                        help='the name of the RediSearch index to be used')
+    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", help='the name of the test')
     parser.add_argument('--test-description', type=str,
-                        default="benchmark focused on updates and aggregate performance", help='the full description of the test' )
-    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK", help='comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability' )
-    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05", help='comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3' )
-    parser.add_argument('--benchmark-output-file-prefix', type=str, default="ecommerce-inventory.redisearch.commands", help='prefix to be used when generating the artifacts' )
-    parser.add_argument('--benchmark-config-file', type=str, default="ecommerce-inventory.redisearch.cfg.json", help='name of the output config file used to store the full benchmark suite steps and description' )
+                        default="benchmark focused on updates and aggregate performance",
+                        help='the full description of the test')
+    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK",
+                        help='comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability')
+    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05",
+                        help='comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3')
     parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
                         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
     parser.add_argument('--input-data-filename', type=str,
-                        default="./../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv", help='path of the input file containing the origin CSV dataset to read the data from.' )
+                        default="./../../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv",
+                        help='path of the input file containing the origin CSV dataset to read the data from.')
+
     args = parser.parse_args()
-    use_case_specific_arguments = dict(args.__dict__)
-    del use_case_specific_arguments["upload_artifacts_s3"]
-    del use_case_specific_arguments["test_name"]
-    del use_case_specific_arguments["test_description"]
-    del use_case_specific_arguments["benchmark_config_file"]
-    del use_case_specific_arguments["benchmark_output_file_prefix"]
+    use_case_specific_arguments = del_non_use_case_specific_keys(dict(args.__dict__))
+
+    # generate the temporary working dir if required
+    seed = args.seed
+    project = args.project
+    doc_limit = args.doc_limit
+    indexname = args.index_name
+    test_name = args.test_name
+    description = args.test_description
+    s3_bucket_name = "benchmarks.redislabs"
+    s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
+                                                                           bucket_path=s3_bucket_path)
+
+    benchmark_output_file = "{test_name}.{project}.commands".format(test_name=test_name, project=project)
+    benchmark_config_file = "{test_name}.{project}.cfg.json".format(test_name=test_name, project=project)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
+                                                                           bucket_path=s3_bucket_path)
+    all_fname = "{}.ALL.csv".format(benchmark_output_file)
+    setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
+    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
+    all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
+    setup_fname_compressed = "{}.SETUP.tar.gz".format(benchmark_output_file)
+    bench_fname_compressed = "{}.BENCH.tar.gz".format(benchmark_output_file)
+    remote_url_all = "{}{}".format(s3_uri, all_fname_compressed)
+    remote_url_setup = "{}{}".format(s3_uri, setup_fname_compressed)
+    remote_url_bench = "{}{}".format(s3_uri, bench_fname_compressed)
+    json_version = "0.1"
+    benchmark_repetitions_require_teardown_and_resetup = False
+
+    ## remove previous files if they exist
+    all_artifacts = [all_fname,setup_fname,bench_fname,all_fname_compressed,setup_fname_compressed,bench_fname_compressed,benchmark_config_file]
+    for artifact in all_artifacts:
+        remove_file_if_exists(artifact)
+
     seed = args.seed
     update_ratio = args.update_ratio
     read_ratio = 1 - update_ratio
@@ -351,10 +373,7 @@ if (__name__ == "__main__"):
     total_benchmark_commands = args.total_benchmark_commands
     max_skus_per_aggregate = args.max_skus_per_aggregate
     max_nodes_per_aggregate = args.max_nodes_per_aggregate
-    indexname = args.indexname
     input_data_filename = args.input_data_filename
-    benchmark_output_file = args.benchmark_output_file_prefix
-    benchmark_config_file = args.benchmark_config_file
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
@@ -441,23 +460,6 @@ if (__name__ == "__main__"):
     total_reads = 0
     total_updates = 0
     total_deletes = 0
-    description = args.test_description
-    test_name = args.test_name
-    s3_bucket_name = "benchmarks.redislabs"
-    s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
-    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
-                                                                           bucket_path=s3_bucket_path)
-    all_fname = "{}.ALL.csv".format(benchmark_output_file)
-    setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
-    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
-    all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
-    setup_fname_compressed = "{}.SETUP.tar.gz".format(benchmark_output_file)
-    bench_fname_compressed = "{}.BENCH.tar.gz".format(benchmark_output_file)
-    remote_url_all = "{}{}".format(s3_uri, all_fname_compressed)
-    remote_url_setup = "{}{}".format(s3_uri, setup_fname_compressed)
-    remote_url_bench = "{}{}".format(s3_uri, bench_fname_compressed)
-    json_version = "0.1"
-    benchmark_repetitions_require_teardown_and_resetup = False
 
     print("-- Benchmark: {} -- ".format(description))
     print("-- Description: {} -- ".format(description))
@@ -534,10 +536,15 @@ if (__name__ == "__main__"):
                                                        cmd_category_benchmark)
 
     inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
-    deployment_requirements = {"utilities": { "ftsb_redisearch" : {} }, "benchmark-tool": "ftsb_redisearch", "redis-server": {"modules": {"ft": {}}}}
-    run_stages = ["setup","benchmark"]
+
+    deployment_requirements = init_deployment_requirement()
+    add_deployment_requirements_redis_server_module(deployment_requirements, "ft", {})
+    add_deployment_requirements_utilities(deployment_requirements, "ftsb_redisearch", {})
+    add_deployment_requirements_benchmark_tool(deployment_requirements, "ftsb_redisearch")
+
+    run_stages = ["setup", "benchmark"]
     with open(benchmark_config_file, "w") as setupf:
-        setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
+        setup_json = generate_setup_json(json_version, project, use_case_specific_arguments, test_name, description,
                                          run_stages,
                                          deployment_requirements,
                                          key_metrics, inputs,
@@ -555,28 +562,8 @@ if (__name__ == "__main__"):
         json.dump(setup_json, setupf, indent=2)
 
     if args.upload_artifacts_s3:
-        print("-- uploading dataset to s3 -- ")
-        s3 = boto3.resource('s3')
-        bucket = s3.Bucket(s3_bucket_name)
         artifacts = [benchmark_config_file, all_fname_compressed, setup_fname_compressed, bench_fname_compressed]
-        progress = tqdm(unit="files", total=len(artifacts))
-        for input in artifacts:
-            object_key = '{bucket_path}{filename}'.format(bucket_path=s3_bucket_path, filename=input)
-            bucket.upload_file(input, object_key)
-            object_acl = s3.ObjectAcl(s3_bucket_name, object_key)
-            response = object_acl.put(ACL='public-read')
-            progress.update()
-        progress.close()
-
-    artifacts = [benchmark_config_file, all_fname_compressed, setup_fname_compressed, bench_fname_compressed]
+        upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")
     print("All artifacts generated.")
-    print("If you want to use the ./automation/run.py script, at the root project folder run:")
-    print("./automation/run.py --benchmark-config-file ./cmd/ftsb_generate_redisearch/{}".format(benchmark_config_file))
-    print("")
-    print("If you want to run a specific step, issue first the FT.CREATE command:")
-    print("{}".format(" ".join(ft_create_cmd)))
-    print("")
-    print("And then ftsb_redisearh --input {}".format(setup_fname))
-    print("      or ftsb_redisearh --input {}".format(bench_fname))
