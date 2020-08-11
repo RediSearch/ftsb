@@ -26,6 +26,7 @@ On total, the benchmark loads >140M documents like the following one:
   "vendor_id": "2"
 }
 ```
+Depending on the benchmark variation it uses either `FT.ADD` or `HSET` commands.
 
 ## How to benchmark
 
@@ -45,8 +46,13 @@ This will download 12 files for a temporary folder and preprocess them to be ing
 Note: to generate a dataset proper for CI runs, issue the following command that will produce 12M commands to be issued to the DB.
 ```
 python3 ftsb_generate_nyc_taxis.py --yellow-tripdata-end-month 1 \
-        --benchmark-output-file-prefix nyc_taxis-CI.redisearch.commands \
-        --benchmark-config-file nyc_taxis-CI.redisearch.cfg.json
+        --test-name nyc_taxis-hashes-CI
+```
+
+### FT.ADD variation
+To generate the FT.ADD variations you just need to include the `use-ftadd` flag, as follow: 
+```
+python3 ftsb_generate_nyc_taxis.py --use-ftadd --test-name nyc_taxis-ftadd
 ```
 
 ### Index properties
@@ -61,8 +67,13 @@ The use case generates an secondary index with 18 fields per document:
 
 Assuming you have `redisbench-admin` and `ftsb_redisearch` installed, for the default dataset with 140M documents, run:
 
+### HSET variation
 ```
-redisbench-admin run --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis/nyc_taxis.redisearch.cfg.json
+ https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes/nyc_taxis-hashes.redisearch.cfg.json
+```
+### FT.ADD variation
+```
+ https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ftadd/nyc_taxis-ftadd.redisearch.cfg.json
 ```
 
 ### Key Metrics:

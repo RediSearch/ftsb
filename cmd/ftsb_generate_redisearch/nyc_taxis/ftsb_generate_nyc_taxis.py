@@ -13,31 +13,12 @@ from tqdm import tqdm
 
 sys.path.append(os.getcwd() + '/..')
 
-from common import download_url, generate_setup_json, compress_files
+from common import download_url, generate_setup_json, compress_files, generate_inputs_dict_item, humanized_bytes, \
+    del_non_use_case_specific_keys, add_key_metric, upload_dataset_artifacts_s3, \
+    add_deployment_requirements_redis_server_module, add_deployment_requirements_benchmark_tool, \
+    add_deployment_requirements_utilities, init_deployment_requirement, remove_file_if_exists
 from pathlib import Path
 
-""" Returns a human readable string reprentation of bytes"""
-
-
-def humanized_bytes(bytes, units=[' bytes', 'KB', 'MB', 'GB', 'TB']):
-    return str(bytes) + " " + units[0] if bytes < 1024 else humanized_bytes(bytes >> 10, units[1:])
-
-def generate_inputs_dict_item(type, all_fname, description, remote_url, uncompressed_size, compressed_filename,
-                              compressed_size, total_commands, command_category):
-    dict = {
-        "local-uncompressed-filename": all_fname,
-        "local-compressed-filename": compressed_filename,
-        "type": type,
-        "description": description,
-        "remote-url": remote_url,
-        "compressed-bytes": compressed_size,
-        "compressed-bytes-humanized": humanized_bytes(compressed_size),
-        "uncompressed-bytes": uncompressed_size,
-        "uncompressed-bytes-humanized": humanized_bytes(uncompressed_size),
-        "total-commands": total_commands,
-        "command-category": command_category,
-    }
-    return dict
 
 def generate_nyc_taxis_index_type():
     types = {}
@@ -53,22 +34,70 @@ def generate_nyc_taxis_index_type():
     return types
 
 
-
-def generate_ft_create_row(index, index_types):
-    cmd = ["FT.CREATE", "{index}".format(index=index),"ON","HASH", "SCHEMA"]
+def generate_ft_create_row(index, index_types, use_ftadd):
+    if use_ftadd:
+        cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
+    else:
+        cmd = ["FT.CREATE", "{index}".format(index=index), "ON", "HASH", "SCHEMA"]
     for f, v in index_types.items():
         cmd.append(f)
         cmd.append(v)
         cmd.append("SORTABLE")
     return cmd
 
+
 def generate_ft_drop_row(index):
-    cmd = ["FT.DROP", "{index}".format(index=index),"DD"]
+    cmd = ["FT.DROP", "{index}".format(index=index), "DD"]
     return cmd
+
+
+def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, improvement_surcharge_pos,
+                            pickup_longitude_pos,
+                            pickup_latitude_pos, pickup_datetime_pos, dropoff_datetime_pos, rate_code_id_pos,
+                            tolls_amount_pos, dropoff_longitude_pos, dropoff_latitude_pos, passenger_count_pos,
+                            fare_amount_pos, extra_pos, trip_distance_pos, tip_amount_pos, store_and_fwd_flag_pos,
+                            payment_type_pos, mta_tax_pos, vendor_id_pos):
+    hash = {
+        "total_amount": row[total_amount_pos],
+        "improvement_surcharge": row[improvement_surcharge_pos],
+        "pickup_location_long_lat": "{},{}".format(row[pickup_longitude_pos], row[pickup_latitude_pos]),
+        "pickup_datetime": row[pickup_datetime_pos],
+        "trip_type": "1",
+        "dropoff_datetime": row[dropoff_datetime_pos],
+        "rate_code_id": row[rate_code_id_pos],
+        "tolls_amount": row[tolls_amount_pos],
+        "dropoff_location_long_lat": "{},{}".format(row[dropoff_longitude_pos], row[dropoff_latitude_pos]),
+        "passenger_count": row[passenger_count_pos],
+        "fare_amount": row[fare_amount_pos],
+        "extra": row[extra_pos],
+        "trip_distance": row[trip_distance_pos],
+        "tip_amount": row[tip_amount_pos],
+        "store_and_fwd_flag": row[store_and_fwd_flag_pos],
+        "payment_type": row[payment_type_pos],
+        "mta_tax": row[mta_tax_pos],
+        "vendor_id": row[vendor_id_pos],
+    }
+    for k in hash.keys():
+        assert k in index_types.keys()
+
+    fields = []
+    for f, v in hash.items():
+        fields.append(f)
+        fields.append(v)
+    if use_ftadd is False:
+        cmd = ["WRITE", "W1", "HSET", "doc:{n}".format(n=total_docs)]
+    else:
+        cmd = ["WRITE", "W1", "FT.ADD", indexname, "doc:{n}".format(n=total_docs), "1.0", "FIELDS"]
+    for x in fields:
+        cmd.append(x)
+    return cmd
+
 
 if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--project', type=str, default="redisearch",
+                        help='the project being tested')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
     parser.add_argument('--doc-limit', type=int, default=0,
@@ -83,16 +112,14 @@ if (__name__ == "__main__"):
                         help='the start month of the yellow trip data to fetch')
     parser.add_argument('--index-name', type=str, default="nyc_taxis",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="nyc_taxis", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="nyc_taxis-hashes", help='the name of the test')
     parser.add_argument('--test-description', type=str,
                         default="benchmark focused on write performance, making usage of TLC Trip Record Data that contains the rides that have been performed in yellow taxis in New York in 2015",
                         help='the full description of the test')
-    parser.add_argument('--benchmark-output-file-prefix', type=str, default="nyc_taxis.redisearch.commands",
-                        help='prefix to be used when generating the artifacts')
-    parser.add_argument('--benchmark-config-file', type=str, default="nyc_taxis.redisearch.cfg.json",
-                        help='name of the output config file used to store the full benchmark suite steps and description')
     parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
                         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
+    parser.add_argument('--use-ftadd', default=False, action='store_true',
+                        help="Use FT.ADD instead of HSET")
     parser.add_argument('--nyc-tlc-s3-bucket-prefix', type=str,
                         default="https://s3.amazonaws.com/nyc-tlc/trip+data",
                         help='The s3 bucket prefix to fetch the input files containing the origin CSV datasets to read the data from.')
@@ -101,66 +128,55 @@ if (__name__ == "__main__"):
                         help='The temporary dir to use as working directory for file download, compression,etc... ')
 
     args = parser.parse_args()
-    use_case_specific_arguments = dict(args.__dict__)
-    del use_case_specific_arguments["upload_artifacts_s3"]
-    del use_case_specific_arguments["test_name"]
-    del use_case_specific_arguments["test_description"]
-    del use_case_specific_arguments["benchmark_config_file"]
-    del use_case_specific_arguments["benchmark_output_file_prefix"]
+    use_case_specific_arguments = del_non_use_case_specific_keys(dict(args.__dict__))
 
     # generate the temporary working dir if required
     working_dir = args.temporary_work_dir
     Path(working_dir).mkdir(parents=True, exist_ok=True)
     seed = args.seed
-
+    project = args.project
     doc_limit = args.doc_limit
     indexname = args.index_name
-    benchmark_output_file = args.benchmark_output_file_prefix
-    benchmark_config_file = args.benchmark_config_file
+    test_name = args.test_name
+    description = args.test_description
+    s3_bucket_name = "benchmarks.redislabs"
+    s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
+                                                                           bucket_path=s3_bucket_path)
+
+    benchmark_output_file = "{test_name}.{project}.commands".format(test_name=test_name, project=project)
+    benchmark_config_file = "{test_name}.{project}.cfg.json".format(test_name=test_name, project=project)
+    all_fname = "{}.ALL.csv".format(benchmark_output_file)
+    all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
+    remote_url_all = "{}{}".format(s3_uri, all_fname_compressed)
+
+    ## remove previous files if they exist
+    remove_file_if_exists(benchmark_config_file)
+    remove_file_if_exists(all_fname)
+    remove_file_if_exists(all_fname_compressed)
 
     start_y = args.yellow_tripdata_start_year
     end_y = args.yellow_tripdata_end_year
     start_m = args.yellow_tripdata_start_month
     end_m = args.yellow_tripdata_end_month
+    use_ftadd = args.use_ftadd
 
     used_indices = [indexname]
     setup_commands = []
     teardown_commands = []
-    key_metrics = [
-        {
-            "step": "benchmark",
-            "metric-family": "throughput",
-            "metric-json-path": "OverallRates.overallOpsRate",
-            "metric-name": "Overall writes query rate",
-            "unit": "docs/sec",
-            "metric-type": "numeric",
-            "comparison": "higher-better",
-            "per-step-comparison-metric-priority": 1,
-        }, {
-            "step": "benchmark",
-            "metric-family": "latency",
-            "metric-json-path": "OverallQuantiles.allCommands.q50",
-            "metric-name": "Overall writes query q50 latency",
-            "unit": "ms",
-            "metric-type": "numeric",
-            "comparison": "lower-better",
-            "per-step-comparison-metric-priority": 2,
-        }
+    key_metrics = []
 
-    ]
+    add_key_metric(key_metrics, "benchmark", "throughput", "OverallRates.overallOpsRate", "Overall writes query rate",
+                   "docs/sec", "numeric", "higher-better", 1)
+    add_key_metric(key_metrics, "benchmark", "latency", "OverallQuantiles.allCommands.q50",
+                   "Overall writes query q50 latency",
+                   "ms", "numeric", "lower-better", 2)
+
     total_writes = 0
     total_reads = 0
     total_updates = 0
     total_deletes = 0
-    description = args.test_description
-    test_name = args.test_name
-    s3_bucket_name = "benchmarks.redislabs"
-    s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
-    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
-                                                                           bucket_path=s3_bucket_path)
-    all_fname = "{}.ALL.csv".format(benchmark_output_file)
-    all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
-    remote_url_all = "{}{}".format(s3_uri, all_fname_compressed)
+
     json_version = "0.1"
     benchmark_repetitions_require_teardown_and_resetup = True
 
@@ -174,7 +190,7 @@ if (__name__ == "__main__"):
 
     index_types = generate_nyc_taxis_index_type()
     print("-- generating the ft.create commands -- ")
-    ft_create_cmd = generate_ft_create_row(indexname, index_types)
+    ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
@@ -197,7 +213,6 @@ if (__name__ == "__main__"):
                 print("{} exists, no need to download again".format(filename))
 
     total_docs = 0
-    docs = []
 
     progress = tqdm(unit="docs")
     all_csvfile = open(all_fname, 'a', newline='')
@@ -227,38 +242,16 @@ if (__name__ == "__main__"):
             mta_tax_pos = header.index("mta_tax")
             vendor_id_pos = header.index("VendorID")
             for row in csvreader:
-                hash = {
-                    "total_amount": row[total_amount_pos],
-                    "improvement_surcharge": row[improvement_surcharge_pos],
-                    "pickup_location_long_lat": "{},{}".format(row[pickup_longitude_pos],row[pickup_latitude_pos]),
-                    "pickup_datetime": row[pickup_datetime_pos],
-                    "trip_type": "1",
-                    "dropoff_datetime": row[dropoff_datetime_pos],
-                    "rate_code_id": row[rate_code_id_pos],
-                    "tolls_amount": row[tolls_amount_pos],
-                    "dropoff_location_long_lat": "{},{}".format(row[dropoff_longitude_pos],row[dropoff_latitude_pos]),
-                    "passenger_count": row[passenger_count_pos],
-                    "fare_amount": row[fare_amount_pos],
-                    "extra": row[extra_pos],
-                    "trip_distance": row[trip_distance_pos],
-                    "tip_amount": row[tip_amount_pos],
-                    "store_and_fwd_flag": row[store_and_fwd_flag_pos],
-                    "payment_type": row[payment_type_pos],
-                    "mta_tax": row[mta_tax_pos],
-                    "vendor_id": row[vendor_id_pos],
-                }
-                for k in hash.keys():
-                    assert k in index_types.keys()
-                total_docs = total_docs + 1
-                fields = []
-                for f,v in hash.items():
-                    fields.append(f)
-                    fields.append(v)
-                cmd = ["WRITE", "W1", "HSET", "doc:{n}".format(n=total_docs)]
-                for x in fields:
-                    cmd.append(x)
-                # docs.append(cmd)
+                cmd = use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, improvement_surcharge_pos,
+                                              pickup_longitude_pos,
+                                              pickup_latitude_pos, pickup_datetime_pos, dropoff_datetime_pos,
+                                              rate_code_id_pos,
+                                              tolls_amount_pos, dropoff_longitude_pos, dropoff_latitude_pos,
+                                              passenger_count_pos,
+                                              fare_amount_pos, extra_pos, trip_distance_pos, tip_amount_pos,
+                                              store_and_fwd_flag_pos, payment_type_pos, mta_tax_pos, vendor_id_pos)
                 all_csv_writer.writerow(cmd)
+                total_docs = total_docs + 1
                 progress.update()
     progress.close()
     all_csvfile.close()
@@ -275,13 +268,18 @@ if (__name__ == "__main__"):
     inputs_entry_all = generate_inputs_dict_item("all", all_fname, "contains both setup and benchmark commands",
                                                  remote_url_all, uncompressed_size, all_fname_compressed,
                                                  compressed_size, total_commands, cmd_category_all)
-#
+    #
     inputs = {"all": inputs_entry_all, "benchmark": inputs_entry_all}
 
-    deployment_requirements = {"utilities": { "ftsb_redisearch" : {} }, "benchmark-tool": "ftsb_redisearch", "redis-server": {"modules": {"ft": {}}}}
+    deployment_requirements = init_deployment_requirement()
+    add_deployment_requirements_redis_server_module(deployment_requirements, "ft", {})
+    add_deployment_requirements_utilities(deployment_requirements, "ftsb_redisearch", {})
+    add_deployment_requirements_benchmark_tool(deployment_requirements, "ftsb_redisearch")
+
     run_stages = ["benchmark"]
+
     with open(benchmark_config_file, "w") as setupf:
-        setup_json = generate_setup_json(json_version, use_case_specific_arguments, test_name, description,
+        setup_json = generate_setup_json(json_version, project, use_case_specific_arguments, test_name, description,
                                          run_stages,
                                          deployment_requirements,
                                          key_metrics, inputs,
@@ -297,20 +295,8 @@ if (__name__ == "__main__"):
         json.dump(setup_json, setupf, indent=2)
 
     if args.upload_artifacts_s3:
-        print("-- uploading dataset to s3 -- ")
-        s3 = boto3.resource('s3')
-        bucket = s3.Bucket(s3_bucket_name)
         artifacts = [benchmark_config_file, all_fname_compressed]
-        progress = tqdm(unit="files", total=len(artifacts))
-        for input in artifacts:
-            object_key = '{bucket_path}{filename}'.format(bucket_path=s3_bucket_path, filename=input)
-            bucket.upload_file(input, object_key)
-            object_acl = s3.ObjectAcl(s3_bucket_name, object_key)
-            response = object_acl.put(ACL='public-read')
-            progress.update()
-        progress.close()
-
-    artifacts = [benchmark_config_file, all_fname_compressed]
+        upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")
     print("All artifacts generated.")

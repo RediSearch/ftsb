@@ -35,13 +35,33 @@ jobs:
       - run: make
       - run: sudo apt install python3.6 -y
       - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.9
-      - run: |
+      - run: python3 -m pip install wheel redisbench-admin==0.1.10
+      - run:
+          name: ecommerce-inventory use case
+          command: |
              redisbench-admin run \
              --repetitions 7 \
              --output-file-prefix circleci \
              --upload-results-s3 \
              --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
+      - run:
+          name: nyc_taxis CI use case with HSET
+          command: |
+          redisbench-admin run \
+          --repetitions 3 \
+          --output-file-prefix circleci \
+          --upload-results-s3 \
+          --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes-CI/nyc_taxis-hashes-CI.redisearch.cfg.json
+          no_output_timeout: 30m
+      - run:
+          name: nyc_taxis CI use case with FT.ADD
+          command: |
+          redisbench-admin run \
+          --repetitions 3 \
+          --output-file-prefix circleci \
+          --upload-results-s3 \
+          --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ftadd-CI/nyc_taxis-ftadd-CI.redisearch.cfg.json
+          no_output_timeout: 30m
 
   ci-benchmark-latest: # test nightly with redisearch:edge
     docker:
@@ -54,7 +74,7 @@ jobs:
       - run: make
       - run: sudo apt install python3.6 -y
       - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.9
+      - run: python3 -m pip install wheel redisbench-admin==0.1.10
       - run: |
           redisbench-admin run \
           --repetitions 7 \
@@ -90,7 +110,7 @@ workflows:
   ci_benchmarks:
     triggers:
       - schedule:
-          cron: "0 0,8,16 * * *"
+          cron: "0 0,6,12,18 * * *"
           filters:
             branches:
               only:
