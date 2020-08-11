@@ -39,6 +39,7 @@ The original dataset is present in https://www1.nyc.gov/site/tlc/about/tlc-trip-
 
 To generate the required dataset command file issue:
 ```
+cd $GOPATH/src/github.com/RediSearch/ftsb/cmd/ftsb_generate_redisearch/nyc_taxis
 python3 ftsb_generate_nyc_taxis.py 
 ```
 
