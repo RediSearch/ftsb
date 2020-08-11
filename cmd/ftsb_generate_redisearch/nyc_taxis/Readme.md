@@ -4,6 +4,7 @@ This benchmark focus himself on write performance, making usage of TLC Trip Reco
 On total, the benchmark loads >140M documents like the following one:
 
 ### Example Document
+On average each added document will have a size of 500 bytes.
 ```
 {
   "total_amount": 6.3,
