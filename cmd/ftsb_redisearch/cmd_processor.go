@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix"
@@ -157,7 +158,11 @@ func (p *processor) Close(_ bool) {
 
 func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, args []string, bytelen uint64, err error) {
 
-	argsStr := strings.Split(row, ",")
+	reader := csv.NewReader(strings.NewReader(row))
+	argsStr, err := reader.Read()
+	if err != nil {
+		return
+	}
 
 	// we need at least the cmdType and command
 	if len(argsStr) >= 3 {
