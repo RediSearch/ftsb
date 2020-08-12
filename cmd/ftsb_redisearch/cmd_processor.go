@@ -6,6 +6,7 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -80,14 +81,19 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 	} else {
 		err = p.vanillaClient.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
 	}
+	catched_error := false
 	if err != nil {
 		issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
 		extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", cmd, err, issuedCommand)
-		log.Fatal(extendedError)
+		if continueOnErr {
+			fmt.Fprint(os.Stderr, extendedError)
+		} else {
+			log.Fatal(extendedError)
+		}
 	}
 	took += uint64(time.Since(start).Microseconds())
 	rxBytesCount += getRxLen(rcv)
-	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
+	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, catched_error, false, txBytesCount, rxBytesCount)
 
 	if cmd == "FT.AGGREGATE" && rcv != nil {
 		var aggreply []interface{}

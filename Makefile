@@ -21,6 +21,9 @@ all: get test benchmark
 
 benchmark: ftsb_redisearch
 
+fmt:
+	$(GOFMT) ./...
+
 ftsb_redisearch:
 	go build -o bin/$@ ./cmd/$@
 	go install ./cmd/$@

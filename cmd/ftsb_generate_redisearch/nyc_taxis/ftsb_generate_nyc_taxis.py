@@ -7,6 +7,7 @@ import os
 import random
 # package local imports
 import sys
+import uuid
 
 import boto3
 from tqdm import tqdm
@@ -77,6 +78,7 @@ def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, impro
         "mta_tax": row[mta_tax_pos],
         "vendor_id": row[vendor_id_pos],
     }
+    docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex,n=total_docs)
     for k in hash.keys():
         assert k in index_types.keys()
 
@@ -85,9 +87,9 @@ def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, impro
         fields.append(f)
         fields.append(v)
     if use_ftadd is False:
-        cmd = ["WRITE", "W1", "HSET", "doc:{n}".format(n=total_docs)]
+        cmd = ["WRITE", "W1", "HSET", docid_str ]
     else:
-        cmd = ["WRITE", "W1", "FT.ADD", indexname, "doc:{n}".format(n=total_docs), "1.0", "FIELDS"]
+        cmd = ["WRITE", "W1", "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
     for x in fields:
         cmd.append(x)
     return cmd
