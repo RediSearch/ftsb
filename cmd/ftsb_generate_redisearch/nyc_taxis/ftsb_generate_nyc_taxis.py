@@ -52,33 +52,56 @@ def generate_ft_drop_row(index):
     return cmd
 
 
+def str_to_float_or_zero(entry):
+    val = 0.0
+    try:
+        val = float(entry)
+    except ValueError as e:
+        pass
+    return val
+
+
 def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, improvement_surcharge_pos,
                             pickup_longitude_pos,
                             pickup_latitude_pos, pickup_datetime_pos, dropoff_datetime_pos, rate_code_id_pos,
                             tolls_amount_pos, dropoff_longitude_pos, dropoff_latitude_pos, passenger_count_pos,
                             fare_amount_pos, extra_pos, trip_distance_pos, tip_amount_pos, store_and_fwd_flag_pos,
                             payment_type_pos, mta_tax_pos, vendor_id_pos):
+    pickup_location_long = str_to_float_or_zero(row[pickup_longitude_pos])
+    pickup_location_lat = str_to_float_or_zero(row[pickup_latitude_pos])
+    if pickup_location_lat < -90.0 or pickup_location_lat > 90:
+        pickup_location_lat = 0
+    if pickup_location_long < -180.0 or pickup_location_long > 180:
+        pickup_location_long = 0
+
+    dropoff_location_long = str_to_float_or_zero(row[dropoff_longitude_pos])
+    dropoff_location_lat = str_to_float_or_zero(row[dropoff_latitude_pos])
+    if dropoff_location_lat < -90.0 or dropoff_location_lat > 90:
+        dropoff_location_lat = 0
+    if dropoff_location_long < -180.0 or dropoff_location_long > 180:
+        dropoff_location_long = 0
+
     hash = {
-        "total_amount": row[total_amount_pos],
-        "improvement_surcharge": row[improvement_surcharge_pos],
-        "pickup_location_long_lat": "{},{}".format(row[pickup_longitude_pos], row[pickup_latitude_pos]),
-        "pickup_datetime": row[pickup_datetime_pos],
+        "total_amount": str_to_float_or_zero(row[total_amount_pos]),
+        "improvement_surcharge": str_to_float_or_zero(row[improvement_surcharge_pos]),
+        "pickup_location_long_lat": "{},{}".format(pickup_location_long, pickup_location_lat),
+        "pickup_datetime": "\"{}\"".format(row[pickup_datetime_pos]),
         "trip_type": "1",
-        "dropoff_datetime": row[dropoff_datetime_pos],
+        "dropoff_datetime": "\"{}\"".format(row[dropoff_datetime_pos]),
         "rate_code_id": row[rate_code_id_pos],
-        "tolls_amount": row[tolls_amount_pos],
-        "dropoff_location_long_lat": "{},{}".format(row[dropoff_longitude_pos], row[dropoff_latitude_pos]),
+        "tolls_amount": str_to_float_or_zero(row[tolls_amount_pos]),
+        "dropoff_location_long_lat": "{},{}".format(dropoff_location_long, dropoff_location_lat),
         "passenger_count": row[passenger_count_pos],
-        "fare_amount": row[fare_amount_pos],
-        "extra": row[extra_pos],
-        "trip_distance": row[trip_distance_pos],
-        "tip_amount": row[tip_amount_pos],
+        "fare_amount": str_to_float_or_zero(row[fare_amount_pos]),
+        "extra": str_to_float_or_zero(row[extra_pos]),
+        "trip_distance": str_to_float_or_zero(row[trip_distance_pos]),
+        "tip_amount": str_to_float_or_zero(row[tip_amount_pos]),
         "store_and_fwd_flag": row[store_and_fwd_flag_pos],
         "payment_type": row[payment_type_pos],
-        "mta_tax": row[mta_tax_pos],
+        "mta_tax": str_to_float_or_zero(row[mta_tax_pos]),
         "vendor_id": row[vendor_id_pos],
     }
-    docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex,n=total_docs)
+    docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)
     for k in hash.keys():
         assert k in index_types.keys()
 
@@ -87,7 +110,7 @@ def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, impro
         fields.append(f)
         fields.append(v)
     if use_ftadd is False:
-        cmd = ["WRITE", "W1", "HSET", docid_str ]
+        cmd = ["WRITE", "W1", "HSET", docid_str]
     else:
         cmd = ["WRITE", "W1", "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
     for x in fields:
