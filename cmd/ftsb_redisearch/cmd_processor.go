@@ -73,18 +73,30 @@ func getRxLen(v interface{}) (res uint64) {
 func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64) {
 	var err error = nil
 	var rcv interface{}
+
 	rxBytesCount := uint64(0)
 	took := uint64(0)
 	start := time.Now()
-	if clusterMode {
-		err = p.vanillaCluster.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
+	if cmd == "FT.ADD" {
+		var strrcv string
+		if clusterMode {
+			err = p.vanillaCluster.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
+		} else {
+			err = p.vanillaClient.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
+		}
+		rcv = strrcv
 	} else {
-		err = p.vanillaClient.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
+		if clusterMode {
+			err = p.vanillaCluster.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
+		} else {
+			err = p.vanillaClient.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
+		}
 	}
+
 	catched_error := false
 	if err != nil {
 		issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
-		extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", cmd, err, issuedCommand)
+		extendedError := fmt.Errorf("%s failed:%v\n. Received: %v Issued command: %s.", cmd, err, rcv, issuedCommand)
 		if continueOnErr {
 			fmt.Fprint(os.Stderr, extendedError)
 		} else {
