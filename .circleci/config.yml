@@ -50,6 +50,7 @@ jobs:
             redisbench-admin run \
             --repetitions 3 \
             --output-file-prefix circleci \
+            --benchmark-requests 1000000 \
             --upload-results-s3 \
             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes-CI/nyc_taxis-hashes-CI.redisearch.cfg.json
           no_output_timeout: 30m
@@ -59,6 +60,7 @@ jobs:
             redisbench-admin run \
             --repetitions 3 \
             --output-file-prefix circleci \
+            --benchmark-requests 1000000 \
             --upload-results-s3 \
             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ftadd-CI/nyc_taxis-ftadd-CI.redisearch.cfg.json
           no_output_timeout: 30m

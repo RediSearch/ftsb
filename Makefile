@@ -1,11 +1,12 @@
 # Go parameters
-GOCMD=go
+GOCMD=GO111MODULE=on go
 GOBUILD=$(GOCMD) build
 GOINSTALL=$(GOCMD) install
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
+GOFMT=$(GOCMD) fmt
 
 # DOCKER
 DOCKER_APP_NAME=ftsb
@@ -20,6 +21,9 @@ DOCKER_LATEST:="${DOCKER_REPO}:latest"
 all: get test benchmark
 
 benchmark: ftsb_redisearch
+
+fmt:
+	$(GOFMT) ./...
 
 ftsb_redisearch:
 	go build -o bin/$@ ./cmd/$@

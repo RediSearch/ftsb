@@ -7,6 +7,7 @@ import os
 import random
 # package local imports
 import sys
+import uuid
 
 import boto3
 from tqdm import tqdm
@@ -51,43 +52,82 @@ def generate_ft_drop_row(index):
     return cmd
 
 
+def str_to_float_or_zero(entry):
+    val = 0.0
+    try:
+        val = float(entry)
+    except ValueError as e:
+        pass
+    return val
+
+
+def index_or_none(list, value):
+    index = None
+    try:
+        index = list.index(value)
+    except ValueError:
+        pass
+    return index
+
+
 def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, improvement_surcharge_pos,
                             pickup_longitude_pos,
                             pickup_latitude_pos, pickup_datetime_pos, dropoff_datetime_pos, rate_code_id_pos,
                             tolls_amount_pos, dropoff_longitude_pos, dropoff_latitude_pos, passenger_count_pos,
                             fare_amount_pos, extra_pos, trip_distance_pos, tip_amount_pos, store_and_fwd_flag_pos,
                             payment_type_pos, mta_tax_pos, vendor_id_pos):
+    pickup_location_long = None if pickup_longitude_pos is None else str_to_float_or_zero(row[pickup_longitude_pos])
+    pickup_location_lat = None if pickup_latitude_pos is None else str_to_float_or_zero(row[pickup_latitude_pos])
+    if pickup_location_lat < -90.0 or pickup_location_lat > 90:
+        pickup_location_lat = 0
+    if pickup_location_long < -180.0 or pickup_location_long > 180:
+        pickup_location_long = 0
+
+    dropoff_location_long = None if dropoff_longitude_pos is None else str_to_float_or_zero(row[dropoff_longitude_pos])
+    dropoff_location_lat = None if dropoff_latitude_pos is None else str_to_float_or_zero(row[dropoff_latitude_pos])
+    if dropoff_location_lat < -90.0 or dropoff_location_lat > 90:
+        dropoff_location_lat = 0
+    if dropoff_location_long < -180.0 or dropoff_location_long > 180:
+        dropoff_location_long = 0
+
     hash = {
-        "total_amount": row[total_amount_pos],
-        "improvement_surcharge": row[improvement_surcharge_pos],
-        "pickup_location_long_lat": "{},{}".format(row[pickup_longitude_pos], row[pickup_latitude_pos]),
-        "pickup_datetime": row[pickup_datetime_pos],
+        "total_amount": None if total_amount_pos is None else str_to_float_or_zero(row[total_amount_pos]),
+        "improvement_surcharge": None if improvement_surcharge_pos is None else str_to_float_or_zero(
+            row[improvement_surcharge_pos]),
+        "pickup_location_long_lat": None if (
+                pickup_location_long is None or pickup_location_lat is None) else "{},{}".format(
+            pickup_location_long, pickup_location_lat),
+        "pickup_datetime": None if pickup_datetime_pos is None else "\"{}\"".format(row[pickup_datetime_pos]),
         "trip_type": "1",
-        "dropoff_datetime": row[dropoff_datetime_pos],
-        "rate_code_id": row[rate_code_id_pos],
-        "tolls_amount": row[tolls_amount_pos],
-        "dropoff_location_long_lat": "{},{}".format(row[dropoff_longitude_pos], row[dropoff_latitude_pos]),
-        "passenger_count": row[passenger_count_pos],
-        "fare_amount": row[fare_amount_pos],
-        "extra": row[extra_pos],
-        "trip_distance": row[trip_distance_pos],
-        "tip_amount": row[tip_amount_pos],
-        "store_and_fwd_flag": row[store_and_fwd_flag_pos],
-        "payment_type": row[payment_type_pos],
-        "mta_tax": row[mta_tax_pos],
-        "vendor_id": row[vendor_id_pos],
+        "dropoff_datetime": None if dropoff_datetime_pos is None else "\"{}\"".format(row[dropoff_datetime_pos]),
+        "rate_code_id": None if rate_code_id_pos is None else row[rate_code_id_pos],
+        "tolls_amount": None if tolls_amount_pos is None else str_to_float_or_zero(row[tolls_amount_pos]),
+        "dropoff_location_long_lat": None if (
+                dropoff_location_long is None or dropoff_location_lat is None) else "{},{}".format(
+            dropoff_location_long, dropoff_location_lat),
+        "passenger_count": None if passenger_count_pos is None else row[passenger_count_pos],
+        "fare_amount": None if fare_amount_pos is None else str_to_float_or_zero(row[fare_amount_pos]),
+        "extra": None if extra_pos is None else str_to_float_or_zero(row[extra_pos]),
+        "trip_distance": None if trip_distance_pos is None else str_to_float_or_zero(row[trip_distance_pos]),
+        "tip_amount": None if tip_amount_pos is None else str_to_float_or_zero(row[tip_amount_pos]),
+        "store_and_fwd_flag": None if store_and_fwd_flag_pos is None else row[store_and_fwd_flag_pos],
+        "payment_type": None if payment_type_pos is None else row[payment_type_pos],
+        "mta_tax": None if mta_tax_pos is None else str_to_float_or_zero(row[mta_tax_pos]),
+        "vendor_id": None if vendor_id_pos is None else row[vendor_id_pos],
     }
-    for k in hash.keys():
-        assert k in index_types.keys()
+    docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)
+    # for k in hash.keys():
+    #     assert k in index_types.keys()
 
     fields = []
     for f, v in hash.items():
-        fields.append(f)
-        fields.append(v)
+        if v is not None:
+            fields.append(f)
+            fields.append(v)
     if use_ftadd is False:
-        cmd = ["WRITE", "W1", "HSET", "doc:{n}".format(n=total_docs)]
+        cmd = ["WRITE", "W1", "HSET", docid_str]
     else:
-        cmd = ["WRITE", "W1", "FT.ADD", indexname, "doc:{n}".format(n=total_docs), "1.0", "FIELDS"]
+        cmd = ["WRITE", "W1", "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
     for x in fields:
         cmd.append(x)
     return cmd
@@ -222,25 +262,25 @@ if (__name__ == "__main__"):
             print("Processing csv {}".format(input_csv_filename))
             csvreader = csv.reader(csvfile)
             header = next(csvreader)
-            total_amount_pos = header.index("total_amount")
-            improvement_surcharge_pos = header.index("improvement_surcharge")
-            pickup_longitude_pos = header.index("pickup_longitude")
-            pickup_latitude_pos = header.index("pickup_latitude")
-            pickup_datetime_pos = header.index("tpep_pickup_datetime")
-            dropoff_datetime_pos = header.index("tpep_dropoff_datetime")
-            rate_code_id_pos = header.index("RateCodeID")
-            tolls_amount_pos = header.index("tolls_amount")
-            dropoff_longitude_pos = header.index("dropoff_longitude")
-            dropoff_latitude_pos = header.index("dropoff_latitude")
-            passenger_count_pos = header.index("passenger_count")
-            fare_amount_pos = header.index("fare_amount")
-            extra_pos = header.index("extra")
-            trip_distance_pos = header.index("trip_distance")
-            tip_amount_pos = header.index("tip_amount")
-            store_and_fwd_flag_pos = header.index("store_and_fwd_flag")
-            payment_type_pos = header.index("payment_type")
-            mta_tax_pos = header.index("mta_tax")
-            vendor_id_pos = header.index("VendorID")
+            total_amount_pos = index_or_none(header, "total_amount")
+            improvement_surcharge_pos = index_or_none(header, "improvement_surcharge")
+            pickup_longitude_pos = index_or_none(header, "pickup_longitude")
+            pickup_latitude_pos = index_or_none(header, "pickup_latitude")
+            pickup_datetime_pos = index_or_none(header, "tpep_pickup_datetime")
+            dropoff_datetime_pos = index_or_none(header, "tpep_dropoff_datetime")
+            rate_code_id_pos = index_or_none(header, "RateCodeID")
+            tolls_amount_pos = index_or_none(header, "tolls_amount")
+            dropoff_longitude_pos = index_or_none(header, "dropoff_longitude")
+            dropoff_latitude_pos = index_or_none(header, "dropoff_latitude")
+            passenger_count_pos = index_or_none(header, "passenger_count")
+            fare_amount_pos = index_or_none(header, "fare_amount")
+            extra_pos = index_or_none(header, "extra")
+            trip_distance_pos = index_or_none(header, "trip_distance")
+            tip_amount_pos = index_or_none(header, "tip_amount")
+            store_and_fwd_flag_pos = index_or_none(header, "store_and_fwd_flag")
+            payment_type_pos = index_or_none(header, "payment_type")
+            mta_tax_pos = index_or_none(header, "mta_tax")
+            vendor_id_pos = index_or_none(header, "VendorID")
             for row in csvreader:
                 cmd = use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, improvement_surcharge_pos,
                                               pickup_longitude_pos,
