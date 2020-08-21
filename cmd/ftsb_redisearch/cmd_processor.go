@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/RediSearch/ftsb/benchmark_runner"
-	"github.com/mediocregopher/radix"
+	"github.com/mediocregopher/radix/v3"
 	"log"
 	"os"
 	"strings"
