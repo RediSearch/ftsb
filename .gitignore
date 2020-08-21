@@ -19,6 +19,7 @@ cmd/ftsb_generate_data/*.csv
 .vscode
 .project
 bin/
+dist/
 
 # Binaries for programs and plugins
 *.exe

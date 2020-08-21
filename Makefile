@@ -22,18 +22,24 @@ all: get test benchmark
 
 benchmark: ftsb_redisearch
 
+release:
+	$(GOGET) github.com/mitchellh/gox
+	$(GOGET) github.com/tcnksm/ghr
+	GO111MODULE=on gox  -osarch "linux/amd64 darwin/amd64" -output "dist/ftsb_redisearch_{{.OS}}_{{.Arch}}" ./cmd/ftsb_redisearch
+	#ghr -t $GITHUB_TOKEN  --replace `git describe --tags` dist/
+
 fmt:
 	$(GOFMT) ./...
 
 ftsb_redisearch:
-	go build -o bin/$@ ./cmd/$@
-	go install ./cmd/$@
+	$(GOBUILD) -o bin/$@ ./cmd/$@
+	$(GOINSTALL) ./cmd/$@
 
 get:
-	go get ./...
+	$(GOGET) ./...
 
 test: get
-	go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+	$(GOTEST) -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 # DOCKER TASKS
 # Build the container
