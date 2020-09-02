@@ -38,12 +38,17 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 }
 
 func connectionProcessor(p *processor) {
-	cmds := make([]radix.CmdAction, 0, 0)
-	times := make([]time.Time, 0, 0)
+	cmdSlots := make([][]radix.CmdAction, 0, 0)
+	timesSlots := make([][]time.Time, 0, 0)
+	slot := 0
+	if !clusterMode {
+		cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0) )
+		timesSlots = append(timesSlots, make([]time.Time, 0, 0) )
+	}
 	for row := range p.rows {
 		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
 		if err == nil {
-			cmds, times = sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmds, times)
+			cmdSlots[slot], timesSlots[slot] = sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slot], timesSlots[slot])
 		}
 	}
 
