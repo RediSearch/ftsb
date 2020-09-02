@@ -148,7 +148,7 @@ if (__name__ == "__main__"):
                         help='the end year of the yellow trip data to fetch')
     parser.add_argument('--yellow-tripdata-start-month', type=int, default=1,
                         help='the start month of the yellow trip data to fetch')
-    parser.add_argument('--yellow-tripdata-end-month', type=int, default=12,
+    parser.add_argument('--yellow-tripdata-end-month', type=int, default=1,
                         help='the start month of the yellow trip data to fetch')
     parser.add_argument('--index-name', type=str, default="nyc_taxis",
                         help='the name of the RediSearch index to be used')
@@ -293,6 +293,8 @@ if (__name__ == "__main__"):
                 all_csv_writer.writerow(cmd)
                 total_docs = total_docs + 1
                 progress.update()
+                if total_docs >= args.doc_limit:
+                    break
     progress.close()
     all_csvfile.close()
 

@@ -6,7 +6,6 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -39,10 +38,12 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 }
 
 func connectionProcessor(p *processor) {
+	cmds := make([]radix.CmdAction, 0, 0)
+	times := make([]time.Time, 0, 0)
 	for row := range p.rows {
 		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
 		if err == nil {
-			sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1)
+			cmds, times = sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmds, times)
 		}
 	}
 
@@ -64,80 +65,44 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64) {
+func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, times []time.Time ) ([]radix.CmdAction, []time.Time) {
 	var err error = nil
 	var rcv interface{}
-
 	rxBytesCount := uint64(0)
-	took := uint64(0)
+	var radixFlatCmd = radix.FlatCmd(nil, cmd, docfields[0], docfields[1:])
+	cmds = append(cmds, radixFlatCmd)
 	start := time.Now()
-	if cmd == "FT.ADD" {
-		var strrcv string
-		if clusterMode {
-			err = p.vanillaCluster.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
-		} else {
-			err = p.vanillaClient.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
-		}
-		rcv = strrcv
-	} else {
-		if clusterMode {
-			err = p.vanillaCluster.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
-		} else {
-			err = p.vanillaClient.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
-		}
-	}
-
-	catched_error := false
-	if err != nil {
-		errorCmdLogic(cmd, docfields, err, rcv)
-	}
-	took += uint64(time.Since(start).Microseconds())
-	rxBytesCount += getRxLen(rcv)
-	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, catched_error, false, txBytesCount, rxBytesCount)
-
-	ftAggregateLogic(p, cmd, rcv, err, docfields, took, rxBytesCount, stat, txBytesCount)
-	p.cmdChan <- *stat
-
+	times = append(times, start)
+	cmds, times = sendIfRequired(p, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
+	return cmds, times
 }
 
-func errorCmdLogic(cmd string, docfields []string, err error, rcv interface{}) {
-	issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
-	extendedError := fmt.Errorf("%s failed:%v\n. Received: %v Issued command: %s.", cmd, err, rcv, issuedCommand)
-	if continueOnErr {
-		fmt.Fprint(os.Stderr, extendedError)
-	} else {
-		log.Fatal(extendedError)
-	}
-}
-
-func ftAggregateLogic(p *processor, cmd string, rcv interface{}, err error, docfields []string, took uint64, rxBytesCount uint64, stat *benchmark_runner.Stat, txBytesCount uint64) {
-	if cmd == "FT.AGGREGATE" && rcv != nil {
-		var aggreply []interface{}
-		aggreply = rcv.([]interface{})
-		cursor_id := aggreply[1].(int64)
-		cursor_cmds := uint64(0)
-		for cursor_id != 0 {
-			start := time.Now()
-			if clusterMode {
-				err = p.vanillaCluster.Do(radix.FlatCmd(&aggreply, "FT.CURSOR", "READ", docfields[0], cursor_id))
+func sendIfRequired(p *processor, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
+	if len(cmds) >= pipeline {
+		err = p.vanillaClient.Do(radix.Pipeline(cmds...))
+		endT := time.Now()
+		if err != nil {
+			if continueOnErr {
+				if debug > 0 {
+					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
+				}
 			} else {
-				err = p.vanillaClient.Do(radix.FlatCmd(&aggreply, "FT.CURSOR", "READ", docfields[0], cursor_id))
+				log.Fatal(err)
 			}
-			if err != nil {
-				issuedCommand := fmt.Sprintf("FT.CURSOR READ %s %d", docfields[0], cursor_id)
-				extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", "FT.CURSOR", err, issuedCommand)
-				log.Fatal(extendedError)
-			}
-			took += uint64(time.Since(start).Microseconds())
-			rxBytesCount += getRxLen(rcv)
-			stat.AddCmdStatEntry(*benchmark_runner.NewCmdStat([]byte("CURSOR_READ"), []byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
-			cursor_id = 0
-			if len(aggreply) == 2 {
-				cursor_id = aggreply[1].(int64)
-			}
-			cursor_cmds++
 		}
+		for _, t := range times {
+			duration := endT.Sub(t)
+			took := uint64(duration.Microseconds())
+			rxBytesCount += getRxLen(rcv)
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
+			p.cmdChan <- *stat
+		}
+		cmds = nil
+		cmds = make([]radix.CmdAction, 0, 0)
+		times = nil
+		times = make([]time.Time, 0, 0)
 	}
+	return cmds, times
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
