@@ -17,6 +17,7 @@ type processor struct {
 	wg             *sync.WaitGroup
 	vanillaClient  *radix.Pool
 	vanillaCluster *radix.Cluster
+	clusterTopo    radix.ClusterTopo
 }
 
 func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
@@ -29,6 +30,8 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
 		}
+		p.vanillaCluster.Sync()
+		p.clusterTopo = p.vanillaCluster.Topo()
 	} else {
 		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0))
 		if err != nil {
@@ -40,18 +43,39 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 func connectionProcessor(p *processor) {
 	cmdSlots := make([][]radix.CmdAction, 0, 0)
 	timesSlots := make([][]time.Time, 0, 0)
-	slot := 0
+	clusterSlots := make([][2]uint16, 0, 0)
+	clusterAddr := make([]string, 0, 0)
+
+	slotP := 0
 	if !clusterMode {
-		cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0) )
-		timesSlots = append(timesSlots, make([]time.Time, 0, 0) )
-	}
-	for row := range p.rows {
-		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
-		if err == nil {
-			cmdSlots[slot], timesSlots[slot] = sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slot], timesSlots[slot])
+		cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
+		timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+	} else {
+		for _, ClusterNode := range p.clusterTopo {
+			clusterSlots = append(clusterSlots, ClusterNode.Slots[0])
+			cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
+			timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+			clusterAddr = append(clusterAddr, ClusterNode.Addr)
 		}
 	}
-
+	for row := range p.rows {
+		cmdType, cmdQueryId, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
+		for i, sArr := range clusterSlots {
+			if clusterSlot >= sArr[0] && clusterSlot <= sArr[1] {
+				slotP = i
+			}
+		}
+		if debug > 2 {
+			fmt.Println(key, clusterSlot, slotP, clusterSlots)
+			p.vanillaCluster.Client("a")
+		}
+		if !clusterMode {
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+		} else {
+			client, _ := p.vanillaCluster.Client(clusterAddr[slotP])
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+		}
+	}
 	p.wg.Done()
 }
 
@@ -70,21 +94,21 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, times []time.Time ) ([]radix.CmdAction, []time.Time) {
+func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, times []time.Time) ([]radix.CmdAction, []time.Time) {
 	var err error = nil
 	var rcv interface{}
 	rxBytesCount := uint64(0)
-	var radixFlatCmd = radix.FlatCmd(nil, cmd, docfields[0], docfields[1:])
+	var radixFlatCmd = radix.Cmd(nil, cmd, docfields...)
 	cmds = append(cmds, radixFlatCmd)
 	start := time.Now()
 	times = append(times, start)
-	cmds, times = sendIfRequired(p, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
+	cmds, times = sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
 	return cmds, times
 }
 
-func sendIfRequired(p *processor, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
+func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
 	if len(cmds) >= pipeline {
-		err = p.vanillaClient.Do(radix.Pipeline(cmds...))
+		err = client.Do(radix.Pipeline(cmds...))
 		endT := time.Now()
 		if err != nil {
 			if continueOnErr {
@@ -143,7 +167,7 @@ func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat
 func (p *processor) Close(_ bool) {
 }
 
-func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, args []string, bytelen uint64, err error) {
+func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, key string, clusterSlot uint16, args []string, bytelen uint64, err error) {
 
 	reader := csv.NewReader(strings.NewReader(row))
 	argsStr, err := reader.Read()
@@ -158,6 +182,8 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, a
 		cmd = argsStr[2]
 		if len(argsStr) > 3 {
 			args = argsStr[3:]
+			key = argsStr[3]
+			clusterSlot = radix.ClusterSlot([]byte(key))
 		}
 		bytelen = uint64(len(row)) - uint64(len(cmdType))
 	} else {
