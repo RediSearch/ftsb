@@ -24,26 +24,20 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	var err error = nil
 	if clusterMode {
 		poolFunc := func(network, addr string) (radix.Client, error) {
-			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
+			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(0), 0))
 		}
 		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
-
 		}
 	} else {
-
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 		}
 	}
 }
 
-// using random between [0,1) to determine whether it is an delete,update, or insert
-// DELETE IF BETWEEN [0,deleteLimit)
-// UPDATE IF BETWEEN [deleteLimit,updateLimit)
-// INSERT IF BETWEEN [updateLimit,1)
 func connectionProcessor(p *processor) {
 	for row := range p.rows {
 		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
@@ -95,18 +89,28 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 
 	catched_error := false
 	if err != nil {
-		issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
-		extendedError := fmt.Errorf("%s failed:%v\n. Received: %v Issued command: %s.", cmd, err, rcv, issuedCommand)
-		if continueOnErr {
-			fmt.Fprint(os.Stderr, extendedError)
-		} else {
-			log.Fatal(extendedError)
-		}
+		errorCmdLogic(cmd, docfields, err, rcv)
 	}
 	took += uint64(time.Since(start).Microseconds())
 	rxBytesCount += getRxLen(rcv)
 	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, catched_error, false, txBytesCount, rxBytesCount)
 
+	ftAggregateLogic(p, cmd, rcv, err, docfields, took, rxBytesCount, stat, txBytesCount)
+	p.cmdChan <- *stat
+
+}
+
+func errorCmdLogic(cmd string, docfields []string, err error, rcv interface{}) {
+	issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
+	extendedError := fmt.Errorf("%s failed:%v\n. Received: %v Issued command: %s.", cmd, err, rcv, issuedCommand)
+	if continueOnErr {
+		fmt.Fprint(os.Stderr, extendedError)
+	} else {
+		log.Fatal(extendedError)
+	}
+}
+
+func ftAggregateLogic(p *processor, cmd string, rcv interface{}, err error, docfields []string, took uint64, rxBytesCount uint64, stat *benchmark_runner.Stat, txBytesCount uint64) {
 	if cmd == "FT.AGGREGATE" && rcv != nil {
 		var aggreply []interface{}
 		aggreply = rcv.([]interface{})
@@ -133,12 +137,7 @@ func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []stri
 			}
 			cursor_cmds++
 		}
-		//if cursor_cmds > 0 {
-		//	p.readCursorCountChan <- cursor_cmds
-		//}
 	}
-	p.cmdChan <- *stat
-
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string

@@ -19,10 +19,10 @@ func Test_preProcessCmd(t *testing.T) {
 		wantBytelen    uint64
 		wantErr        bool
 	}{
-		{ "empty", args{ "WRITE,W1,HSET,doc:00cd782a6797464ea579429dbd921d60:0,pickup_location_long_lat,\"-73.993896484375,40.750110626220703\"" },
-			"WRITE", "W1", "FT.ADD", []string{"doc:00cd782a6797464ea579429dbd921d60:0","pickup_location_long_lat","\"-73.993896484375,40.750110626220703\""},
-		100,
-		false },
+		{"empty", args{"WRITE,W1,HSET,doc:00cd782a6797464ea579429dbd921d60:0,pickup_location_long_lat,\"-73.993896484375,40.750110626220703\""},
+			"WRITE", "W1", "FT.ADD", []string{"doc:00cd782a6797464ea579429dbd921d60:0", "pickup_location_long_lat", "\"-73.993896484375,40.750110626220703\""},
+			100,
+			false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
