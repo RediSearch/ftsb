@@ -376,7 +376,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	// Scan incoming databuild
-	return scanWithIndexer(channels, 10000, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
+	return scanWithIndexer(channels, 100, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
 }
 
 // work is the processing function for each worker in the loader
