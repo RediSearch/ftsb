@@ -6,6 +6,7 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -71,7 +72,6 @@ func connectionProcessor(p *processor) {
 		}
 		if debug > 2 {
 			fmt.Println(key, clusterSlot, slotP, clusterSlots)
-			p.vanillaCluster.Client("a")
 		}
 		if !clusterMode {
 			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
@@ -111,8 +111,14 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 }
 
 func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
-	if len(cmds) >= pipeline {
-		err = client.Do(radix.Pipeline(cmds...))
+	cmdLen := len(cmds)
+	if cmdLen >= pipeline {
+		if cmdLen == 1 {
+			// if pipeline is 1 no need to pipeline
+			err = client.Do(cmds[0])
+		} else {
+			err = client.Do(radix.Pipeline(cmds...))
+		}
 		endT := time.Now()
 		if err != nil {
 			if continueOnErr {
@@ -172,7 +178,6 @@ func (p *processor) Close(_ bool) {
 }
 
 func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, key string, clusterSlot uint16, args []string, bytelen uint64, err error) {
-
 	reader := csv.NewReader(strings.NewReader(row))
 	argsStr, err := reader.Read()
 	if err != nil {
@@ -183,10 +188,11 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, k
 	if len(argsStr) >= 3 {
 		cmdType = argsStr[0]
 		cmdQueryId = argsStr[1]
-		cmd = argsStr[2]
-		if len(argsStr) > 3 {
-			args = argsStr[3:]
-			key = argsStr[3]
+		keyPos, _ := strconv.Atoi(argsStr[2])
+		cmd = argsStr[3]
+		if len(argsStr) > 4 {
+			args = argsStr[4:]
+			key = argsStr[keyPos]
 			clusterSlot = radix.ClusterSlot([]byte(key))
 		}
 		bytelen = uint64(len(row)) - uint64(len(cmdType))
