@@ -34,10 +34,9 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		}
 		err = p.vanillaCluster.Sync()
 		if err != nil {
-			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
+			log.Fatalf("Error retrieving cluster topology. error = %v", err)
 		}
 		p.clusterTopo = p.vanillaCluster.Topo()
-		fmt.Println(p.clusterTopo)
 	} else {
 		// add randomness on ping interval
 		//pingInterval := (20+rand.Intn(10))*1000000000
@@ -72,7 +71,7 @@ func connectionProcessor(p *processor) {
 	for row := range p.rows {
 		cmdType, cmdQueryId, keyPos, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
 		for i, sArr := range clusterSlots {
-			if clusterSlot >= sArr[0] && clusterSlot <= sArr[1] {
+			if clusterSlot >= sArr[0] && clusterSlot < sArr[1] {
 				slotP = i
 			}
 		}
