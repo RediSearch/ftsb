@@ -36,7 +36,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		p.clusterTopo = p.vanillaCluster.Topo()
 	} else {
 		// add randomness on ping interval
-		pingInterval := (20+rand.Intn(10))*10 ^ 9
+		pingInterval := (20+rand.Intn(10))*1000000000
 		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(time.Duration(pingInterval)))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
