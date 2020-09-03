@@ -32,8 +32,12 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
 		}
-		p.vanillaCluster.Sync()
+		err = p.vanillaCluster.Sync()
+		if err != nil {
+			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
+		}
 		p.clusterTopo = p.vanillaCluster.Topo()
+		fmt.Println(p.clusterTopo)
 	} else {
 		// add randomness on ping interval
 		//pingInterval := (20+rand.Intn(10))*1000000000
@@ -57,21 +61,23 @@ func connectionProcessor(p *processor) {
 		timesSlots = append(timesSlots, make([]time.Time, 0, 0))
 	} else {
 		for _, ClusterNode := range p.clusterTopo {
-			clusterSlots = append(clusterSlots, ClusterNode.Slots[0])
-			cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
-			timesSlots = append(timesSlots, make([]time.Time, 0, 0))
-			clusterAddr = append(clusterAddr, ClusterNode.Addr)
+			for _, slot := range ClusterNode.Slots {
+				clusterSlots = append(clusterSlots, slot)
+				cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
+				timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+				clusterAddr = append(clusterAddr, ClusterNode.Addr)
+			}
 		}
 	}
 	for row := range p.rows {
-		cmdType, cmdQueryId, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
+		cmdType, cmdQueryId, keyPos, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
 		for i, sArr := range clusterSlots {
 			if clusterSlot >= sArr[0] && clusterSlot <= sArr[1] {
 				slotP = i
 			}
 		}
 		if debug > 2 {
-			fmt.Println(key, clusterSlot, slotP, clusterSlots)
+			fmt.Println(keyPos, key, clusterSlot, cmd, slotP, clusterSlots)
 		}
 		if !clusterMode {
 			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
@@ -177,7 +183,7 @@ func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat
 func (p *processor) Close(_ bool) {
 }
 
-func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, key string, clusterSlot uint16, args []string, bytelen uint64, err error) {
+func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, cmd string, key string, clusterSlot uint16, args []string, bytelen uint64, err error) {
 	reader := csv.NewReader(strings.NewReader(row))
 	argsStr, err := reader.Read()
 	if err != nil {
@@ -188,7 +194,8 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, k
 	if len(argsStr) >= 3 {
 		cmdType = argsStr[0]
 		cmdQueryId = argsStr[1]
-		keyPos, _ := strconv.Atoi(argsStr[2])
+		keyPos, _ = strconv.Atoi(argsStr[2])
+		keyPos = keyPos+3
 		cmd = argsStr[3]
 		if len(argsStr) > 4 {
 			args = argsStr[4:]
