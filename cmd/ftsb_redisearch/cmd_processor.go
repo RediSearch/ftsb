@@ -26,7 +26,8 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		poolFunc := func(network, addr string) (radix.Client, error) {
 			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(0), 0))
 		}
-		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
+		// We dont want the cluster to sync during the benchmark so we increase the sync time to a large value ( and do the sync CLUSTER SLOTS ) prior
+		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc), radix.ClusterSyncEvery(1 * time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
 		}
