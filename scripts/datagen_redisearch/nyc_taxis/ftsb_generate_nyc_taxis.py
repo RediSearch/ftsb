@@ -125,9 +125,9 @@ def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, impro
             fields.append(f)
             fields.append(v)
     if use_ftadd is False:
-        cmd = ["WRITE", "W1", "HSET", docid_str]
+        cmd = ["WRITE", "W1", 1, "HSET", docid_str]
     else:
-        cmd = ["WRITE", "W1", "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
+        cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
     for x in fields:
         cmd.append(x)
     return cmd
@@ -293,7 +293,7 @@ if (__name__ == "__main__"):
                 all_csv_writer.writerow(cmd)
                 total_docs = total_docs + 1
                 progress.update()
-                if total_docs >= args.doc_limit:
+                if args.doc_limit > 0 and total_docs >= args.doc_limit:
                     break
     progress.close()
     all_csvfile.close()
