@@ -6,7 +6,6 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
 	"log"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -36,8 +35,9 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		p.clusterTopo = p.vanillaCluster.Topo()
 	} else {
 		// add randomness on ping interval
-		pingInterval := (20+rand.Intn(10))*1000000000
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(time.Duration(pingInterval)))
+		//pingInterval := (20+rand.Intn(10))*1000000000
+		// We dont want PING to be issed from 5 to 5 seconds given that we know the connection is alive on the benchmark
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(1*time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 		}
