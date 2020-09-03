@@ -6,6 +6,7 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
 	"log"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -27,14 +28,16 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(0), 0))
 		}
 		// We dont want the cluster to sync during the benchmark so we increase the sync time to a large value ( and do the sync CLUSTER SLOTS ) prior
-		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc), radix.ClusterSyncEvery(1 * time.Hour))
+		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc), radix.ClusterSyncEvery(1*time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
 		}
 		p.vanillaCluster.Sync()
 		p.clusterTopo = p.vanillaCluster.Topo()
 	} else {
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0))
+		// add randomness on ping interval
+		pingInterval := (20+rand.Intn(10))*10 ^ 9
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(time.Duration(pingInterval)))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 		}
