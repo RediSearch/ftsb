@@ -6,7 +6,7 @@ import (
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
 	"log"
-	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,40 +18,73 @@ type processor struct {
 	wg             *sync.WaitGroup
 	vanillaClient  *radix.Pool
 	vanillaCluster *radix.Cluster
+	clusterTopo    radix.ClusterTopo
 }
 
 func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	var err error = nil
 	if clusterMode {
 		poolFunc := func(network, addr string) (radix.Client, error) {
-			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
+			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(0), 0))
 		}
-		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc))
+		// We dont want the cluster to sync during the benchmark so we increase the sync time to a large value ( and do the sync CLUSTER SLOTS ) prior
+		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc), radix.ClusterSyncEvery(1*time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new cluster connection. error = %v", err)
-
 		}
+		err = p.vanillaCluster.Sync()
+		if err != nil {
+			log.Fatalf("Error retrieving cluster topology. error = %v", err)
+		}
+		p.clusterTopo = p.vanillaCluster.Topo()
 	} else {
-
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(time.Duration(PoolPipelineWindow*float64(time.Millisecond)), PoolPipelineConcurrency))
+		// add randomness on ping interval
+		//pingInterval := (20+rand.Intn(10))*1000000000
+		// We dont want PING to be issed from 5 to 5 seconds given that we know the connection is alive on the benchmark
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(1*time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 		}
 	}
 }
 
-// using random between [0,1) to determine whether it is an delete,update, or insert
-// DELETE IF BETWEEN [0,deleteLimit)
-// UPDATE IF BETWEEN [deleteLimit,updateLimit)
-// INSERT IF BETWEEN [updateLimit,1)
 func connectionProcessor(p *processor) {
-	for row := range p.rows {
-		cmdType, cmdQueryId, cmd, docFields, bytelen, err := preProcessCmd(row)
-		if err == nil {
-			sendFlatCmd(p, cmdType, cmdQueryId, cmd, docFields, bytelen, 1)
+	cmdSlots := make([][]radix.CmdAction, 0, 0)
+	timesSlots := make([][]time.Time, 0, 0)
+	clusterSlots := make([][2]uint16, 0, 0)
+	clusterAddr := make([]string, 0, 0)
+
+	slotP := 0
+	if !clusterMode {
+		cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
+		timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+	} else {
+		for _, ClusterNode := range p.clusterTopo {
+			for _, slot := range ClusterNode.Slots {
+				clusterSlots = append(clusterSlots, slot)
+				cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
+				timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+				clusterAddr = append(clusterAddr, ClusterNode.Addr)
+			}
 		}
 	}
-
+	for row := range p.rows {
+		cmdType, cmdQueryId, keyPos, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
+		for i, sArr := range clusterSlots {
+			if clusterSlot >= sArr[0] && clusterSlot < sArr[1] {
+				slotP = i
+			}
+		}
+		if debug > 2 {
+			fmt.Println(keyPos, key, clusterSlot, cmd, slotP, clusterSlots)
+		}
+		if !clusterMode {
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+		} else {
+			client, _ := p.vanillaCluster.Client(clusterAddr[slotP])
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+		}
+	}
 	p.wg.Done()
 }
 
@@ -70,75 +103,50 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64) {
+func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, times []time.Time) ([]radix.CmdAction, []time.Time) {
 	var err error = nil
 	var rcv interface{}
-
 	rxBytesCount := uint64(0)
-	took := uint64(0)
+	var radixFlatCmd = radix.Cmd(nil, cmd, docfields...)
+	cmds = append(cmds, radixFlatCmd)
 	start := time.Now()
-	if cmd == "FT.ADD" {
-		var strrcv string
-		if clusterMode {
-			err = p.vanillaCluster.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
-		} else {
-			err = p.vanillaClient.Do(radix.FlatCmd(&strrcv, cmd, docfields[0], docfields[1:]))
-		}
-		rcv = strrcv
-	} else {
-		if clusterMode {
-			err = p.vanillaCluster.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
-		} else {
-			err = p.vanillaClient.Do(radix.FlatCmd(&rcv, cmd, docfields[0], docfields[1:]))
-		}
-	}
+	times = append(times, start)
+	cmds, times = sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
+	return cmds, times
+}
 
-	catched_error := false
-	if err != nil {
-		issuedCommand := fmt.Sprintf("%s %s %s", cmd, docfields[0], strings.Join(docfields[1:], " "))
-		extendedError := fmt.Errorf("%s failed:%v\n. Received: %v Issued command: %s.", cmd, err, rcv, issuedCommand)
-		if continueOnErr {
-			fmt.Fprint(os.Stderr, extendedError)
+func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
+	cmdLen := len(cmds)
+	if cmdLen >= pipeline {
+		if cmdLen == 1 {
+			// if pipeline is 1 no need to pipeline
+			err = client.Do(cmds[0])
 		} else {
-			log.Fatal(extendedError)
+			err = client.Do(radix.Pipeline(cmds...))
 		}
-	}
-	took += uint64(time.Since(start).Microseconds())
-	rxBytesCount += getRxLen(rcv)
-	stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, catched_error, false, txBytesCount, rxBytesCount)
-
-	if cmd == "FT.AGGREGATE" && rcv != nil {
-		var aggreply []interface{}
-		aggreply = rcv.([]interface{})
-		cursor_id := aggreply[1].(int64)
-		cursor_cmds := uint64(0)
-		for cursor_id != 0 {
-			start := time.Now()
-			if clusterMode {
-				err = p.vanillaCluster.Do(radix.FlatCmd(&aggreply, "FT.CURSOR", "READ", docfields[0], cursor_id))
+		endT := time.Now()
+		if err != nil {
+			if continueOnErr {
+				if debug > 0 {
+					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
+				}
 			} else {
-				err = p.vanillaClient.Do(radix.FlatCmd(&aggreply, "FT.CURSOR", "READ", docfields[0], cursor_id))
+				log.Fatal(err)
 			}
-			if err != nil {
-				issuedCommand := fmt.Sprintf("FT.CURSOR READ %s %d", docfields[0], cursor_id)
-				extendedError := fmt.Errorf("%s failed:%v\nIssued command: %s", "FT.CURSOR", err, issuedCommand)
-				log.Fatal(extendedError)
-			}
-			took += uint64(time.Since(start).Microseconds())
-			rxBytesCount += getRxLen(rcv)
-			stat.AddCmdStatEntry(*benchmark_runner.NewCmdStat([]byte("CURSOR_READ"), []byte("CURSOR_READ"), took, false, false, txBytesCount, rxBytesCount))
-			cursor_id = 0
-			if len(aggreply) == 2 {
-				cursor_id = aggreply[1].(int64)
-			}
-			cursor_cmds++
 		}
-		//if cursor_cmds > 0 {
-		//	p.readCursorCountChan <- cursor_cmds
-		//}
+		for _, t := range times {
+			duration := endT.Sub(t)
+			took := uint64(duration.Microseconds())
+			rxBytesCount += getRxLen(rcv)
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
+			p.cmdChan <- *stat
+		}
+		cmds = nil
+		cmds = make([]radix.CmdAction, 0, 0)
+		times = nil
+		times = make([]time.Time, 0, 0)
 	}
-	p.cmdChan <- *stat
-
+	return cmds, times
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
@@ -174,8 +182,7 @@ func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat
 func (p *processor) Close(_ bool) {
 }
 
-func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, args []string, bytelen uint64, err error) {
-
+func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, cmd string, key string, clusterSlot uint16, args []string, bytelen uint64, err error) {
 	reader := csv.NewReader(strings.NewReader(row))
 	argsStr, err := reader.Read()
 	if err != nil {
@@ -186,9 +193,13 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, cmd string, a
 	if len(argsStr) >= 3 {
 		cmdType = argsStr[0]
 		cmdQueryId = argsStr[1]
-		cmd = argsStr[2]
-		if len(argsStr) > 3 {
-			args = argsStr[3:]
+		keyPos, _ = strconv.Atoi(argsStr[2])
+		keyPos = keyPos+3
+		cmd = argsStr[3]
+		if len(argsStr) > 4 {
+			args = argsStr[4:]
+			key = argsStr[keyPos]
+			clusterSlot = radix.ClusterSlot([]byte(key))
 		}
 		bytelen = uint64(len(row)) - uint64(len(cmdType))
 	} else {

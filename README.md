@@ -51,13 +51,13 @@ So that benchmarking results are not affected by generating data or queries on-t
 
 - CSV format, with one command per line. 
 
-- On each line, the first two columns are related to the query type (READ, WRITE, UPDATE, DELETE, SETUP_WRITE) and query group ( any unique identifier you like. example Q1 ). 
+- On each line, the first three columns are related to the query type (READ, WRITE, UPDATE, DELETE, SETUP_WRITE), query group ( any unique identifier you like. example Q1 ), and key position. 
 
-- The columns >2 are the command and command arguments themselves, with one column per command argument. 
+- The columns >3 are the command and command arguments themselves, with one column per command argument. 
 
 Here is an example of a CSV line:
 ```
-WRITE,U1,FT.ADD,idx,doc1,1.0,FIELDS,title,hello world
+WRITE,U1,2,FT.ADD,idx,doc1,1.0,FIELDS,title,hello world
 ```
 which will translate to the following command being issued:
 ```
@@ -65,9 +65,9 @@ FT.ADD idx doc1 1.0 FIELDS title "hello world"
 ```
 The following links deep dive on:
 
-- Generating inputs from pre-baked benchmark suites (ecommerce-inventory , enwiki-abstract , enwiki-pages) [LINK]
+- Generating inputs from pre-baked benchmark suites (ecommerce-inventory , enwiki-abstract , enwiki-pages) 
 
-- Generating your own use cases [LINK]
+- Generating your own use cases 
 
 Apart from the CSV files, and not mandatory, there is a benchmark suite specification that enables you to describe in detail the benchmark, what key metrics it provides, and how to automatically run more complex suites (with several steps, etc… ). This is not mandatory and for a simple benchmark, you just need to feed the CSV file as input. 
 
@@ -134,9 +134,3 @@ Usage of ftsb_redisearch:
   -workers uint
         Number of parallel clients inserting (default 8)
 ```
-
-For more complex usages of the tools, deep dive on the following links:
-
-- How to compare two distinct benchmark results [LINK]
-
-- Fully automate the benchmark inputs retrieval, benchmark running, and results processing ( CI example ) [LINK]

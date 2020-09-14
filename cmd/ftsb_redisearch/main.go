@@ -8,14 +8,12 @@ import (
 
 // Program option vars:
 var (
-	host                    string
-	debug                   int
-	loader                  *benchmark_runner.BenchmarkRunner
-	PoolPipelineConcurrency int
-	PoolPipelineWindow      float64
-	clusterMode             bool
-	singleWorkerQueue       bool
-	continueOnErr           bool
+	host          string
+	debug         int
+	loader        *benchmark_runner.BenchmarkRunner
+	pipeline      int
+	clusterMode   bool
+	continueOnErr bool
 )
 
 // Parse args:
@@ -25,9 +23,7 @@ func init() {
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.BoolVar(&continueOnErr, "continue-on-error", false, "If set to true, it will continue the benchmark and print the error message to stderr.")
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
-	flag.Float64Var(&PoolPipelineWindow, "pipeline-window-ms", 0.5, "If window is zero then implicit pipelining will be disabled")
-	flag.IntVar(&PoolPipelineConcurrency, "pipeline-max-size", 100, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
-	flag.BoolVar(&singleWorkerQueue, "workers-single-queue", true, "If set to true, it will use a single shared queue across all workers.")
+	flag.IntVar(&pipeline, "pipeline", 1, "Pipeline <numreq> requests. Default 1 (no pipeline).")
 	flag.Parse()
 }
 
@@ -39,10 +35,8 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["host"] = host
 	configs["clusterMode"] = clusterMode
 	configs["continueOnError"] = continueOnErr
-	configs["singleWorkerQueue"] = singleWorkerQueue
 	configs["debug"] = debug
-	configs["PoolPipelineWindow"] = PoolPipelineWindow
-	configs["PoolPipelineConcurrency"] = PoolPipelineConcurrency
+	configs["pipeline"] = pipeline
 	return configs
 }
 
@@ -74,10 +68,6 @@ func (b *benchmark) GetProcessor() benchmark_runner.Processor {
 }
 
 func main() {
-	//if singleWorkerQueue {
 	b := benchmark{}
 	loader.RunBenchmark(&b, benchmark_runner.SingleQueue)
-	//} else {
-	//	loader.RunBenchmark(&benchmark{dbc: &creator}, load.WorkerPerQueue)
-	//}
 }
