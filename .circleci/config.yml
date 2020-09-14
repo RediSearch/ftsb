@@ -11,7 +11,7 @@ executors:
       - image: redislabs/redisearch:latest
 
 jobs:
-  benchmark:
+  ci-benchmark:
     parameters:
       redisearch_version:
         type: executor
