@@ -17,7 +17,7 @@ jobs:
         type: executor
       use_case:
         type: string
-    executor: edge
+    executor: << parameters.redisearch_version >>
     steps:
       - checkout
       - run: make
@@ -59,7 +59,7 @@ workflows:
       - ci-benchmark:
         matrix:
           parameters:
-            redisearch_version: ["edge", "latest"]
+            redisearch_version: [edge]
             use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
 
   ci_benchmarks:
@@ -74,5 +74,5 @@ workflows:
       - ci-benchmark:
         matrix:
           parameters:
-            redisearch_version: ["edge", "latest"]
+            redisearch_version: [edge]
             use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
