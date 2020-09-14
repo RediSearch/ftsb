@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         go: [ '1.14']
-        redisearch_version: ['edge','latest']
+        redisearch_version: ['edge']
         use_case: ['ecommerce-inventory','nyc_taxis-ft.add','nyc_taxis-hashes']
     services:
       redis:
