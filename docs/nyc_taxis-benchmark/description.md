@@ -71,7 +71,9 @@ redisbench-admin run \
      --repetitions 3 \
      --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes/nyc_taxis-hashes.redisearch.cfg.json
 ```
+
 ### FT.ADD variation
+```
 redisbench-admin run \
      --repetitions 3 \
      --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ft.add/nyc_taxis-ft.add.redisearch.cfg.json
