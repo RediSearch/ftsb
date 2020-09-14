@@ -167,7 +167,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
     skuId_list = random.choices(skus, k=maxSkusList)
     nodeId_list = random.choices(nodes, k=maxNodesList)
 
-    cmd = ["READ", "R1", "FT.AGGREGATE", "{index}".format(index=index),
+    cmd = ["READ", "R1", 1, "FT.AGGREGATE", "{index}".format(index=index),
            "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(market,
                                                                    "|".join(skuId_list),
                                                                    "|".join(nodeId_list))
@@ -180,7 +180,7 @@ def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSk
 
 
 def generate_ft_add_row(index, doc):
-    cmd = ["SETUP_WRITE", "S1", "FT.ADD", "{index}".format(index=index),
+    cmd = ["SETUP_WRITE", "S1", 2, "FT.ADD", "{index}".format(index=index),
            "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]), 1.0, "REPLACE", "FIELDS"]
     for f, v in doc["schema"].items():
         cmd.append(f)
@@ -204,7 +204,7 @@ def generate_ft_drop_row(index):
 
 
 def generate_ft_add_update_row(indexname, doc):
-    cmd = ["UPDATE", "U1", "FT.ADD", "{index}".format(index=indexname),
+    cmd = ["UPDATE", "U1", 2, "FT.ADD", "{index}".format(index=indexname),
            "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
            "REPLACE", "PARTIAL", "FIELDS"]
     TRUES = "true"
@@ -538,7 +538,7 @@ if (__name__ == "__main__"):
     inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
 
     deployment_requirements = init_deployment_requirement()
-    add_deployment_requirements_redis_server_module(deployment_requirements, "ft", {})
+    add_deployment_requirements_redis_server_module(deployment_requirements, "search", {})
     add_deployment_requirements_utilities(deployment_requirements, "ftsb_redisearch", {})
     add_deployment_requirements_benchmark_tool(deployment_requirements, "ftsb_redisearch")
 
