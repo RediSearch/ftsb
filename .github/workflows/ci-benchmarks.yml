@@ -13,12 +13,13 @@ jobs:
       matrix:
         go: [ '1.14']
         redisearch_version: ['edge','latest']
+        use_case: ['ecommerce-inventory','nyc_taxis-ft.add','nyc_taxis-hashes']
     services:
       redis:
         image: redislabs/redisearch:${{ matrix.redisearch_version }}
         ports:
           - 6379:6379
-    name: Benchmark redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
+    name: Benchmark ${{ matrix.use_case }} redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
       - name: Build and Run Benchmark
@@ -43,8 +44,8 @@ jobs:
           sudo python3 -m pip install wheel
           python3 -m pip install redisbench-admin==0.1.10
           ~/.local/bin/redisbench-admin run \
-               --repetitions 7 \
+               --repetitions 3 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
-               --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
+               --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/${{ matrix.use_case }}/${{ matrix.use_case }}.redisearch.cfg.json
 
