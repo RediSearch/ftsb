@@ -57,9 +57,9 @@ workflows:
       - build-edge
       - build-latest
       - ci-benchmark:
-        matrix:
-          parameters:
-            use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
+          matrix:
+            parameters:
+              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
 
   ci_benchmarks:
     triggers:
@@ -71,6 +71,6 @@ workflows:
                 - master
     jobs:
       - ci-benchmark:
-        matrix:
-          parameters:
-            use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
+          matrix:
+            parameters:
+              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
