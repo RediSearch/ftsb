@@ -1,7 +1,7 @@
 ## NYC taxis use case
 
 This benchmark focus himself on write performance, making usage of TLC Trip Record Data that contains the rides that have been performed in yellow taxis in New York in 2015.
-On total, the benchmark loads >140M documents like the following one:
+On total, the benchmark loads >12M documents like the following one:
 
 ### Example Document
 On average each added document will have a size of 500 bytes.
@@ -27,7 +27,7 @@ On average each added document will have a size of 500 bytes.
   "vendor_id": "2"
 }
 ```
-Depending on the benchmark variation it uses either `FT.ADD` or `HSET` commands.
+Depending on the benchmark variation it uses either `FT.ADD` or `HSET` commands. By default HSET will be used.
 
 ## How to benchmark
 
@@ -39,17 +39,13 @@ The original dataset is present in https://www1.nyc.gov/site/tlc/about/tlc-trip-
 
 To generate the required dataset command file issue:
 ```
-cd $GOPATH/src/github.com/RediSearch/ftsb/cmd/ftsb_generate_redisearch/nyc_taxis
+cd $GOPATH/src/github.com/RediSearch/ftsb/scripts/datagen_redisearch/nyc_taxis
 python3 ftsb_generate_nyc_taxis.py 
 ```
 
-This will download 12 files for a temporary folder and preprocess them to be ingested. On total you should expected a large `nyc_taxis.redisearch.commands.ALL.tar.gz` file to be generated with 140M commands to be issued to the DB, alongside it's config json `nyc_taxis.redisearch.cfg.json`.
+This will download 1 to 12 files ( depending on the start and end date ) for a temporary folder and preprocess them to be ingested. 
+On total you should expected a large `nyc_taxis.redisearch.commands.ALL.tar.gz` file to be generated with >12M commands to be issued to the DB, alongside it's config json `nyc_taxis.redisearch.cfg.json`.
 
-Note: to generate a dataset proper for CI runs, issue the following command that will produce 12M commands to be issued to the DB.
-```
-python3 ftsb_generate_nyc_taxis.py --yellow-tripdata-end-month 1 \
-        --test-name nyc_taxis-hashes-CI
-```
 
 ### FT.ADD variation
 To generate the FT.ADD variations you just need to include the `use-ftadd` flag, as follow: 
@@ -67,15 +63,18 @@ The use case generates an secondary index with 18 fields per document:
 
 ## Running the benchmark
 
-Assuming you have `redisbench-admin` and `ftsb_redisearch` installed, for the default dataset with 140M documents, run:
+Assuming you have `redisbench-admin` and `ftsb_redisearch` installed, for the default dataset with >12M documents, run:
 
 ### HSET variation
 ```
- https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes/nyc_taxis-hashes.redisearch.cfg.json
+redisbench-admin run \
+     --repetitions 3 \
+     --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes/nyc_taxis-hashes.redisearch.cfg.json
 ```
 ### FT.ADD variation
-```
- https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ftadd/nyc_taxis-ftadd.redisearch.cfg.json
+redisbench-admin run \
+     --repetitions 3 \
+     --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ft.add/nyc_taxis-ft.add.redisearch.cfg.json
 ```
 
 ### Key Metrics:

@@ -1,8 +1,0 @@
-
-contrib/
-docs/
-bin/
-.circleci/
-README.md
-LICENSE
-coverage.txt
