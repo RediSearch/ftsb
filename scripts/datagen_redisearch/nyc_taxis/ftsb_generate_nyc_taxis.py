@@ -314,7 +314,7 @@ if (__name__ == "__main__"):
     inputs = {"all": inputs_entry_all, "benchmark": inputs_entry_all}
 
     deployment_requirements = init_deployment_requirement()
-    add_deployment_requirements_redis_server_module(deployment_requirements, "ft", {})
+    add_deployment_requirements_redis_server_module(deployment_requirements, "search", {})
     add_deployment_requirements_utilities(deployment_requirements, "ftsb_redisearch", {})
     add_deployment_requirements_benchmark_tool(deployment_requirements, "ftsb_redisearch")
 
