@@ -57,17 +57,21 @@ workflows:
       - build-edge
       - build-latest
       - ci-benchmark:
-          name: edge ecommerce-inventory
-            redisearch_version: edge
-            use_case: "ecommerce-inventory"
+          name: edge-ecommerce-inventory
+          redisearch_version: edge
+          use_case: "ecommerce-inventory"
       - ci-benchmark:
-          name: edge nyc_taxis-ft.add
-            redisearch_version: edge
-            use_case: "nyc_taxis-ft.add"
+          name: edge-nyc_taxis-ft.add
+          redisearch_version: edge
+          use_case: "nyc_taxis-ft.add"
+          requires:
+            - edge-ecommerce-inventory
       - ci-benchmark:
-          name: edge nyc_taxis-hashes
-            redisearch_version: edge
-            use_case: "nyc_taxis-hashes"
+          name: edge-nyc_taxis-hashes
+          redisearch_version: edge
+          use_case: "nyc_taxis-hashes"
+          requires:
+            - edge-nyc_taxis-ft.add
 
   ci_benchmarks:
     triggers:
@@ -86,12 +90,11 @@ workflows:
           name: edge-nyc_taxis-ft.add
           redisearch_version: edge
           use_case: "nyc_taxis-ft.add"
+          requires:
+            - edge-ecommerce-inventory
       - ci-benchmark:
           name: edge-nyc_taxis-hashes
           redisearch_version: edge
           use_case: "nyc_taxis-hashes"
-
-#          matrix:
-#            parameters:
-#              redisearch_version: [edge]
-#              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
+          requires:
+            - edge-nyc_taxis-ft.add
