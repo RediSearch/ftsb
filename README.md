@@ -32,17 +32,13 @@ FTSB is used to benchmark bulk load performance and query execution performance.
 ### Current use cases
 
 Currently, FTSB supports three use cases: 
-- **nyc_taxis** [[details kere](docs/nyc_taxis-benchmark/description.md)]. This benchmark focus himself on write performance, making usage of TLC Trip Record Data that contains the rides that have been performed in yellow taxis in New York in 2015.                                                                                                                                                                             On total, the benchmark loads >12M documents
+- **nyc_taxis** [[details here](docs/nyc_taxis-benchmark/description.md)]. This benchmark focusses on write performance, making usage of TLC Trip Record Data that contains the rides that have been performed in yellow cab taxis in New York in 2015. The benchmark loads over 12M documents.
 
+- **enwiki-abstract** [[details here](docs/enwiki-abstract-benchmark/description.md)], from English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates 3 `TEXT` fields per document, and focusses on full text queries performance.
 
-- **enwiki-abstract** [[details kere](docs/enwiki-abstract-benchmark/description.md)], from English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates
-3 TEXT fields per document, and focus himself on full text queries performance.
-
-
-- **ecommerce-inventory** [[details kere](docs/ecommerce-inventory-benchmark/description.md)], from a base dataset of [10K fashion products on Amazon.com](https://data.world/promptcloud/fashion-products-on-amazon-com/workspace/file?filename=amazon_co-ecommerce_sample.csv) which are then multiplexed by categories, sellers, and countries to produce larger datasets > 1M docs. This benchmark focuses on updates and aggregate performance, splitting into Reads (FT.AGGREGATE), Cursor Reads (FT.CURSOR), and Updates (FT.ADD) the performance numbers. 
-The use case generates an index with 10 TAG fields (3 sortable and 1 non indexed), and 16 NUMERIC sortable non indexed fields per document.
-The aggregate queries are designed to be extremely costly both on computation and network TX, given that on each query we're aggregating and filtering over a large portion of the dataset while additionally loading 21 fields. 
-Both the update and read rates can be adjusted.
+- **ecommerce-inventory** [[details here](docs/ecommerce-inventory-benchmark/description.md)], from a base dataset of [10K fashion products on Amazon.com](https://data.world/promptcloud/fashion-products-on-amazon-com/workspace/file?filename=amazon_co-ecommerce_sample.csv) which are then multiplexed by categories, sellers, and countries to produce larger datasets (> 1M documents). This benchmark focuses on updates and aggregate performance, splitting into Reads (FT.AGGREGATE), Cursor Reads (FT.CURSOR), and Updates (FT.ADD) the performance numbers. 
+The use case generates an index with 10 `TAG` fields (3 sortable and 1 non indexed), and 16 `NUMERIC` sortable non indexed fields per document.
+The aggregate queries are designed to be extremely costly both on computation and network TX, given that each query aggregates and filters a large portion of the dataset while additionally loading 21 fields. Both the update and read rates can be adjusted.
 
 
 
