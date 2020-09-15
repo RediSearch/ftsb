@@ -1,14 +1,19 @@
 # FTSB outputs #
 ################
 
-cmd/ftsb_generate_redisearch/__pycache__/*
-cmd/ftsb_generate_redisearch/nyc_taxis/tmp/*
 cmd/ftsb_redisearch/ftsb_redisearch
 
+###################
+# Data generators #
+###################
 *.txt
 *.csv
-cmd/ftsb_generate_data/*.csv
+*.pyc
+*__pycache__*
+scripts/datagen_redisearch/__pycache__/**
+scripts/datagen_redisearch/nyc_taxis/tmp/*
 
+###################
 # Idea / others #
 #################
 

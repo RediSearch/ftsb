@@ -12,13 +12,14 @@ jobs:
     strategy:
       matrix:
         go: [ '1.14']
-        redisearch_version: ['edge','latest']
+        redisearch_version: ['edge']
+        use_case: ['ecommerce-inventory','nyc_taxis-ft.add','nyc_taxis-hashes']
     services:
       redis:
         image: redislabs/redisearch:${{ matrix.redisearch_version }}
         ports:
           - 6379:6379
-    name: Benchmark redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
+    name: Benchmark ${{ matrix.use_case }} redisearch:${{ matrix.redisearch_version }} with Go ${{ matrix.go }}
     steps:
       - uses: actions/checkout@v2
       - name: Build and Run Benchmark
@@ -35,18 +36,16 @@ jobs:
           mkdir -p $GOPATH/src/github.com/$GITHUB_REPOSITORY
           mv $(pwd)/* $GOPATH/src/github.com/$GITHUB_REPOSITORY
           cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
-          go get ./...
-          go test ./...
-          go install ./...
+          make test
           sudo apt install python3.6 -y
           sudo apt install python3-pip -y
           sudo apt-get install python3-setuptools -y
           cd $GOPATH/src/github.com/$GITHUB_REPOSITORY
           sudo python3 -m pip install wheel
-          python3 -m pip install redisbench-admin==0.1.10
+          python3 -m pip install redisbench-admin==0.1.12
           ~/.local/bin/redisbench-admin run \
-               --repetitions 7 \
+               --repetitions 3 \
                --output-file-prefix github-actions \
                --upload-results-s3 \
-               --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
+               --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/${{ matrix.use_case }}/${{ matrix.use_case }}.redisearch.cfg.json
 

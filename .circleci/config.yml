@@ -1,14 +1,42 @@
-# Golang CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
+
+executors:
+  edge:
+    docker:
+      - image: circleci/golang:1.13
+      - image: redislabs/redisearch:edge
+  latest:
+    docker:
+      - image: circleci/golang:1.13
+      - image: redislabs/redisearch:latest
+
 jobs:
+  ci-benchmark:
+    parameters:
+      redisearch_version:
+        type: executor
+      use_case:
+        type: string
+    executor: << parameters.redisearch_version >>
+    steps:
+      - checkout
+      - run: make
+      - run: sudo apt install python3.6 -y
+      - run: sudo apt install python3-pip -y
+      - run: python3 -m pip install wheel redisbench-admin==0.1.12
+      - run:
+          name: << parameters.use_case >> use case
+          command: |
+            redisbench-admin run \
+             --repetitions 3 \
+             --output-file-prefix circleci \
+             --upload-results-s3 \
+             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/<< parameters.use_case >>/<< parameters.use_case >>.redisearch.cfg.json
+
   build-edge: # test with redisearch:edge
     docker:
       - image: circleci/golang:1.13
       - image: redislabs/redisearch:edge
-
-    working_directory: /go/src/github.com/RediSearch/ftsb
     steps:
       - checkout
       - run: make test
@@ -19,95 +47,31 @@ jobs:
       - image: circleci/golang:1.13
       - image: redislabs/redisearch:latest
 
-    working_directory: /go/src/github.com/RediSearch/ftsb
     steps:
       - checkout
       - run: make test
 
-  ci-benchmark-edge: # test nightly with redisearch:edge
-    docker:
-      - image: circleci/golang:1.13
-      - image: redislabs/redisearch:edge
-
-    working_directory: /go/src/github.com/RediSearch/ftsb
-    steps:
-      - checkout
-      - run: make
-      - run: sudo apt install python3.6 -y
-      - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.10
-      - run:
-          name: ecommerce-inventory use case
-          command: |
-            redisbench-admin run \
-             --repetitions 7 \
-             --output-file-prefix circleci \
-             --upload-results-s3 \
-             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
-      - run:
-          name: nyc_taxis CI use case with HSET
-          command: |
-            redisbench-admin run \
-            --repetitions 3 \
-            --output-file-prefix circleci \
-            --benchmark-requests 1000000 \
-            --upload-results-s3 \
-            --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-hashes-CI/nyc_taxis-hashes-CI.redisearch.cfg.json
-          no_output_timeout: 30m
-      - run:
-          name: nyc_taxis CI use case with FT.ADD
-          command: |
-            redisbench-admin run \
-            --repetitions 3 \
-            --output-file-prefix circleci \
-            --benchmark-requests 1000000 \
-            --upload-results-s3 \
-            --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/nyc_taxis-ftadd-CI/nyc_taxis-ftadd-CI.redisearch.cfg.json
-          no_output_timeout: 30m
-
-  ci-benchmark-latest: # test nightly with redisearch:edge
-    docker:
-      - image: circleci/golang:1.13
-      - image: redislabs/redisearch:latest
-
-    working_directory: /go/src/github.com/RediSearch/ftsb
-    steps:
-      - checkout
-      - run: make
-      - run: sudo apt install python3.6 -y
-      - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.10
-      - run: |
-          redisbench-admin run \
-          --repetitions 7 \
-          --output-file-prefix circleci \
-          --upload-results-s3 \
-          --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/ecommerce-inventory/ecommerce-inventory.redisearch.cfg.json
-
-
-  build-multiarch-docker:
-    machine:
-      enabled: true
-    steps:
-      - checkout
-      - run: |
-          echo "$DOCKER_REDISBENCH_PWD" | base64 --decode | docker login --username $DOCKER_REDISBENCH_USER --password-stdin
-      - run:
-          name: Build
-          command: |
-            make docker-release
-          no_output_timeout: 20m
-
 workflows:
-  version: 2
   commit:
     jobs:
       - build-edge
       - build-latest
-      - ci-benchmark-edge
-      - ci-benchmark-latest:
+      - ci-benchmark:
+          name: edge-ecommerce-inventory
+          redisearch_version: edge
+          use_case: "ecommerce-inventory"
+      - ci-benchmark:
+          name: edge-nyc_taxis-ft.add
+          redisearch_version: edge
+          use_case: "nyc_taxis-ft.add"
           requires:
-            - ci-benchmark-edge
+            - edge-ecommerce-inventory
+      - ci-benchmark:
+          name: edge-nyc_taxis-hashes
+          redisearch_version: edge
+          use_case: "nyc_taxis-hashes"
+          requires:
+            - edge-nyc_taxis-ft.add
 
   ci_benchmarks:
     triggers:
@@ -118,7 +82,19 @@ workflows:
               only:
                 - master
     jobs:
-      - ci-benchmark-edge
-      - ci-benchmark-latest:
+      - ci-benchmark:
+          name: edge-ecommerce-inventory
+          redisearch_version: edge
+          use_case: "ecommerce-inventory"
+      - ci-benchmark:
+          name: edge-nyc_taxis-ft.add
+          redisearch_version: edge
+          use_case: "nyc_taxis-ft.add"
           requires:
-            - ci-benchmark-edge
+            - edge-ecommerce-inventory
+      - ci-benchmark:
+          name: edge-nyc_taxis-hashes
+          redisearch_version: edge
+          use_case: "nyc_taxis-hashes"
+          requires:
+            - edge-nyc_taxis-ft.add

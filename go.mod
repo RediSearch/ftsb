@@ -1,6 +1,6 @@
 module github.com/RediSearch/ftsb
 
-go 1.14
+go 1.13
 
 require (
 	code.cloudfoundry.org/bytefmt v0.0.0-20200131002437-cf55d5288a48
