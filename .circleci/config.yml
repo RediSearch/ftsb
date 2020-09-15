@@ -25,13 +25,13 @@ jobs:
       - run: sudo apt install python3-pip -y
       - run: python3 -m pip install wheel redisbench-admin==0.1.12
       - run:
-         name: << parameters.use_case >> use case
-         command: |
-           redisbench-admin run \
-            --repetitions 3 \
-            --output-file-prefix circleci \
-            --upload-results-s3 \
-            --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/<< parameters.use_case >>/<< parameters.use_case >>.redisearch.cfg.json
+          name: << parameters.use_case >> use case
+          command: |
+            redisbench-admin run \
+             --repetitions 3 \
+             --output-file-prefix circleci \
+             --upload-results-s3 \
+             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/<< parameters.use_case >>/<< parameters.use_case >>.redisearch.cfg.json
 
   build-edge: # test with redisearch:edge
     docker:
@@ -57,10 +57,17 @@ workflows:
       - build-edge
       - build-latest
       - ci-benchmark:
-          matrix:
-            parameters:
-              redisearch_version: [edge]
-              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
+          name: edge ecommerce-inventory
+            redisearch_version: edge
+            use_case: "ecommerce-inventory"
+      - ci-benchmark:
+          name: edge nyc_taxis-ft.add
+            redisearch_version: edge
+            use_case: "nyc_taxis-ft.add"
+      - ci-benchmark:
+          name: edge nyc_taxis-hashes
+            redisearch_version: edge
+            use_case: "nyc_taxis-hashes"
 
   ci_benchmarks:
     triggers:
@@ -72,7 +79,19 @@ workflows:
                 - master
     jobs:
       - ci-benchmark:
-          matrix:
-            parameters:
-              redisearch_version: [edge]
-              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
+          name: edge ecommerce-inventory
+            redisearch_version: edge
+            use_case: "ecommerce-inventory"
+      - ci-benchmark:
+          name: edge nyc_taxis-ft.add
+            redisearch_version: edge
+            use_case: "nyc_taxis-ft.add"
+      - ci-benchmark:
+          name: edge nyc_taxis-hashes
+            redisearch_version: edge
+            use_case: "nyc_taxis-hashes"
+
+#          matrix:
+#            parameters:
+#              redisearch_version: [edge]
+#              use_case: ["ecommerce-inventory","nyc_taxis-ft.add","nyc_taxis-hashes"]
