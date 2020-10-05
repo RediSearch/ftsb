@@ -155,6 +155,11 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                            }
                            }
                     docs_map[doc_id] = doc
+                    dd = {k: v['value'] for k, v in doc['schema'].items()}
+                    print("{")
+                    for k, v in dd.items():
+                        print(" \"{}\" : \"{}\",".format(k, v))
+                    print("}")
                     added_docs = added_docs + 1
 
     return nodes, total_nodes, docs_map, added_docs, product_ids
@@ -362,7 +367,8 @@ if (__name__ == "__main__"):
     benchmark_repetitions_require_teardown_and_resetup = False
 
     ## remove previous files if they exist
-    all_artifacts = [all_fname,setup_fname,bench_fname,all_fname_compressed,setup_fname_compressed,bench_fname_compressed,benchmark_config_file]
+    all_artifacts = [all_fname, setup_fname, bench_fname, all_fname_compressed, setup_fname_compressed,
+                     bench_fname_compressed, benchmark_config_file]
     for artifact in all_artifacts:
         remove_file_if_exists(artifact)
 
