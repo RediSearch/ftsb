@@ -7,6 +7,7 @@ cmd/ftsb_redisearch/ftsb_redisearch
 # Data generators #
 ###################
 *.txt
+*.xml
 *.csv
 *.pyc
 *__pycache__*

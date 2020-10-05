@@ -23,7 +23,7 @@ jobs:
       - run: make
       - run: sudo apt install python3.6 -y
       - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.12
+      - run: python3 -m pip install wheel redisbench-admin==0.1.13
       - run:
           name: << parameters.use_case >> use case
           command: |
@@ -54,12 +54,16 @@ jobs:
 workflows:
   commit:
     jobs:
-      - build-edge
+      - build-edge:
+          requires:
+            - build-latest
       - build-latest
       - ci-benchmark:
           name: edge-ecommerce-inventory
           redisearch_version: edge
           use_case: "ecommerce-inventory"
+          requires:
+            - build-edge
       - ci-benchmark:
           name: edge-nyc_taxis-ft.add
           redisearch_version: edge
@@ -72,6 +76,12 @@ workflows:
           use_case: "nyc_taxis-hashes"
           requires:
             - edge-nyc_taxis-ft.add
+      - ci-benchmark:
+          name: edge-enwiki_abstract-hashes
+          redisearch_version: edge
+          use_case: "enwiki_abstract-hashes"
+          requires:
+            - edge-nyc_taxis-hashes
 
   ci_benchmarks:
     triggers:
@@ -98,3 +108,9 @@ workflows:
           use_case: "nyc_taxis-hashes"
           requires:
             - edge-nyc_taxis-ft.add
+      - ci-benchmark:
+          name: edge-enwiki_abstract-hashes
+          redisearch_version: edge
+          use_case: "enwiki_abstract-hashes"
+          requires:
+            - edge-nyc_taxis-hashes

@@ -76,7 +76,7 @@ func connectionProcessor(p *processor) {
 			}
 		}
 		if debug > 2 {
-			fmt.Println(keyPos, key, clusterSlot, cmd, slotP, clusterSlots)
+			fmt.Println(keyPos, key, clusterSlot, cmd, strings.Join(docFields,","), slotP, clusterSlots)
 		}
 		if !clusterMode {
 			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
