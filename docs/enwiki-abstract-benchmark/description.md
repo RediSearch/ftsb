@@ -68,7 +68,7 @@ The following steps focus on how to retrieve the data and generate the commands 
 To generate the required dataset command file issue:
 ```
 cd $GOPATH/src/github.com/RediSearch/ftsb/scripts/datagen_redisearch/enwiki_abstract
-python3 ftsb_generate_enwiki-abstract.py 
+python3 ftsb_generate_enwiki_abstract.py 
 ```
 
 ### Index properties
@@ -82,7 +82,7 @@ Assuming you have `redisbench-admin` and `ftsb_redisearch` installed, for the de
 ```
 redisbench-admin run \
      --repetitions 3 \
-     --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/enwiki-abstract/enwiki-abstract.redisearch.cfg.json
+     --benchmark-config-file  https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/enwiki_abstract-hashes/enwiki_abstract-hashes.redisearch.cfg.json
 ```
 
 
@@ -90,6 +90,14 @@ redisbench-admin run \
 After running the benchmark you should have a result json file generated, containing key information about the benchmark run(s).
 Focusing specifically on this benchmark the following metrics should be taken into account and will be used to automatically choose the best run and assess results variance, ordered by the following priority ( in case of results comparison ):
 
+#### Setup step key metrics
 | Metric Family | Metric Name            | Unit         | Comparison mode  |
 |---------------|------------------------|--------------|------------------|
-|     |  |      |  |
+| Throughput    | Overall Ingestion rate | docs/sec     | higher is better |
+| Latency       | Overall ingestion p50  | milliseconds | lower is better  |
+
+#### Benchmark step key metrics
+| Metric Family | Metric Name            | Unit         | Comparison mode  |
+|---------------|------------------------|--------------|------------------|
+| Throughput | Overall Updates and Aggregates query rate | docs/sec | Higher is better | 
+| Latency | Overall Updates and Aggregates query q50 latency | milliseconds | Lower is better | 
