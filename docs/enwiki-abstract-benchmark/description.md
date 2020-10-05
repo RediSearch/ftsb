@@ -5,8 +5,13 @@
 This use case generates 5.9 million docs, with 3 Text fields per document. 
 On average each added document will have a size of 227 bytes.
 
+(prior field tokenization)
 ```
-TODO: Add document snipet
+{
+'title': 'Wikipedia: Politics of the Democratic Republic of the Congo',
+'url': 'https://en.wikipedia.org/wiki/Politics_of_the_Democratic_Republic_of_the_Congo',
+'abstract': 'Politics of the Democratic Republic of Congo take place in a framework of a republic in transition from a civil war to a semi-presidential republic.'
+}
 ```
 
 ## Query types
