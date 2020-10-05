@@ -54,12 +54,16 @@ jobs:
 workflows:
   commit:
     jobs:
-      - build-edge
+      - build-edge:
+          requires:
+            - build-latest
       - build-latest
       - ci-benchmark:
           name: edge-ecommerce-inventory
           redisearch_version: edge
           use_case: "ecommerce-inventory"
+          requires:
+            - build-edge
       - ci-benchmark:
           name: edge-nyc_taxis-ft.add
           redisearch_version: edge
