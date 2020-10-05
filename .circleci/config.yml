@@ -77,7 +77,7 @@ workflows:
           redisearch_version: edge
           use_case: "enwiki_abstract-hashes"
           requires:
-            - edge-nyc_taxis-ft.add
+            - edge-nyc_taxis-hashes
 
   ci_benchmarks:
     triggers:
@@ -109,4 +109,4 @@ workflows:
           redisearch_version: edge
           use_case: "enwiki_abstract-hashes"
           requires:
-            - edge-nyc_taxis-ft.add
+            - edge-nyc_taxis-hashes

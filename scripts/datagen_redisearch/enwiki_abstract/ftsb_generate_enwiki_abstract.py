@@ -98,8 +98,8 @@ def getQueryWords(doc, stop_words, size):
 def generate_benchmark_commands(total_benchmark_commands,bench_fname,all_fname,indexname,docs,stop_words):
     all_csvfile = open(all_fname, 'a', newline='')
     bench_csvfile = open(bench_fname, 'w', newline='')
-    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
-    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
+    all_csv_writer = csv.writer(all_csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
+    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
     progress = tqdm(unit="docs", total=total_benchmark_commands)
     total_docs = len(docs)
     generated_commands=0
@@ -138,7 +138,7 @@ if (__name__ == "__main__"):
                         help='the random seed used to generate random deterministic outputs')
     parser.add_argument('--doc-limit', type=int, default=0,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
                             help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--stop-words', type=str, default="a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with",
                             help='When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query')
