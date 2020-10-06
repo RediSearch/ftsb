@@ -78,16 +78,16 @@ def use_case_csv_row_to_cmd(row, index_types, use_ftadd, total_amount_pos, impro
                             payment_type_pos, mta_tax_pos, vendor_id_pos):
     pickup_location_long = None if pickup_longitude_pos is None or pickup_longitude_pos > (len(row)-1) else str_to_float_or_zero(row[pickup_longitude_pos])
     pickup_location_lat = None if pickup_latitude_pos is None or pickup_latitude_pos > (len(row)-1)  else str_to_float_or_zero(row[pickup_latitude_pos])
-    if pickup_location_lat < -90.0 or pickup_location_lat > 90:
+    if pickup_location_lat is not None and (pickup_location_lat < -90.0 or pickup_location_lat > 90):
         pickup_location_lat = 0
-    if pickup_location_long < -180.0 or pickup_location_long > 180:
+    if pickup_location_long is not None and (pickup_location_long < -180.0 or pickup_location_long > 180):
         pickup_location_long = 0
 
     dropoff_location_long = None if dropoff_longitude_pos is None or dropoff_longitude_pos > (len(row)-1)  else str_to_float_or_zero(row[dropoff_longitude_pos])
     dropoff_location_lat = None if dropoff_latitude_pos is None or dropoff_latitude_pos > (len(row)-1)  else str_to_float_or_zero(row[dropoff_latitude_pos])
-    if dropoff_location_lat < -90.0 or dropoff_location_lat > 90:
+    if dropoff_location_lat is not None and ( dropoff_location_lat < -90.0 or dropoff_location_lat > 90 ):
         dropoff_location_lat = 0
-    if dropoff_location_long < -180.0 or dropoff_location_long > 180:
+    if dropoff_location_long is not None and ( dropoff_location_long < -180.0 or dropoff_location_long > 180 ):
         dropoff_location_long = 0
 
     hash = {
