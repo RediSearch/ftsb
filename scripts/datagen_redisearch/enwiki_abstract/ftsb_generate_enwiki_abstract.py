@@ -278,14 +278,16 @@ if (__name__ == "__main__"):
     print("\n")
     print("-- generating the setup commands -- \n")
     progress = tqdm(unit="docs", total=args.doc_limit)
-    total_docs
-    for doc in docs:
+    doc_limit = args.doc_limit
+    if doc_limit == 0:
+        doc_limit = len(docs)
+    while total_docs < doc_limit:
+        random_doc_pos = random.randint(0, total_docs - 1)
+        doc = docs[random_doc_pos]
         cmd = use_case_to_cmd(use_ftadd,doc["title"],doc["url"],doc["abstract"],total_docs)
         progress.update()
         setup_csv_writer.writerow(cmd)
         all_csv_writer.writerow(cmd)
-        if args.doc_limit > 0 and total_docs >= args.doc_limit:
-            break
 
     progress.close()
     all_csvfile.close()
