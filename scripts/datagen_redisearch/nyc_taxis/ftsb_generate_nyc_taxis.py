@@ -140,7 +140,7 @@ if (__name__ == "__main__"):
                         help='the project being tested')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=0,
+    parser.add_argument('--doc-limit', type=int, default=10000000,
                         help='the total documents to generate to be added in the setup stage')
     parser.add_argument('--yellow-tripdata-start-year', type=int, default=2015,
                         help='the start year of the yellow trip data to fetch')
@@ -152,7 +152,7 @@ if (__name__ == "__main__"):
                         help='the start month of the yellow trip data to fetch')
     parser.add_argument('--index-name', type=str, default="nyc_taxis",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="nyc_taxis-hashes", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="10M-nyc_taxis-hashes", help='the name of the test')
     parser.add_argument('--test-description', type=str,
                         default="benchmark focused on write performance, making usage of TLC Trip Record Data that contains the rides that have been performed in yellow taxis in New York in 2015",
                         help='the full description of the test')

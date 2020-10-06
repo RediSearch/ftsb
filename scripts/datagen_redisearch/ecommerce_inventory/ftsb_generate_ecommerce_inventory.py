@@ -156,10 +156,11 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                            }
                     docs_map[doc_id] = doc
                     dd = {k: v['value'] for k, v in doc['schema'].items()}
-                    print("{")
-                    for k, v in dd.items():
-                        print(" \"{}\" : \"{}\",".format(k, v))
-                    print("}")
+
+#                     print("{")
+#                     for k, v in dd.items():
+#                         print(" \"{}\" : \"{}\",".format(k, v))
+#                     print("}")
                     added_docs = added_docs + 1
 
     return nodes, total_nodes, docs_map, added_docs, product_ids
@@ -311,9 +312,9 @@ if (__name__ == "__main__"):
                         help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=100000,
+    parser.add_argument('--doc-limit', type=int, default=10000000,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
                         help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--max-skus-per-aggregate', type=int, default=100,
                         help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command')
@@ -321,7 +322,7 @@ if (__name__ == "__main__"):
                         help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command')
     parser.add_argument('--index-name', type=str, default="inventory",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="ecommerce-inventory", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="10M-ecommerce-inventory", help='the name of the test')
     parser.add_argument('--test-description', type=str,
                         default="benchmark focused on updates and aggregate performance",
                         help='the full description of the test')
