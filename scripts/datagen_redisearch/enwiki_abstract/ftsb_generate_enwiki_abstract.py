@@ -282,7 +282,8 @@ if (__name__ == "__main__"):
     if doc_limit == 0:
         doc_limit = len(docs)
     while total_docs < doc_limit:
-        random_doc_pos = random.randint(0, total_docs - 1)
+        total_docs=total_docs+1
+        random_doc_pos = random.randint(0, len(docs) - 1)
         doc = docs[random_doc_pos]
         cmd = use_case_to_cmd(use_ftadd,doc["title"],doc["url"],doc["abstract"],total_docs)
         progress.update()
