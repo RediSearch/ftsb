@@ -138,7 +138,7 @@ if (__name__ == "__main__"):
                         help='the random seed used to generate random deterministic outputs')
     parser.add_argument('--doc-limit', type=int, default=10000000,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=10000000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
                             help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--stop-words', type=str, default="a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with",
                             help='When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query')
