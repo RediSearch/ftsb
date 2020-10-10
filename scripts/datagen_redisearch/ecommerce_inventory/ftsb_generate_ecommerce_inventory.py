@@ -314,7 +314,7 @@ if (__name__ == "__main__"):
                         help='the random seed used to generate random deterministic outputs')
     parser.add_argument('--doc-limit', type=int, default=1000000,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
                         help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--max-skus-per-aggregate', type=int, default=100,
                         help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command')

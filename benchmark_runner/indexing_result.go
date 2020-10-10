@@ -28,6 +28,7 @@ type TestResult struct {
 	ResultFormatVersion string `json:"ResultFormatVersion"`
 	Limit               uint64 `json:"Limit"`
 	Workers             uint   `json:"Workers"`
+	MaxRps              uint64 `json:"MaxRps"`
 
 	// DB Spefic Configs
 	DBSpecificConfigs map[string]interface{} `json:"DBSpecificConfigs"`
