@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/RediSearch/ftsb/benchmark_runner"
 	"github.com/mediocregopher/radix/v3"
+	"golang.org/x/time/rate"
 	"log"
 	"strconv"
 	"strings"
@@ -48,7 +49,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	}
 }
 
-func connectionProcessor(p *processor) {
+func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter bool) {
 	cmdSlots := make([][]radix.CmdAction, 0, 0)
 	timesSlots := make([][]time.Time, 0, 0)
 	clusterSlots := make([][2]uint16, 0, 0)
@@ -76,7 +77,11 @@ func connectionProcessor(p *processor) {
 			}
 		}
 		if debug > 2 {
-			fmt.Println(keyPos, key, clusterSlot, cmd, strings.Join(docFields,","), slotP, clusterSlots)
+			fmt.Println(keyPos, key, clusterSlot, cmd, strings.Join(docFields, ","), slotP, clusterSlots)
+		}
+		if useRateLimiter {
+			r := rateLimiter.ReserveN(time.Now(), int(1))
+			time.Sleep(r.Delay())
 		}
 		if !clusterMode {
 			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
@@ -150,7 +155,7 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
-func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat benchmark_runner.Stat) {
+func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool, rateLimiter *rate.Limiter, useRateLimiter bool) (outstat benchmark_runner.Stat) {
 	outstat = *benchmark_runner.NewStat()
 	events := b.(*eventsBatch)
 	rowCnt := uint64(len(events.rows))
@@ -161,7 +166,7 @@ func (p *processor) ProcessBatch(b benchmark_runner.Batch, doLoad bool) (outstat
 		p.wg = &sync.WaitGroup{}
 		p.rows = make(chan string, buflen)
 		p.wg.Add(1)
-		go connectionProcessor(p)
+		go connectionProcessor(p, rateLimiter, useRateLimiter)
 		for _, row := range events.rows {
 			p.rows <- row
 		}
@@ -194,7 +199,7 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		cmdType = argsStr[0]
 		cmdQueryId = argsStr[1]
 		keyPos, _ = strconv.Atoi(argsStr[2])
-		keyPos = keyPos+3
+		keyPos = keyPos + 3
 		cmd = argsStr[3]
 		if len(argsStr) > 4 {
 			args = argsStr[4:]

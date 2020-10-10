@@ -312,7 +312,7 @@ if (__name__ == "__main__"):
                         help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=10000000,
+    parser.add_argument('--doc-limit', type=int, default=1000000,
                         help='the total documents to generate to be added in the setup stage')
     parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
                         help='the total commands to generate to be issued in the benchmark stage')
@@ -322,7 +322,7 @@ if (__name__ == "__main__"):
                         help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command')
     parser.add_argument('--index-name', type=str, default="inventory",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="10M-ecommerce-inventory", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="1M-ecommerce-inventory", help='the name of the test')
     parser.add_argument('--test-description', type=str,
                         default="benchmark focused on updates and aggregate performance",
                         help='the full description of the test')

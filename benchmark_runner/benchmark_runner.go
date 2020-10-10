@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"golang.org/x/time/rate"
 	"io/ioutil"
 	"log"
 	"math"
@@ -30,6 +31,7 @@ const (
 	WorkerPerQueue = 0
 	// SingleQueue is the value for using a single shared queue across all workers
 	SingleQueue = 1
+	Inf         = rate.Limit(math.MaxFloat64)
 )
 
 // BenchmarkRunner is responsible for initializing and storing common
@@ -287,10 +289,19 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 
 	channels := l.createChannels(workQueues)
 	// Launch all worker processes in background
+
+	var requestRate = Inf
+	var requestBurst = 1
+	if l.maxRPS != 0 {
+		requestRate = rate.Limit(l.maxRPS)
+		requestBurst = int(l.workers) //int(b.workers)
+	}
+	var rateLimiter = rate.NewLimiter(requestRate, requestBurst)
+
 	var wg sync.WaitGroup
 	for i := 0; i < int(l.workers); i++ {
 		wg.Add(1)
-		go l.work(b, &wg, channels[i%len(channels)], i)
+		go l.work(b, &wg, channels[i%len(channels)], i, rateLimiter, l.maxRPS != 0)
 	}
 
 	w := new(tabwriter.Writer)
@@ -318,6 +329,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
 	l.testResult.Limit = l.limit
 	l.testResult.Workers = l.workers
+	l.testResult.MaxRps = l.maxRPS
 	l.summary()
 }
 
@@ -380,7 +392,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 }
 
 // work is the processing function for each worker in the loader
-func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel, workerNum int) {
+func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel, workerNum int, rateLimiter *rate.Limiter, useRateLimiter bool) {
 
 	// Prepare processor
 	proc := b.GetProcessor()
@@ -389,7 +401,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 	// Process batches coming from duplexChannel.toWorker queue
 	// and send ACKs into duplexChannel.toScanner queue
 	for b := range c.toWorker {
-		stats := proc.ProcessBatch(b, l.doLoad)
+		stats := proc.ProcessBatch(b, l.doLoad, rateLimiter, useRateLimiter)
 		cmdStats := stats.CmdStats()
 		for pos := 0; pos < len(cmdStats); pos++ {
 			cmdStat := cmdStats[pos]
