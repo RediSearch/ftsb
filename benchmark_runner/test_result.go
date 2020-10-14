@@ -50,4 +50,6 @@ type TestResult struct {
 
 	// Time-Series
 	TimeSeries map[string]interface{} `json:"TimeSeries"`
+
+	PerSecondEncodedHistograms map[uint64]string `json:"PerSecondEncodedHistograms"`
 }

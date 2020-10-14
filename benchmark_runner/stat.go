@@ -18,11 +18,20 @@ func (s *Stat) SetCmdStats(cmdStats []CmdStat) {
 type CmdStat struct {
 	cmdQueryGroup []byte // READ, WRITE, etc...
 	cmdQueryId    []byte // R1, R2, etc...
+	startTs       uint64 // start timestamp in seconds since epoch
 	latency       uint64 // microseconds latency
 	error         bool
 	timedOut      bool
 	rx            uint64 // bytes received
 	tx            uint64 // bytes received
+}
+
+func (c *CmdStat) StartTs() uint64 {
+	return c.startTs
+}
+
+func (c *CmdStat) SetStartTs(startTs uint64) {
+	c.startTs = startTs
 }
 
 func (c *CmdStat) Tx() uint64 {
@@ -72,9 +81,9 @@ func NewStat() *Stat {
 	}
 }
 
-func (s *Stat) AddEntry(cmdGroup []byte, cmdQueryId []byte, latencyUs uint64, error bool, timedOut bool, rx, tx uint64) *Stat {
+func (s *Stat) AddEntry(cmdGroup []byte, cmdQueryId []byte, startTs, latencyUs uint64, error bool, timedOut bool, rx, tx uint64) *Stat {
 	s.totalCmds++
-	entry := CmdStat{cmdGroup, cmdQueryId, latencyUs, error, timedOut, rx, tx}
+	entry := CmdStat{cmdGroup, cmdQueryId, startTs,latencyUs, error, timedOut, rx, tx}
 	s.cmdStats = append(s.cmdStats, entry)
 	return s
 }

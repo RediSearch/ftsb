@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/bytefmt"
-	"github.com/filipecosta90/hdrhistogram"
+	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
 )
 
 const (
@@ -57,6 +57,9 @@ type BenchmarkRunner struct {
 	setupWriteHistogram        *hdrhistogram.Histogram
 	inst_setupWriteHistogram   *hdrhistogram.Histogram
 	setupWriteTs               []DataPoint
+
+	perSecondHistograms map[uint64]*hdrhistogram.Histogram
+	perSecondHistogramsMutex sync.RWMutex
 
 	writeHistogram      *hdrhistogram.Histogram
 	inst_writeHistogram *hdrhistogram.Histogram
@@ -233,7 +236,15 @@ func (b *BenchmarkRunner) GetTimeSeriesMap() map[string]interface{} {
 	configs["deleteTs"] = b.deleteTs
 
 	return configs
+}
 
+func (b *BenchmarkRunner) GetPerSecondEncodedHistogramsMap() map[uint64]string {
+	configs := map[uint64]string{}
+	for k := range b.perSecondHistograms {
+		encodedV, _ := b.perSecondHistograms[k].Encode(hdrhistogram.V2CompressedEncodingCookieBase)
+		configs[k]= string(encodedV)
+	}
+	return configs
 }
 
 var loader = &BenchmarkRunner{
@@ -259,6 +270,7 @@ var loader = &BenchmarkRunner{
 	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
 	totalTs:                  make([]DataPoint, 0, 10),
 	detailedMapHistograms:    make(map[string]*hdrhistogram.Histogram),
+	perSecondHistograms:    make(map[uint64]*hdrhistogram.Histogram),
 }
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
@@ -327,6 +339,7 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.testResult.OverallRates = l.GetOverallRatesMap()
 	l.testResult.TimeSeries = l.GetTimeSeriesMap()
 	l.testResult.OverallQuantiles = l.GetOverallQuantiles()
+	l.testResult.PerSecondEncodedHistograms = l.GetPerSecondEncodedHistogramsMap()
 	l.testResult.Limit = l.limit
 	l.testResult.Workers = l.workers
 	l.testResult.MaxRps = l.maxRPS
@@ -419,6 +432,14 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			}
 			l.detailedMapHistograms[groupAndQuery].RecordValue(int64(cmdStat.Latency()))
 			l.detailedMapHistogramsMutex.Unlock()
+
+			ts := cmdStat.StartTs()
+			l.perSecondHistogramsMutex.Lock()
+			if _, exist := l.perSecondHistograms[ts]; !exist {
+				l.perSecondHistograms[ts] = hdrhistogram.New(1, 1000000, 3)
+			}
+			l.perSecondHistograms[ts].RecordValue(int64(cmdStat.Latency()))
+			l.perSecondHistogramsMutex.Unlock()
 
 			switch labelStr {
 			case "SETUP_WRITE":
