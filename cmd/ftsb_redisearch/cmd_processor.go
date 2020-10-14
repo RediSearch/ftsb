@@ -143,7 +143,7 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			duration := endT.Sub(t)
 			took := uint64(duration.Microseconds())
 			rxBytesCount += getRxLen(rcv)
-			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), took, false, false, txBytesCount, rxBytesCount)
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, false, false, txBytesCount, rxBytesCount)
 			p.cmdChan <- *stat
 		}
 		cmds = nil
