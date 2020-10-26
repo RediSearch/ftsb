@@ -136,15 +136,15 @@ if (__name__ == "__main__"):
                         help='the project being tested')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=10000000,
+    parser.add_argument('--doc-limit', type=int, default=60000000,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=10000000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
                             help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--stop-words', type=str, default="a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with",
                             help='When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query')
     parser.add_argument('--index-name', type=str, default="enwiki_abstract",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="10M-enwiki_abstract-hashes", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="60M-enwiki_abstract-hashes", help='the name of the test')
     parser.add_argument('--test-description', type=str,
                         default="benchmark focused on full text search queries performance, making usage of English-language Wikipedia:Database page abstracts",
                         help='the full description of the test')
