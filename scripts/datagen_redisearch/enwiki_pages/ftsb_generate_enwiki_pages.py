@@ -1,6 +1,7 @@
 import re
 import xml.etree.ElementTree as ET
 from os import path
+from collections import Counter
 
 import argparse
 import csv
@@ -10,7 +11,12 @@ import random
 # package local imports
 import sys
 import uuid
+import matplotlib.pyplot as plt
+import math
+from dateutil.parser import parse
+from tdigest import TDigest
 
+import numpy as np
 import boto3
 from tqdm import tqdm
 
@@ -26,19 +32,36 @@ from common import download_url, generate_setup_json, compress_files, generate_i
 from tqdm import tqdm
 from pathlib import Path
 
-origin = "https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-abstract1.xml.gz"
-filename = "enwiki-latest-abstract1.xml.gz"
-decompressed_fname = "enwiki-latest-abstract1.xml"
+origin = "https://dumps.wikimedia.org/enwiki/20201101/enwiki-20201101-pages-articles1.xml-p1p41242.bz2"
+filename = "enwiki-20201101-pages-articles1.xml-p1p41242.bz2"
+decompressed_fname = "enwiki-20201101-pages-articles1.xml-p1p41242"
 
 
-def generate_enwiki_abstract_index_type():
+def generate_enwiki_pages_index_type():
     types = {}
-    for f in ["title", "url", "abstract"]:
+    for f in ["title", "text", "comment"]:
         types[f] = 'text'
+    for f in ["username"]:
+        types[f] = 'tag'
+    for f in ["timestamp"]:
+        types[f] = 'numeric'
     return types
 
 
-def generate_ft_create_row(index, index_types, use_ftadd):
+def generate_lognormal_dist(n_elements):
+    mu, sigma = 0., 1
+    s = np.random.lognormal(mu, sigma, n_elements)
+
+    min_s = min(s)
+    max_s = max(s)
+
+    diff = max_s - min_s
+    s = s - min_s
+    s = s / diff
+    return s
+
+
+def generate_ft_create_row(index, index_types, use_ftadd, no_index_list):
     if use_ftadd:
         cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
     else:
@@ -46,7 +69,10 @@ def generate_ft_create_row(index, index_types, use_ftadd):
     for f, v in index_types.items():
         cmd.append(f)
         cmd.append(v)
-        cmd.append("SORTABLE")
+        if f in no_index_list:
+            cmd.append("NOINDEX")
+        else:
+            cmd.append("SORTABLE")
     return cmd
 
 
@@ -58,14 +84,29 @@ def generate_ft_drop_row(index):
 def EscapeTextFileString(field):
     for char_escape in field_tokenization:
         field = field.replace(char_escape, "\\{}".format(char_escape))
+    field = field.replace('\n', ' \\n')
     return field
 
 
-def use_case_to_cmd(use_ftadd, title, url, abstract, total_docs):
+def use_case_to_cmd(use_ftadd, title, text, comment, username, timestamp, total_docs):
+    escaped_title = EscapeTextFileString(title)
+    escaped_text = EscapeTextFileString(text)
+    escaped_comment = EscapeTextFileString(comment)
+    size = len(escaped_title) + len(escaped_text) + len(escaped_comment) + len(username)
+    unprunned_hash = {
+        "title": title,
+        "text": text,
+        "comment": comment,
+        "username": username,
+        "timestamp": timestamp,
+    }
+    # print(len(text),size)
     hash = {
-        "title": EscapeTextFileString(title),
-        "url": EscapeTextFileString(url),
-        "abstract": EscapeTextFileString(abstract),
+        "title": escaped_title,
+        "text": escaped_text,
+        "comment": escaped_comment,
+        "username": username,
+        "timestamp": timestamp,
     }
     docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)
     fields = []
@@ -79,11 +120,11 @@ def use_case_to_cmd(use_ftadd, title, url, abstract, total_docs):
         cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
     for x in fields:
         cmd.append(x)
-    return cmd
+    return cmd, size
 
 
 def getQueryWords(doc, stop_words, size):
-    words = doc["abstract"]
+    words = doc["comment"]
     words = re.sub("[^0-9a-zA-Z]+", " ", words)
     words = words.split(" ")
     queryWords = []
@@ -100,43 +141,95 @@ def getQueryWords(doc, stop_words, size):
 
 
 def generate_benchmark_commands(total_benchmark_commands, bench_fname, all_fname, indexname, docs, stop_words,
-                                search_no_content):
+                                use_numeric_range_searchs, ts_digest, p_writes):
+    total_benchmark_reads = 0
+    total_benchmark_writes = 0
     all_csvfile = open(all_fname, 'a', newline='')
     bench_csvfile = open(bench_fname, 'w', newline='')
     all_csv_writer = csv.writer(all_csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
     bench_csv_writer = csv.writer(bench_csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
     progress = tqdm(unit="docs", total=total_benchmark_commands)
     total_docs = len(docs)
+
+    ## timestamp related
+    timestamps_pdist = generate_lognormal_dist(total_benchmark_commands)
+    min_ts = ts_digest.percentile(0.0)
+    max_ts = ts_digest.percentile(100.0)
+    query_range_digest = TDigest()
+
     generated_commands = 0
     while generated_commands < total_benchmark_commands:
+        query_ts_pdist = timestamps_pdist[generated_commands]
+        percentile = (1.0 - query_ts_pdist) * 100.0
+        query_min_ts = ts_digest.percentile(percentile)
+
         random_doc_pos = random.randint(0, total_docs - 1)
         doc = docs[random_doc_pos]
-        words, totalW = getQueryWords(doc, stop_words, 2)
-        choice = random.choices(["simple-1word-query", "2word-union-query", "2word-intersection-query"])[0]
-        generated_row = None
-        if choice == "simple-1word-query" and len(words) >= 1:
-            generated_row = generate_ft_search_row(indexname, "simple-1word-query", words[0], search_no_content)
-        elif choice == "2word-union-query" and len(words) >= 2:
-            generated_row = generate_ft_search_row(indexname, "2word-union-query", "{} {}".format(words[0], words[1]),
-                                                   search_no_content)
-        elif choice == "2word-intersection-query" and len(words) >= 2:
-            generated_row = generate_ft_search_row(indexname, "2word-intersection-query",
-                                                   "{}|{}".format(words[0], words[1]), search_no_content)
+        # decide read or write
+        p_cmd = random.random()
+        if p_cmd < p_writes:
+            ## WRITE
+            total_benchmark_writes = total_benchmark_writes + 1
+            generated_row, doc_size = use_case_to_cmd(use_ftadd, doc["title"], doc["text"], doc["comment"],
+                                                      doc["username"],
+                                                      doc["timestamp"],
+                                                      generated_commands)
+
+        else:
+            ## READ
+            total_benchmark_reads = total_benchmark_reads + 1
+            words, totalW = getQueryWords(doc, stop_words, 2)
+
+            choice = random.choices(["simple-1word-query", "2word-union-query", "2word-intersection-query"])[0]
+            generated_row = None
+            numeric_range_str = ""
+            if use_numeric_range_searchs:
+                numeric_range_str = "@timestamp:[{} {}] ".format(query_min_ts, max_ts)
+                query_range_digest.update(int(max_ts - query_min_ts))
+            if choice == "simple-1word-query" and len(words) >= 1:
+                generated_row = generate_ft_search_row(indexname, "simple-1word-query",
+                                                       "{}{}".format(numeric_range_str, words[0]))
+            elif choice == "2word-union-query" and len(words) >= 2:
+                generated_row = generate_ft_search_row(indexname, "2word-union-query",
+                                                       "{}{} {}".format(numeric_range_str, words[0], words[1]))
+            elif choice == "2word-intersection-query" and len(words) >= 2:
+                generated_row = generate_ft_search_row(indexname, "2word-intersection-query",
+                                                       "{}{}|{}".format(numeric_range_str, words[0], words[1]))
         if generated_row != None:
-            all_csv_writer.writerow(generated_row)
-            bench_csv_writer.writerow(generated_row)
+            #             all_csv_writer.writerow(generated_row)
+            #             bench_csv_writer.writerow(generated_row)
             progress.update()
             generated_commands = generated_commands + 1
     progress.close()
     bench_csvfile.close()
     all_csvfile.close()
 
+    #     print()
+    xx = []
+    yy = []
+    p90 = query_range_digest.percentile(90.0)
+    dataset_percent = ts_digest.cdf(p90)
 
-def generate_ft_search_row(index, query_name, query, search_no_content):
+    print("90% of the read queries target at max {} percent o keyspace".format(dataset_percent))
+    print("100% of the read queries target at max {} percent o keyspace".format(ts_digest.cdf(max_ts - min_ts)))
+    for centroid in query_range_digest.centroids_to_list():
+        ts_m = centroid["m"]
+        xx.append(ts_m)
+        yy.append(query_range_digest.cdf(ts_m))
+    plt.scatter(xx, yy)
+
+    plt.title('EnWiki pages Query time range')
+    plt.xlabel('Query time range')
+    plt.ylabel('cdf')
+    plt.xscale('log')
+    plt.show()
+
+    return total_benchmark_reads, total_benchmark_writes
+
+
+def generate_ft_search_row(index, query_name, query):
     cmd = ["READ", query_name, 1, "FT.SEARCH", "{index}".format(index=index),
            "{query}".format(query=query)]
-    if search_no_content:
-        cmd.append("NOCONTENT")
     return cmd
 
 
@@ -147,25 +240,29 @@ if (__name__ == "__main__"):
                         help='the project being tested')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=1000000,
+    parser.add_argument('--min-doc-len', type=int, default=1024,
+                        help='Discard any generated document bellow the specified value')
+    parser.add_argument('--doc-limit', type=int, default=100000,
                         help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
+    parser.add_argument('--total-benchmark-commands', type=int, default=100000,
                         help='the total commands to generate to be issued in the benchmark stage')
     parser.add_argument('--stop-words', type=str,
                         default="a,is,the,an,and,are,as,at,be,but,by,for,if,in,into,it,no,not,of,on,or,such,that,their,then,there,these,they,this,to,was,will,with",
                         help='When searching, stop-words are ignored and treated as if they were not sent to the query processor. Therefore, to be 100% correct we need to prevent those words to enter a query')
-    parser.add_argument('--index-name', type=str, default="enwiki_abstract",
+    parser.add_argument('--index-name', type=str, default="enwiki_pages",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="1M-enwiki_abstract-hashes", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="100K-enwiki_pages-hashes", help='the name of the test')
     parser.add_argument('--test-description', type=str,
-                        default="benchmark focused on full text search queries performance, making usage of English-language Wikipedia:Database page abstracts",
+                        default="benchmark focused on full text search queries performance, making usage of English-language Wikipedia:Database page revisions",
                         help='the full description of the test')
     parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
                         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
     parser.add_argument('--use-ftadd', default=False, action='store_true',
                         help="Use FT.ADD instead of HSET")
-    parser.add_argument('--search-no-content', default=False, action='store_true',
-                        help="When doing full text search queries, only return the document ids and not the content")
+    parser.add_argument('--query-use-ts-numeric-range-filter', default=False, action='store_true',
+                        help="Use a numeric range filter on queries to simulate searchs that imply a log-normal keyspace access (very hot data and some cold data)")
+    parser.add_argument('--big-text-field-noindex', default=False, action='store_true',
+                        help="On index creation mark the largest text field as no index. If a field has NOINDEX and doesn't have SORTABLE, it will just be ignored by the index. This is usefull to test RoF for example.")
     parser.add_argument('--temporary-work-dir', type=str,
                         default="./tmp",
                         help='The temporary dir to use as working directory for file download, compression,etc... ')
@@ -182,9 +279,15 @@ if (__name__ == "__main__"):
     stop_words = args.stop_words.split(",")
     indexname = args.index_name
     test_name = args.test_name
-    search_no_content = args.search_no_content
-    if search_no_content:
-        test_name += "-search-no-content"
+    use_numeric_range_searchs = args.query_use_ts_numeric_range_filter
+    no_index_list = []
+    big_text_field_noindex = args.big_text_field_noindex
+    if big_text_field_noindex:
+        test_name += "-big-text-field-noindex"
+        no_index_list = ["text"]
+    if use_numeric_range_searchs:
+        test_name += "-lognormal-numeric-range-searchs"
+    min_doc_len = args.min_doc_len
     description = args.test_description
     s3_bucket_name = "benchmarks.redislabs"
     s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
@@ -236,6 +339,8 @@ if (__name__ == "__main__"):
     total_reads = 0
     total_updates = 0
     total_deletes = 0
+    # 1:10
+    p_writes = 1.0 / 11.0
 
     json_version = "0.1"
     benchmark_repetitions_require_teardown_and_resetup = False
@@ -250,9 +355,9 @@ if (__name__ == "__main__"):
 
     print("Using the following stop-words: {0}".format(stop_words))
 
-    index_types = generate_enwiki_abstract_index_type()
+    index_types = generate_enwiki_pages_index_type()
     print("-- generating the ft.create commands -- ")
-    ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
+    ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd, no_index_list)
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
@@ -260,7 +365,7 @@ if (__name__ == "__main__"):
     teardown_commands.append(ft_drop_cmd)
 
     csv_filenames = []
-    print("Retrieving the required English-language Wikipedia:Database page abstracts data")
+    print("Retrieving the required English-language Wikipedia:Database page edition data")
 
     if path.exists(filename) is False:
         print("Downloading {} to {}".format(origin, filename))
@@ -276,16 +381,37 @@ if (__name__ == "__main__"):
     tree = ET.iterparse(decompressed_fname)
     print("Reading {}\n".format(decompressed_fname))
     progress = tqdm(unit="docs")
+
+    doc = {}
+    text = None
+    comment = None
+    username = None
+    timestamp = None
+    ts_digest = TDigest()
     for event, elem in tree:
-        if elem.tag == "doc":
+        if elem.tag == "{http://www.mediawiki.org/xml/export-0.10/}page":
             doc = {}
-            total_docs = total_docs + 1
-            doc["title"] = elem.findtext("title")
-            doc["url"] = elem.findtext("url")
-            doc["abstract"] = elem.findtext("abstract")
-            docs.append(doc)
-            progress.update()
-            elem.clear()  # won't need the children any more
+            doc["title"] = elem.findtext("{http://www.mediawiki.org/xml/export-0.10/}title")
+            doc["text"] = text
+            doc["comment"] = comment
+            doc["username"] = username
+            doc["timestamp"] = int(timestamp)
+            ts_digest.update(int(timestamp))
+            if doc["text"] is not None and doc["comment"] is not None and doc["username"] is not None and doc[
+                "timestamp"] is not None:
+                total_docs = total_docs + 1
+                docs.append(doc)
+                progress.update()
+                elem.clear()  # won't need the children any more
+        if elem.tag == "{http://www.mediawiki.org/xml/export-0.10/}revision":
+            text = elem.findtext("{http://www.mediawiki.org/xml/export-0.10/}text")
+            comment = elem.findtext("{http://www.mediawiki.org/xml/export-0.10/}comment")
+            ts = elem.findtext("{http://www.mediawiki.org/xml/export-0.10/}timestamp")
+            dt = parse(ts)
+            timestamp = dt.timestamp()
+        if elem.tag == "{http://www.mediawiki.org/xml/export-0.10/}contributor":
+            username = elem.findtext("{http://www.mediawiki.org/xml/export-0.10/}username")
+
     progress.close()
 
     print("\n")
@@ -297,17 +423,53 @@ if (__name__ == "__main__"):
     print("-- generating the setup commands -- \n")
     progress = tqdm(unit="docs", total=args.doc_limit)
     doc_limit = args.doc_limit
+    docs_sizes = []
     total_docs = 0
     if doc_limit == 0:
         doc_limit = len(docs)
     while total_docs < doc_limit:
-        total_docs = total_docs + 1
+
         random_doc_pos = random.randint(0, len(docs) - 1)
         doc = docs[random_doc_pos]
-        cmd = use_case_to_cmd(use_ftadd, doc["title"], doc["url"], doc["abstract"], total_docs)
-        progress.update()
-        setup_csv_writer.writerow(cmd)
-        all_csv_writer.writerow(cmd)
+        cmd, doc_size = use_case_to_cmd(use_ftadd, doc["title"], doc["text"], doc["comment"], doc["username"],
+                                        doc["timestamp"],
+                                        total_docs)
+        if doc_size >= min_doc_len:
+            total_docs = total_docs + 1
+            docs_sizes.append(doc_size)
+            progress.update()
+    #             setup_csv_writer.writerow(cmd)
+    #             all_csv_writer.writerow(cmd)
+    # fixed bin size
+    bins = np.linspace(math.ceil(min(docs_sizes)),
+                       math.floor(max(docs_sizes)),
+                       200)  # fixed number of bins
+
+    plt.xlim([1, max(docs_sizes) + 5])
+
+    plt.hist(docs_sizes, bins=bins, alpha=0.5)
+    plt.title('EnWiki pages document size frequency. Avg document size: {} Bytes'.format(int(np.average(docs_sizes))))
+    plt.xlabel('Document Size in Bytes')
+    plt.ylabel('count')
+    plt.xscale('log')
+
+    plt.show()
+
+    xx = []
+    yy = []
+
+    for centroid in ts_digest.centroids_to_list():
+        # print(centroid)
+        ts_m = centroid["m"]
+        xx.append(ts_m)
+        yy.append(ts_digest.cdf(ts_m))
+    plt.scatter(xx, yy)
+
+    plt.title('EnWiki pages timestamp range')
+    plt.xlabel('timestamp')
+    plt.ylabel('cdf')
+    #     plt.xscale('log')
+    plt.show()
 
     progress.close()
     all_csvfile.close()
@@ -315,8 +477,10 @@ if (__name__ == "__main__"):
 
     print("-- generating {} full text search commands -- ".format(total_benchmark_commands))
     print("\t saving to {} and {}".format(bench_fname, all_fname))
-    generate_benchmark_commands(total_benchmark_commands, bench_fname, all_fname, indexname, docs, stop_words,
-                                search_no_content)
+    total_benchmark_reads, total_benchmark_writes = generate_benchmark_commands(total_benchmark_commands, bench_fname,
+                                                                                all_fname, indexname, docs, stop_words,
+                                                                                use_numeric_range_searchs, ts_digest,
+                                                                                p_writes)
 
     total_commands = total_docs
     total_setup_commands = total_docs
@@ -336,9 +500,9 @@ if (__name__ == "__main__"):
     }
     cmd_category_benchmark = {
         "setup-writes": 0,
-        "writes": total_writes,
+        "writes": total_benchmark_writes,
         "updates": total_updates,
-        "reads": total_reads,
+        "reads": total_benchmark_reads,
         "deletes": total_deletes,
     }
 

@@ -58,7 +58,7 @@ type BenchmarkRunner struct {
 	inst_setupWriteHistogram   *hdrhistogram.Histogram
 	setupWriteTs               []DataPoint
 
-	perSecondHistograms map[uint64]*hdrhistogram.Histogram
+	perSecondHistograms      map[uint64]*hdrhistogram.Histogram
 	perSecondHistogramsMutex sync.RWMutex
 
 	writeHistogram      *hdrhistogram.Histogram
@@ -242,7 +242,7 @@ func (b *BenchmarkRunner) GetPerSecondEncodedHistogramsMap() map[uint64]string {
 	configs := map[uint64]string{}
 	for k := range b.perSecondHistograms {
 		encodedV, _ := b.perSecondHistograms[k].Encode(hdrhistogram.V2CompressedEncodingCookieBase)
-		configs[k]= string(encodedV)
+		configs[k] = string(encodedV)
 	}
 	return configs
 }
@@ -270,7 +270,7 @@ var loader = &BenchmarkRunner{
 	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
 	totalTs:                  make([]DataPoint, 0, 10),
 	detailedMapHistograms:    make(map[string]*hdrhistogram.Histogram),
-	perSecondHistograms:    make(map[uint64]*hdrhistogram.Histogram),
+	perSecondHistograms:      make(map[uint64]*hdrhistogram.Histogram),
 }
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program

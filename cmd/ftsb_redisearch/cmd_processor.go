@@ -24,10 +24,24 @@ type processor struct {
 
 func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	var err error = nil
+	opts := make([]radix.DialOpt, 0)
+	if password != "" {
+		opts = append(opts, radix.DialAuthPass(password))
+	}
+
+	customConnFunc := func(network, addr string) (radix.Conn, error) {
+		return radix.Dial(network, addr, opts...,
+		)
+	}
+
+	// this cluster will use the ClientFunc to create a pool to each node in the
+	// cluster.
+	poolFunc := func(network, addr string) (radix.Client, error) {
+		return radix.NewPool(network, addr, int(1), radix.PoolConnFunc(customConnFunc), radix.PoolPipelineWindow(0, 0))
+	}
+
 	if clusterMode {
-		poolFunc := func(network, addr string) (radix.Client, error) {
-			return radix.NewPool(network, addr, 1, radix.PoolPipelineWindow(time.Duration(0), 0))
-		}
+
 		// We dont want the cluster to sync during the benchmark so we increase the sync time to a large value ( and do the sync CLUSTER SLOTS ) prior
 		p.vanillaCluster, err = radix.NewCluster([]string{host}, radix.ClusterPoolFunc(poolFunc), radix.ClusterSyncEvery(1*time.Hour))
 		if err != nil {
@@ -42,7 +56,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 		// add randomness on ping interval
 		//pingInterval := (20+rand.Intn(10))*1000000000
 		// We dont want PING to be issed from 5 to 5 seconds given that we know the connection is alive on the benchmark
-		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(1*time.Hour))
+		p.vanillaClient, err = radix.NewPool("tcp", host, 1, radix.PoolConnFunc(customConnFunc), radix.PoolPipelineWindow(0, 0), radix.PoolPingInterval(1*time.Hour))
 		if err != nil {
 			log.Fatalf("Error preparing for redisearch ingestion, while creating new pool. error = %v", err)
 		}
@@ -108,12 +122,13 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, times []time.Time) ([]radix.CmdAction, []time.Time) {
+func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, replies []interface{}, times []time.Time) ([]radix.CmdAction, []time.Time) {
 	var err error = nil
 	var rcv interface{}
 	rxBytesCount := uint64(0)
-	var radixFlatCmd = radix.Cmd(nil, cmd, docfields...)
+	var radixFlatCmd = radix.Cmd(rcv, cmd, docfields...)
 	cmds = append(cmds, radixFlatCmd)
+	replies = append(replies, rcv)
 	start := time.Now()
 	times = append(times, start)
 	cmds, times = sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
@@ -139,9 +154,10 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 				log.Fatal(err)
 			}
 		}
-		for _, t := range times {
+		for pos, t := range times {
 			duration := endT.Sub(t)
 			took := uint64(duration.Microseconds())
+			rcv := replies[pos]
 			rxBytesCount += getRxLen(rcv)
 			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, false, false, txBytesCount, rxBytesCount)
 			p.cmdChan <- *stat

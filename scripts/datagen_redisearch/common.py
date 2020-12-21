@@ -2,6 +2,7 @@ import gzip
 import os
 import shutil
 import tarfile
+import bz2
 import urllib.request
 from zipfile import ZipFile
 
@@ -18,13 +19,17 @@ def decompress_file(filename):
     splitted = os.path.splitext(filename)
     stripped_fname = splitted[0]
     filetype = splitted[1]
-
     if (filetype == ".zip"):
         with ZipFile(filename, 'r') as zipObj:
             zipObj.extractall()
 
     elif (filetype == ".gz"):
         with gzip.open(filename, 'rb') as f_in:
+            with open(stripped_fname, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+    elif (filetype == ".bz2"):
+        with bz2.open(filename, 'rb') as f_in:
             with open(stripped_fname, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
