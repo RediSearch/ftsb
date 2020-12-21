@@ -36,6 +36,8 @@ Currently, FTSB supports three use cases:
 
 - **enwiki-abstract** [[details here](docs/enwiki-abstract-benchmark/description.md)], from English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) page abstracts. This use case generates 3 `TEXT` fields per document, and focusses on full text queries performance.
 
+- **enwiki-pages** [[details here](docs/enwiki-pages-benchmark/description.md)], from English-language [Wikipedia:Database](https://en.wikipedia.org/wiki/Wikipedia:Database_download) last page revisions, containing processed metadata extracted from the full Wikipedia XML dumppage abstracts. This use case generates 3 `TEXT` fields per document, and focuses on full text queries performance.
+
 - **ecommerce-inventory** [[details here](docs/ecommerce-inventory-benchmark/description.md)], from a base dataset of [10K fashion products on Amazon.com](https://data.world/promptcloud/fashion-products-on-amazon-com/workspace/file?filename=amazon_co-ecommerce_sample.csv) which are then multiplexed by categories, sellers, and countries to produce larger datasets (> 1M documents). This benchmark focuses on updates and aggregate performance, splitting into Reads (FT.AGGREGATE), Cursor Reads (FT.CURSOR), and Updates (FT.ADD) the performance numbers. 
 The use case generates an index with 10 `TAG` fields (3 sortable and 1 non indexed), and 16 `NUMERIC` sortable non indexed fields per document.
 The aggregate queries are designed to be extremely costly both on computation and network TX, given that each query aggregates and filters a large portion of the dataset while additionally loading 21 fields. Both the update and read rates can be adjusted.
