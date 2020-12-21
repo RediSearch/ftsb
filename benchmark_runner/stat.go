@@ -83,7 +83,7 @@ func NewStat() *Stat {
 
 func (s *Stat) AddEntry(cmdGroup []byte, cmdQueryId []byte, startTs, latencyUs uint64, error bool, timedOut bool, rx, tx uint64) *Stat {
 	s.totalCmds++
-	entry := CmdStat{cmdGroup, cmdQueryId, startTs,latencyUs, error, timedOut, rx, tx}
+	entry := CmdStat{cmdGroup, cmdQueryId, startTs, latencyUs, error, timedOut, rx, tx}
 	s.cmdStats = append(s.cmdStats, entry)
 	return s
 }

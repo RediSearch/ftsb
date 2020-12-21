@@ -29,6 +29,9 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
     for inner_doc_pos in range(0, market_count):
         skuId = row[0]
         brand = row[2]
+        price = random.random() * 1500.0
+        number_of_reviews = random.randint(0, 64000)
+        average_review_rating = random.random() * 5.0
         sellers_raw = row[16]
         nodeType = "store"
         availableToSource = "true"
@@ -86,6 +89,11 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                 if doc_id not in docs_map:
                     doc = {"doc_id": doc_id,
                            "schema": {
+                               "price": {"type": NUMERIC, "value": price, "field_options": ["SORTABLE"]},
+                               "number_of_reviews": {"type": NUMERIC, "value": number_of_reviews,
+                                                     "field_options": ["SORTABLE"]},
+                               "average_review_rating": {"type": NUMERIC, "value": average_review_rating,
+                                                         "field_options": ["SORTABLE"]},
                                "market": {"type": TAG, "value": market, "field_options": ["SORTABLE"]},
                                "nodeId": {"type": TAG, "value": nodeId, "field_options": ["SORTABLE"]},
                                "skuId": {"type": TAG, "value": skuId,
@@ -167,27 +175,22 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
 
 
 def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSkusList, skus, maxNodesList, nodes):
-    product_id_list = []
-    market = random.choices(countries_alpha_3, weights=countries_alpha_p)[0]
+    # number of products by region
+    qr = random.random()
+    if qr < 0.5:
+        cmd = ["READ", "AGGREGATE1-GROUPBY", 1, "FT.AGGREGATE", "{index}".format(index=index),
+           "*", "GROUPBY", 1, "@market", "REDUCE", "COUNT", 0, "AS", "nb_of_products"]
+    else:
+    # number of products by region with rating above a threshold
+        min_ration = random.random() * 5.0
+        cmd = ["READ", "AGGREGATE2-QUERY-FILTERED-GROUPBY", 1, "FT.AGGREGATE", "{index}".format(index=index),
+           "@average_review_rating:[{},5.0]".format(min_ration), "GROUPBY", 1, "@market", "REDUCE", "COUNT", 0, "AS", "nb_of_products"]
 
-    skuId_list = random.choices(skus, k=maxSkusList)
-    nodeId_list = random.choices(nodes, k=maxNodesList)
-
-    cmd = ["READ", "R1", 1, "FT.AGGREGATE", "{index}".format(index=index),
-           "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(market,
-                                                                   "|".join(skuId_list),
-                                                                   "|".join(nodeId_list))
-        , "LOAD", "21", "@market", "@skuId", "@nodeId", "@brand", "@nodeType", "@onhand", "@allocated",
-           "@confirmedQuantity", "@reserved", "@virtualHold", "@availableToSource", "@standardAvailableToPromise",
-           "@bopisAvailableToPromise", "@storeAllocated", "@bopisSafetyStock", "@transferAllocated",
-           "@standardSafetyStock", "@storeReserved", "@availableToSource", "@exclusionType", "@onHold", "WITHCURSOR",
-           "COUNT", "500"]
     return cmd
 
 
 def generate_ft_add_row(index, doc):
-    cmd = ["SETUP_WRITE", "S1", 2, "FT.ADD", "{index}".format(index=index),
-           "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]), 1.0, "REPLACE", "FIELDS"]
+    cmd = ["SETUP_WRITE", "S1", 1, "HSET", "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"])]
     for f, v in doc["schema"].items():
         cmd.append(f)
         cmd.append(v["value"])
@@ -195,12 +198,11 @@ def generate_ft_add_row(index, doc):
 
 
 def generate_ft_create_row(index, doc):
-    cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
+    cmd = ["FT.CREATE", "{index}".format(index=index), "ON", "HASH", "SCHEMA"]
     for f, v in doc["schema"].items():
         cmd.append(f)
         cmd.append(v["type"])
-        if len(v["field_options"]) > 0:
-            cmd.extend(v["field_options"])
+        cmd.append("SORTABLE")
     return cmd
 
 
@@ -209,14 +211,10 @@ def generate_ft_drop_row(index):
     return cmd
 
 
-def generate_ft_add_update_row(indexname, doc):
-    cmd = ["UPDATE", "U1", 2, "FT.ADD", "{index}".format(index=indexname),
-           "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
-           "REPLACE", "PARTIAL", "FIELDS"]
-    TRUES = "true"
-    FALSES = "false"
-    standardAvailableToPromise = TRUES if bool(random.getrandbits(1)) == True else FALSES
-    availableToSource = TRUES if bool(random.getrandbits(1)) == True else FALSES
+def generate_ft_add_update_row(index, doc):
+    cmd = ["UPDATE", "U1", 1, "HSET", "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"])]
+    standardAvailableToPromise = "true" if bool(random.getrandbits(1)) == True else "false"
+    availableToSource = "true" if bool(random.getrandbits(1)) == True else "false"
     market = doc["schema"]["market"]["value"]
     nodeId = doc["schema"]["nodeId"]["value"]
     nodeType = doc["schema"]["nodeType"]["value"]
@@ -224,7 +222,6 @@ def generate_ft_add_update_row(indexname, doc):
         "market", market, "nodeId", nodeId, "nodeType", nodeType, "availableToSource", availableToSource,
         "standardAvailableToPromise", standardAvailableToPromise]
     cmd.extend(new)
-
     return cmd
 
 
@@ -292,8 +289,8 @@ def generate_benchmark_commands():
             total_updates = total_updates + 1
         elif choice == "read":
             generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p,
-                                                      max_skus_per_aggregate, skusIds_list,
-                                                      max_nodes_per_aggregate, nodesIds)
+                                                      0, 0,
+                                                      0, 0)
             total_reads = total_reads + 1
         all_csv_writer.writerow(generated_row)
         bench_csv_writer.writerow(generated_row)
@@ -308,27 +305,23 @@ if (__name__ == "__main__"):
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--project', type=str, default="redisearch",
                         help='the project being tested')
-    parser.add_argument('--update-ratio', type=float, default=0.85,
-                        help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
+    parser.add_argument('--update-ratio', type=float, default=0.0,
+                        help='the total ratio of updates ( HSET ). The Aggregate ratio will be given by (1 - update-ratio)')
     parser.add_argument('--seed', type=int, default=12345,
                         help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=1000000,
+    parser.add_argument('--doc-limit', type=int, default=100000,
                         help='the total documents to generate to be added in the setup stage')
     parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
                         help='the total commands to generate to be issued in the benchmark stage')
-    parser.add_argument('--max-skus-per-aggregate', type=int, default=100,
-                        help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command')
-    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,
-                        help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command')
-    parser.add_argument('--index-name', type=str, default="inventory",
+    parser.add_argument('--index-name', type=str, default="ecommerce",
                         help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="1M-ecommerce-inventory", help='the name of the test')
+    parser.add_argument('--test-name', type=str, default="10M-ecommerce-aggregate", help='the name of the test')
     parser.add_argument('--test-description', type=str,
-                        default="benchmark focused on updates and aggregate performance",
+                        default="benchmark focused on aggregate performance",
                         help='the full description of the test')
-    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK",
+    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK,ES,PT,BR,AU",
                         help='comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability')
-    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05",
+    parser.add_argument('--countries-alpha3-probability', type=str, default="0.6,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05",
                         help='comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3')
     parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
                         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
@@ -378,8 +371,6 @@ if (__name__ == "__main__"):
     read_ratio = 1 - update_ratio
     doc_limit = args.doc_limit
     total_benchmark_commands = args.total_benchmark_commands
-    max_skus_per_aggregate = args.max_skus_per_aggregate
-    max_nodes_per_aggregate = args.max_nodes_per_aggregate
     input_data_filename = args.input_data_filename
     used_indices = [indexname]
     setup_commands = []
