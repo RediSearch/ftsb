@@ -66,6 +66,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter bool) {
 	cmdSlots := make([][]radix.CmdAction, 0, 0)
 	timesSlots := make([][]time.Time, 0, 0)
+	replies := make([]interface{}, 0, 0)
 	clusterSlots := make([][2]uint16, 0, 0)
 	clusterAddr := make([]string, 0, 0)
 
@@ -98,10 +99,10 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			time.Sleep(r.Delay())
 		}
 		if !clusterMode {
-			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, cmdSlots[slotP], replies, timesSlots[slotP])
 		} else {
 			client, _ := p.vanillaCluster.Client(clusterAddr[slotP])
-			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, 1, cmdSlots[slotP], timesSlots[slotP])
+			cmdSlots[slotP], timesSlots[slotP] = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, cmdSlots[slotP], replies, timesSlots[slotP])
 		}
 	}
 	p.wg.Done()
@@ -122,7 +123,7 @@ func getRxLen(v interface{}) (res uint64) {
 	return
 }
 
-func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount, insertCount uint64, cmds []radix.CmdAction, replies []interface{}, times []time.Time) ([]radix.CmdAction, []time.Time) {
+func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, cmds []radix.CmdAction, replies []interface{}, times []time.Time) ([]radix.CmdAction, []time.Time) {
 	var err error = nil
 	var rcv interface{}
 	rxBytesCount := uint64(0)
@@ -131,11 +132,11 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 	replies = append(replies, rcv)
 	start := time.Now()
 	times = append(times, start)
-	cmds, times = sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, rcv, txBytesCount)
+	cmds, times = sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, replies, txBytesCount)
 	return cmds, times
 }
 
-func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, rcv interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
+func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, replies []interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time) {
 	cmdLen := len(cmds)
 	if cmdLen >= pipeline {
 		if cmdLen == 1 {
