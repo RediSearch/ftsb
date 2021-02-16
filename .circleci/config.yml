@@ -1,38 +1,6 @@
 version: 2.1
 
-executors:
-  edge:
-    docker:
-      - image: circleci/golang:1.13
-      - image: redislabs/redisearch:edge
-  latest:
-    docker:
-      - image: circleci/golang:1.13
-      - image: redislabs/redisearch:latest
-
 jobs:
-  ci-benchmark:
-    parameters:
-      redisearch_version:
-        type: executor
-      use_case:
-        type: string
-    executor: << parameters.redisearch_version >>
-    steps:
-      - checkout
-      - run: make
-      - run: sudo apt install python3.6 -y
-      - run: sudo apt install python3-pip -y
-      - run: python3 -m pip install wheel redisbench-admin==0.1.13
-      - run:
-          name: << parameters.use_case >> use case
-          command: |
-            redisbench-admin run \
-             --repetitions 3 \
-             --output-file-prefix circleci \
-             --upload-results-s3 \
-             --benchmark-config-file https://s3.amazonaws.com/benchmarks.redislabs/redisearch/datasets/<< parameters.use_case >>/<< parameters.use_case >>.redisearch.cfg.json
-
   build-edge: # test with redisearch:edge
     docker:
       - image: circleci/golang:1.13
@@ -54,63 +22,7 @@ jobs:
 workflows:
   commit:
     jobs:
+      - build-latest
       - build-edge:
           requires:
             - build-latest
-      - build-latest
-      - ci-benchmark:
-          name: edge-ecommerce-inventory
-          redisearch_version: edge
-          use_case: "ecommerce-inventory"
-          requires:
-            - build-edge
-      - ci-benchmark:
-          name: edge-nyc_taxis-ft.add
-          redisearch_version: edge
-          use_case: "nyc_taxis-ft.add"
-          requires:
-            - edge-ecommerce-inventory
-      - ci-benchmark:
-          name: edge-nyc_taxis-hashes
-          redisearch_version: edge
-          use_case: "nyc_taxis-hashes"
-          requires:
-            - edge-nyc_taxis-ft.add
-      - ci-benchmark:
-          name: edge-enwiki_abstract-hashes
-          redisearch_version: edge
-          use_case: "enwiki_abstract-hashes"
-          requires:
-            - edge-nyc_taxis-hashes
-
-  ci_benchmarks:
-    triggers:
-      - schedule:
-          cron: "0 0,6,12,18 * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - ci-benchmark:
-          name: edge-ecommerce-inventory
-          redisearch_version: edge
-          use_case: "ecommerce-inventory"
-      - ci-benchmark:
-          name: edge-nyc_taxis-ft.add
-          redisearch_version: edge
-          use_case: "nyc_taxis-ft.add"
-          requires:
-            - edge-ecommerce-inventory
-      - ci-benchmark:
-          name: edge-nyc_taxis-hashes
-          redisearch_version: edge
-          use_case: "nyc_taxis-hashes"
-          requires:
-            - edge-nyc_taxis-ft.add
-      - ci-benchmark:
-          name: edge-enwiki_abstract-hashes
-          redisearch_version: edge
-          use_case: "enwiki_abstract-hashes"
-          requires:
-            - edge-nyc_taxis-hashes
