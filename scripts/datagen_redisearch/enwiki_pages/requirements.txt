@@ -1,0 +1,7 @@
+numpy==1.18.5
+tqdm==4.30.0
+boto3==1.13.24
+tdigest==0.5.2.2
+matplotlib==3.2.1
+common==0.1.2
+python_dateutil==2.8.1
