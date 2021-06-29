@@ -8,7 +8,7 @@ jobs:
     steps:
       - checkout
       - run: make test
-      - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+      - run: bash <(curl -s https://raw.githubusercontent.com/codecov/codecov-action/master/codecov) -t ${CODECOV_TOKEN}
 
   build-latest: # test with redisearch:latest
     docker:
