@@ -84,6 +84,7 @@ def upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts):
     progress = tqdm(unit="files", total=len(artifacts))
     for input in artifacts:
         object_key = '{bucket_path}{filename}'.format(bucket_path=s3_bucket_path, filename=input)
+        print("https link: https://s3.amazonaws.com/{}/{}".format(s3_bucket_name,object_key))
         bucket.upload_file(input, object_key)
         object_acl = s3.ObjectAcl(s3_bucket_name, object_key)
         response = object_acl.put(ACL='public-read')
