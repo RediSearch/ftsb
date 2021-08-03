@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 sys.path.append(os.getcwd() + '/..')
 
-from common import download_url, generate_setup_json, compress_files, generate_inputs_dict_item, humanized_bytes, \
+from common_datagen import download_url, generate_setup_json, compress_files, generate_inputs_dict_item, humanized_bytes, \
     del_non_use_case_specific_keys, add_key_metric, upload_dataset_artifacts_s3, \
     add_deployment_requirements_redis_server_module, add_deployment_requirements_benchmark_tool, \
     add_deployment_requirements_utilities, init_deployment_requirement, remove_file_if_exists
