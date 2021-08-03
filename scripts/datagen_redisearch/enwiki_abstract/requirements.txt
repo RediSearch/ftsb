@@ -1,4 +1,4 @@
-boto3==1.13.24
-tqdm==4.46.1
+boto3>=1.13.24
+tqdm>=4.46.1
 common==0.1.2
 urllib3>=1.26.5 # not directly required, pinned by Snyk to avoid a vulnerability
