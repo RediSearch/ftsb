@@ -62,7 +62,10 @@ def generate_nyc_taxis_index_type():
     return types
 
 
-def generate_ft_create_row(index, index_types, use_ftadd):
+def generate_ft_create_row(index, index_types, use_ftadd, use_json=False):
+    on_type = '"HASH"'
+    if use_json:
+        on_type = '"JSON"'
     if use_ftadd:
         cmd = ['"FT.CREATE"', '"{index}"'.format(index=index), '"SCHEMA"']
     else:
@@ -70,13 +73,17 @@ def generate_ft_create_row(index, index_types, use_ftadd):
             '"FT.CREATE"',
             '"{index}"'.format(index=index),
             '"ON"',
-            '"HASH"',
+            on_type,
             '"SCHEMA"',
         ]
     for f, v in index_types.items():
+        if use_json:
+            cmd.append('"$.{}"'.format(f))
+            cmd.append('"AS"')
         cmd.append('"{}"'.format(f))
         cmd.append('"{}"'.format(v))
-        cmd.append('"SORTABLE"')
+        if v != "tag":
+            cmd.append('"SORTABLE"')
     return cmd
 
 
@@ -126,6 +133,7 @@ def use_case_csv_row_to_cmd(
     payment_type_pos,
     mta_tax_pos,
     vendor_id_pos,
+    use_json_set=False,
 ):
     pickup_location_long = (
         None
@@ -191,7 +199,7 @@ def use_case_csv_row_to_cmd(
         else "{:.6f},{:.6f}".format(dropoff_location_long, dropoff_location_lat),
         "passenger_count": None
         if passenger_count_pos is None
-        else row[passenger_count_pos],
+        else str_to_float_or_zero(row[passenger_count_pos]),
         "fare_amount": None
         if fare_amount_pos is None
         else str_to_float_or_zero(row[fare_amount_pos]),
@@ -216,16 +224,21 @@ def use_case_csv_row_to_cmd(
     #     assert k in index_types.keys()
 
     fields = []
+    final_json = {}
     for f, v in hash.items():
         if v is not None:
             fields.append(f)
             fields.append(v)
-    if use_ftadd is False:
-        cmd = ["WRITE", "W1", 1, "HSET", docid_str]
+            final_json[f] = v
+    if use_json_set:
+        cmd = ["WRITE", "W1", 1, "JSON.SET", docid_str, "$", json.dumps(final_json)]
     else:
-        cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
-    for x in fields:
-        cmd.append(x)
+        if use_ftadd:
+            cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
+        else:
+            cmd = ["WRITE", "W1", 1, "HSET", docid_str]
+        for x in fields:
+            cmd.append(x)
     return cmd
 
 
@@ -318,6 +331,12 @@ if __name__ == "__main__":
         help="Use FT.ADD instead of HSET",
     )
     parser.add_argument(
+        "--use-jsonset",
+        default=False,
+        action="store_true",
+        help="Use JSON.SET instead of HSET",
+    )
+    parser.add_argument(
         "--nyc-tlc-s3-bucket-prefix",
         type=str,
         default="https://s3.amazonaws.com/nyc-tlc/trip+data",
@@ -343,6 +362,7 @@ if __name__ == "__main__":
     test_name = args.test_name
     description = args.test_description
     use_ftadd = args.use_ftadd
+    use_json_set = args.use_jsonset
     if use_ftadd:
         test_name = "nyc_taxis-ftadd"
     test_name = "{}-{}".format(human_format(doc_limit), test_name)
@@ -418,7 +438,9 @@ if __name__ == "__main__":
 
     index_types = generate_nyc_taxis_index_type()
     print("-- generating the ft.create commands -- ")
-    ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
+    ft_create_cmd = generate_ft_create_row(
+        indexname, index_types, use_ftadd, use_json_set
+    )
     setup_commands.append(ft_create_cmd)
     print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
 
@@ -496,6 +518,7 @@ if __name__ == "__main__":
                     payment_type_pos,
                     mta_tax_pos,
                     vendor_id_pos,
+                    use_json_set,
                 )
                 all_csv_writer.writerow(cmd)
                 total_docs = total_docs + 1
