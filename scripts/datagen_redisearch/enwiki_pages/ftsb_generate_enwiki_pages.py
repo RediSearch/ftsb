@@ -45,9 +45,9 @@ from common_datagen import (
 from tqdm import tqdm
 from pathlib import Path
 
-origin = "https://dumps.wikimedia.org/enwiki/20201101/enwiki-20201101-pages-articles1.xml-p1p41242.bz2"
-filename = "enwiki-20201101-pages-articles1.xml-p1p41242.bz2"
-decompressed_fname = "enwiki-20201101-pages-articles1.xml-p1p41242"
+origin = "https://dumps.wikimedia.org/enwiki/20210501/enwiki-20210501-pages-articles1.xml-p1p41242.bz2"
+filename = "enwiki-20210501-pages-articles1.xml-p1p41242.bz2"
+decompressed_fname = "enwiki-20210501-pages-articles1.xml-p1p41242"
 
 
 def generate_enwiki_pages_index_type():
@@ -76,16 +76,23 @@ def generate_lognormal_dist(n_elements):
 
 def generate_ft_create_row(index, index_types, use_ftadd, no_index_list):
     if use_ftadd:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
+        cmd = ['"FT.CREATE"', '"{index}"'.format(index=index), '"SCHEMA"']
     else:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "ON", "HASH", "SCHEMA"]
+        cmd = [
+            '"FT.CREATE"',
+            '"{index}"'.format(index=index),
+            '"ON"',
+            '"HASH"',
+            '"SCHEMA"',
+        ]
     for f, v in index_types.items():
-        cmd.append(f)
-        cmd.append(v)
+        cmd.append('"{}"'.format(f))
+        cmd.append('"{}"'.format(v))
         if f in no_index_list:
-            cmd.append("NOINDEX")
+            cmd.append('"NOINDEX"')
         else:
             cmd.append("SORTABLE")
+            cmd.append('"SORTABLE"')
     return cmd
 
 
@@ -163,6 +170,7 @@ def generate_benchmark_commands(
     use_numeric_range_searchs,
     ts_digest,
     p_writes,
+    query_choices,
 ):
     total_benchmark_reads = 0
     total_benchmark_writes = 0
@@ -207,9 +215,7 @@ def generate_benchmark_commands(
             total_benchmark_reads = total_benchmark_reads + 1
             words, totalW = getQueryWords(doc, stop_words, 2)
 
-            choice = random.choices(
-                ["simple-1word-query", "2word-union-query", "2word-intersection-query"]
-            )[0]
+            choice = random.choices(query_choices)[0]
             generated_row = None
             numeric_range_str = ""
             if use_numeric_range_searchs:
@@ -300,6 +306,12 @@ if __name__ == "__main__":
         help="the random seed used to generate random deterministic outputs",
     )
     parser.add_argument(
+        "--read-ratio", type=int, default=10, help="query time read ratio"
+    )
+    parser.add_argument(
+        "--write-ratio", type=int, default=1, help="query time write ratio"
+    )
+    parser.add_argument(
         "--min-doc-len",
         type=int,
         default=1024,
@@ -371,8 +383,19 @@ if __name__ == "__main__":
         default="./tmp",
         help="The temporary dir to use as working directory for file download, compression,etc... ",
     )
-
+    parser.add_argument(
+        "--query-choices",
+        type=str,
+        default="simple-1word-query,2word-union-query,2word-intersection-query",
+        help="comma separated list of queries to produce. one of: simple-1word-query,2word-union-query,2word-intersection-query",
+    )
+    parser.add_argument(
+        "--upload-artifacts-s3-uncompressed",
+        action="store_true",
+        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
+    )
     args = parser.parse_args()
+    query_choices = args.query_choices.split(",")
     use_case_specific_arguments = del_non_use_case_specific_keys(dict(args.__dict__))
 
     # generate the temporary working dir if required
@@ -411,7 +434,12 @@ if __name__ == "__main__":
 
     all_fname = "{}.ALL.csv".format(benchmark_output_file)
     setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
-    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
+    bench_fname = "{}.BENCH.QUERY_{}_write_{}_to_read_{}.csv".format(
+        benchmark_output_file,
+        "__".join(query_choices),
+        args.write_ratio,
+        args.read_ratio,
+    )
     all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
     setup_fname_compressed = "{}.SETUP.tar.gz".format(benchmark_output_file)
     bench_fname_compressed = "{}.BENCH.tar.gz".format(benchmark_output_file)
@@ -491,7 +519,9 @@ if __name__ == "__main__":
     total_updates = 0
     total_deletes = 0
     # 1:10
-    p_writes = 1.0 / 11.0
+    p_writes = float(args.write_ratio) / (
+        float(args.read_ratio) + float(args.write_ratio)
+    )
 
     json_version = "0.1"
     benchmark_repetitions_require_teardown_and_resetup = False
@@ -511,6 +541,8 @@ if __name__ == "__main__":
     ft_create_cmd = generate_ft_create_row(
         indexname, index_types, use_ftadd, no_index_list
     )
+    print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
+
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
@@ -666,6 +698,7 @@ if __name__ == "__main__":
         use_numeric_range_searchs,
         ts_digest,
         p_writes,
+        query_choices,
     )
 
     total_commands = total_docs
@@ -793,6 +826,10 @@ if __name__ == "__main__":
             setup_fname_compressed,
             bench_fname_compressed,
         ]
+        upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
+
+    if args.upload_artifacts_s3_uncompressed:
+        artifacts = [setup_fname, bench_fname]
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")

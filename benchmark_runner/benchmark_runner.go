@@ -517,8 +517,8 @@ func (l *BenchmarkRunner) summary() {
 	/////////
 	// Totals
 	/////////
-	l.testResult.StartTime = l.start.Unix()
-	l.testResult.EndTime = l.end.Unix()
+	l.testResult.StartTime = l.start.Unix() * 1000
+	l.testResult.EndTime = l.end.Unix() * 1000
 	l.testResult.DurationMillis = took.Milliseconds()
 	l.testResult.Metadata = l.Metadata
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion

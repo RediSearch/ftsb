@@ -64,13 +64,19 @@ def generate_nyc_taxis_index_type():
 
 def generate_ft_create_row(index, index_types, use_ftadd):
     if use_ftadd:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
+        cmd = ['"FT.CREATE"', '"{index}"'.format(index=index), '"SCHEMA"']
     else:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "ON", "HASH", "SCHEMA"]
+        cmd = [
+            '"FT.CREATE"',
+            '"{index}"'.format(index=index),
+            '"ON"',
+            '"HASH"',
+            '"SCHEMA"',
+        ]
     for f, v in index_types.items():
-        cmd.append(f)
-        cmd.append(v)
-        cmd.append("SORTABLE")
+        cmd.append('"{}"'.format(f))
+        cmd.append('"{}"'.format(v))
+        cmd.append('"SORTABLE"')
     return cmd
 
 
@@ -132,13 +138,13 @@ def use_case_csv_row_to_cmd(
         else str_to_float_or_zero(row[pickup_latitude_pos])
     )
     if pickup_location_lat is not None and (
-        pickup_location_lat < -90.0 or pickup_location_lat > 90
+        pickup_location_lat < -85.05112878 or pickup_location_lat > 85.05112878
     ):
-        pickup_location_lat = 0
+        pickup_location_lat = None
     if pickup_location_long is not None and (
         pickup_location_long < -180.0 or pickup_location_long > 180
     ):
-        pickup_location_long = 0
+        pickup_location_long = None
 
     dropoff_location_long = (
         None
@@ -151,13 +157,13 @@ def use_case_csv_row_to_cmd(
         else str_to_float_or_zero(row[dropoff_latitude_pos])
     )
     if dropoff_location_lat is not None and (
-        dropoff_location_lat < -90.0 or dropoff_location_lat > 90
+        dropoff_location_lat < -85.05112878 or dropoff_location_lat > 85.05112878
     ):
-        dropoff_location_lat = 0
+        dropoff_location_lat = None
     if dropoff_location_long is not None and (
         dropoff_location_long < -180.0 or dropoff_location_long > 180
     ):
-        dropoff_location_long = 0
+        dropoff_location_long = None
 
     hash = {
         "total_amount": None
@@ -168,7 +174,7 @@ def use_case_csv_row_to_cmd(
         else str_to_float_or_zero(row[improvement_surcharge_pos]),
         "pickup_location_long_lat": None
         if (pickup_location_long is None or pickup_location_lat is None)
-        else "{},{}".format(pickup_location_long, pickup_location_lat),
+        else "{:.6f},{:.6f}".format(pickup_location_long, pickup_location_lat),
         "pickup_datetime": None
         if pickup_datetime_pos is None
         else '"{}"'.format(row[pickup_datetime_pos]),
@@ -182,7 +188,7 @@ def use_case_csv_row_to_cmd(
         else str_to_float_or_zero(row[tolls_amount_pos]),
         "dropoff_location_long_lat": None
         if (dropoff_location_long is None or dropoff_location_lat is None)
-        else "{},{}".format(dropoff_location_long, dropoff_location_lat),
+        else "{:.6f},{:.6f}".format(dropoff_location_long, dropoff_location_lat),
         "passenger_count": None
         if passenger_count_pos is None
         else row[passenger_count_pos],
@@ -221,6 +227,15 @@ def use_case_csv_row_to_cmd(
     for x in fields:
         cmd.append(x)
     return cmd
+
+
+def human_format(num):
+    magnitude = 0
+    while abs(num) >= 1000:
+        magnitude += 1
+        num /= 1000.0
+    # add more suffixes if you need them
+    return "%.0f%s" % (num, ["", "K", "M", "G", "T", "P"][magnitude])
 
 
 if __name__ == "__main__":
@@ -276,7 +291,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test-name",
         type=str,
-        default="10M-nyc_taxis-hashes",
+        default="nyc_taxis-hashes",
         help="the name of the test",
     )
     parser.add_argument(
@@ -288,6 +303,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--upload-artifacts-s3",
         default=False,
+        action="store_true",
+        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
+    )
+    parser.add_argument(
+        "--upload-artifacts-s3-uncompressed",
         action="store_true",
         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
     )
@@ -322,6 +342,10 @@ if __name__ == "__main__":
     indexname = args.index_name
     test_name = args.test_name
     description = args.test_description
+    use_ftadd = args.use_ftadd
+    if use_ftadd:
+        test_name = "nyc_taxis-ftadd"
+    test_name = "{}-{}".format(human_format(doc_limit), test_name)
     s3_bucket_name = "benchmarks.redislabs"
     s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
     s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(
@@ -347,7 +371,6 @@ if __name__ == "__main__":
     end_y = args.yellow_tripdata_end_year
     start_m = args.yellow_tripdata_start_month
     end_m = args.yellow_tripdata_end_month
-    use_ftadd = args.use_ftadd
 
     used_indices = [indexname]
     setup_commands = []
@@ -397,6 +420,7 @@ if __name__ == "__main__":
     print("-- generating the ft.create commands -- ")
     ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
     setup_commands.append(ft_create_cmd)
+    print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
 
     print("-- generating the ft.drop commands -- ")
     ft_drop_cmd = generate_ft_drop_row(indexname)
@@ -549,6 +573,9 @@ if __name__ == "__main__":
 
     if args.upload_artifacts_s3:
         artifacts = [benchmark_config_file, all_fname_compressed]
+        upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
+    if args.upload_artifacts_s3_uncompressed:
+        artifacts = [all_fname]
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")

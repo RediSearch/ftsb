@@ -53,13 +53,19 @@ def generate_enwiki_abstract_index_type():
 
 def generate_ft_create_row(index, index_types, use_ftadd):
     if use_ftadd:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "SCHEMA"]
+        cmd = ['"FT.CREATE"', '"{index}"'.format(index=index), '"SCHEMA"']
     else:
-        cmd = ["FT.CREATE", "{index}".format(index=index), "ON", "HASH", "SCHEMA"]
+        cmd = [
+            '"FT.CREATE"',
+            '"{index}"'.format(index=index),
+            '"ON"',
+            '"HASH"',
+            '"SCHEMA"',
+        ]
     for f, v in index_types.items():
-        cmd.append(f)
-        cmd.append(v)
-        cmd.append("SORTABLE")
+        cmd.append('"{}"'.format(f))
+        cmd.append('"{}"'.format(v))
+        cmd.append('"SORTABLE"')
     return cmd
 
 
@@ -120,6 +126,7 @@ def generate_benchmark_commands(
     docs,
     stop_words,
     search_no_content,
+    query_choices,
 ):
     all_csvfile = open(all_fname, "a", newline="")
     bench_csvfile = open(bench_fname, "w", newline="")
@@ -132,9 +139,7 @@ def generate_benchmark_commands(
         random_doc_pos = random.randint(0, total_docs - 1)
         doc = docs[random_doc_pos]
         words, totalW = getQueryWords(doc, stop_words, 2)
-        choice = random.choices(
-            ["simple-1word-query", "2word-union-query", "2word-intersection-query"]
-        )[0]
+        choice = random.choices(query_choices)[0]
         generated_row = None
         if choice == "simple-1word-query" and len(words) >= 1:
             generated_row = generate_ft_search_row(
@@ -229,6 +234,18 @@ if __name__ == "__main__":
         help="the full description of the test",
     )
     parser.add_argument(
+        "--query-choices",
+        type=str,
+        default="simple-1word-query,2word-union-query,2word-intersection-query",
+        help="comma separated list of queries to produce. one of: simple-1word-query,2word-union-query,2word-intersection-query",
+    )
+    parser.add_argument(
+        "--upload-artifacts-s3-uncompressed",
+        action="store_true",
+        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
+    )
+
+    parser.add_argument(
         "--upload-artifacts-s3",
         default=False,
         action="store_true",
@@ -266,6 +283,7 @@ if __name__ == "__main__":
     indexname = args.index_name
     test_name = args.test_name
     search_no_content = args.search_no_content
+    query_choices = args.query_choices.split(",")
     if search_no_content:
         test_name += "-search-no-content"
     description = args.test_description
@@ -286,7 +304,9 @@ if __name__ == "__main__":
 
     all_fname = "{}.ALL.csv".format(benchmark_output_file)
     setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
-    bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
+    bench_fname = "{}.BENCH.QUERY_{}.csv".format(
+        benchmark_output_file, "__".join(query_choices)
+    )
     all_fname_compressed = "{}.ALL.tar.gz".format(benchmark_output_file)
     setup_fname_compressed = "{}.SETUP.tar.gz".format(benchmark_output_file)
     bench_fname_compressed = "{}.BENCH.tar.gz".format(benchmark_output_file)
@@ -382,6 +402,7 @@ if __name__ == "__main__":
     index_types = generate_enwiki_abstract_index_type()
     print("-- generating the ft.create commands -- ")
     ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
+    print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
@@ -460,6 +481,7 @@ if __name__ == "__main__":
         docs,
         stop_words,
         search_no_content,
+        query_choices,
     )
 
     total_commands = total_docs
@@ -587,6 +609,9 @@ if __name__ == "__main__":
             setup_fname_compressed,
             bench_fname_compressed,
         ]
+        upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
+    if args.upload_artifacts_s3_uncompressed:
+        artifacts = [setup_fname, bench_fname]
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")
