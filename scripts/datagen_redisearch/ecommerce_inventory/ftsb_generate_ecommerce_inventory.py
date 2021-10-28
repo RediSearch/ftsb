@@ -10,16 +10,35 @@ import sys
 from tqdm import tqdm
 
 # package local imports
-sys.path.append(os.getcwd() + '/..')
+sys.path.append(os.getcwd() + "/..")
 
-from common_datagen import download_url, generate_setup_json, compress_files, generate_inputs_dict_item, humanized_bytes, \
-    del_non_use_case_specific_keys, add_key_metric, upload_dataset_artifacts_s3, \
-    add_deployment_requirements_redis_server_module, add_deployment_requirements_benchmark_tool, \
-    add_deployment_requirements_utilities, init_deployment_requirement, remove_file_if_exists
+from common_datagen import (
+    download_url,
+    generate_setup_json,
+    compress_files,
+    generate_inputs_dict_item,
+    humanized_bytes,
+    del_non_use_case_specific_keys,
+    add_key_metric,
+    upload_dataset_artifacts_s3,
+    add_deployment_requirements_redis_server_module,
+    add_deployment_requirements_benchmark_tool,
+    add_deployment_requirements_utilities,
+    init_deployment_requirement,
+    remove_file_if_exists,
+)
 
 
-def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_ids, countries_alpha_3,
-                      countries_alpha_p):
+def process_inventory(
+    row,
+    market_count,
+    nodes,
+    total_nodes,
+    docs_map,
+    product_ids,
+    countries_alpha_3,
+    countries_alpha_p,
+):
     # uniq_id,product_name,manufacturer,price,number_available_in_stock,number_of_reviews,number_of_answered_questions,average_review_rating,amazon_category_and_sub_category,customers_who_bought_this_item_also_bought,description,product_information,product_description,items_customers_buy_after_viewing_this_item,customer_questions_and_answers,customer_reviews,sellers
     added_docs = 0
     NUMERIC = "NUMERIC"
@@ -49,16 +68,25 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
         virtualHold = random.randint(0, 64000)
 
         onhandLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
-        allocatedLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
-        reservedLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
-        storeAllocatedLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
-        transferAllocatedLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
-        storeReservedLastUpdatedTimestamp = int(time.time() + random.randint(0, 24 * 60 * 60))
+        allocatedLastUpdatedTimestamp = int(
+            time.time() + random.randint(0, 24 * 60 * 60)
+        )
+        reservedLastUpdatedTimestamp = int(
+            time.time() + random.randint(0, 24 * 60 * 60)
+        )
+        storeAllocatedLastUpdatedTimestamp = int(
+            time.time() + random.randint(0, 24 * 60 * 60)
+        )
+        transferAllocatedLastUpdatedTimestamp = int(
+            time.time() + random.randint(0, 24 * 60 * 60)
+        )
+        storeReservedLastUpdatedTimestamp = int(
+            time.time() + random.randint(0, 24 * 60 * 60)
+        )
 
-        pattern = re.compile('[\W_]+')
+        pattern = re.compile("[\W_]+")
 
-        sellers = re.findall(
-            r'\"Seller_name_\d+\"=>\"([^"]+)\"', sellers_raw)
+        sellers = re.findall(r'\"Seller_name_\d+\"=>\"([^"]+)\"', sellers_raw)
         if len(sellers) == 0:
             available = "false"
 
@@ -81,81 +109,156 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
                 else:
                     product_ids[skuId] += 1
                 market = random.choices(countries_alpha_3, weights=countries_alpha_p)[0]
-                doc_id = "{market}_{nodeId}_{skuId}".format(market=market, nodeId=nodeId, skuId=did)
+                doc_id = "{market}_{nodeId}_{skuId}".format(
+                    market=market, nodeId=nodeId, skuId=did
+                )
 
                 if doc_id not in docs_map:
-                    doc = {"doc_id": doc_id,
-                           "schema": {
-                               "market": {"type": TAG, "value": market, "field_options": ["SORTABLE"]},
-                               "nodeId": {"type": TAG, "value": nodeId, "field_options": ["SORTABLE"]},
-                               "skuId": {"type": TAG, "value": skuId,
-                                         "field_options": ["SORTABLE"]},
-                               # onhand
-                               "onhand": {"type": NUMERIC, "value": onhand,
-                                          "field_options": ["SORTABLE", "NOINDEX"]},
-                               "onhandLastUpdatedTimestamp": {"type": NUMERIC, "value": onhandLastUpdatedTimestamp,
-                                                              "field_options": ["SORTABLE", "NOINDEX"]},
-                               # allocated
-                               "allocated": {"type": NUMERIC, "value": allocated,
-                                             "field_options": ["SORTABLE", "NOINDEX"]},
-                               "allocatedLastUpdatedTimestamp": {"type": NUMERIC,
-                                                                 "value": allocatedLastUpdatedTimestamp,
-                                                                 "field_options": ["SORTABLE", "NOINDEX"]},
-                               # reserved
-                               "reserved": {"type": NUMERIC, "value": reserved,
-                                            "field_options": ["SORTABLE", "NOINDEX"]},
-                               "reservedLastUpdatedTimestamp": {"type": NUMERIC, "value": reservedLastUpdatedTimestamp,
-                                                                "field_options": ["SORTABLE", "NOINDEX"]},
-                               # store allocated
-                               "storeAllocated": {"type": NUMERIC, "value": storeAllocated,
-                                                  "field_options": ["SORTABLE", "NOINDEX"]},
-                               "storeAllocatedLastUpdatedTimestamp": {"type": NUMERIC,
-                                                                      "value": storeAllocatedLastUpdatedTimestamp,
-                                                                      "field_options": ["SORTABLE", "NOINDEX"]},
-                               # transfer allocated
-                               "transferAllocated": {"type": NUMERIC, "value": transferAllocated,
-                                                     "field_options": ["SORTABLE", "NOINDEX"]},
-                               "transferAllocatedLastUpdatedTimestamp": {"type": NUMERIC,
-                                                                         "value": transferAllocatedLastUpdatedTimestamp,
-                                                                         "field_options": ["SORTABLE", "NOINDEX"]},
-
-                               # transfer allocated
-                               "storeReserved": {"type": NUMERIC, "value": storeReserved,
-                                                 "field_options": ["SORTABLE", "NOINDEX"]},
-                               "storeReservedLastUpdatedTimestamp": {"type": NUMERIC,
-                                                                     "value": storeReservedLastUpdatedTimestamp,
-                                                                     "field_options": ["SORTABLE", "NOINDEX"]},
-
-                               # store reserved
-                               "confirmedQuantity": {"type": NUMERIC, "value": confirmedQuantity,
-                                                     "field_options": ["SORTABLE", "NOINDEX"]},
-                               "standardSafetyStock": {"type": NUMERIC, "value": standardSafetyStock,
-                                                       "field_options": ["SORTABLE", "NOINDEX"]},
-                               "bopisSafetyStock": {"type": NUMERIC, "value": bopisSafetyStock,
-                                                    "field_options": ["SORTABLE", "NOINDEX"]},
-                               "virtualHold": {"type": NUMERIC, "value": virtualHold,
-                                               "field_options": ["SORTABLE", "NOINDEX"]},
-
-                               # tags
-                               "availableToSource": {"type": TAG, "value": pattern.sub('', availableToSource),
-                                                     "field_options": []},
-                               "standardAvailableToPromise": {"type": TAG,
-                                                              "value": pattern.sub('', standardAvailableToPromise),
-                                                              "field_options": []},
-                               "bopisAvailableToPromise": {"type": TAG,
-                                                           "value": pattern.sub('', bopisAvailableToPromise),
-                                                           "field_options": []},
-
-                               "nodeType": {"type": TAG, "value": pattern.sub('', nodeType), "field_options": []},
-                               "brand": {"type": TAG, "value": pattern.sub('', brand), "field_options": ["NOINDEX"]},
-
-                               "onHold": {"type": TAG, "value": pattern.sub('', onHold), "field_options": []},
-                               "exclusionType": {"type": TAG, "value": pattern.sub('', exclusionType),
-                                                 "field_options": []},
-                           }
-                           }
+                    doc = {
+                        "doc_id": doc_id,
+                        "schema": {
+                            "market": {
+                                "type": TAG,
+                                "value": market,
+                                "field_options": ["SORTABLE"],
+                            },
+                            "nodeId": {
+                                "type": TAG,
+                                "value": nodeId,
+                                "field_options": ["SORTABLE"],
+                            },
+                            "skuId": {
+                                "type": TAG,
+                                "value": skuId,
+                                "field_options": ["SORTABLE"],
+                            },
+                            # onhand
+                            "onhand": {
+                                "type": NUMERIC,
+                                "value": onhand,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "onhandLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": onhandLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # allocated
+                            "allocated": {
+                                "type": NUMERIC,
+                                "value": allocated,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "allocatedLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": allocatedLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # reserved
+                            "reserved": {
+                                "type": NUMERIC,
+                                "value": reserved,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "reservedLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": reservedLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # store allocated
+                            "storeAllocated": {
+                                "type": NUMERIC,
+                                "value": storeAllocated,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "storeAllocatedLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": storeAllocatedLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # transfer allocated
+                            "transferAllocated": {
+                                "type": NUMERIC,
+                                "value": transferAllocated,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "transferAllocatedLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": transferAllocatedLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # transfer allocated
+                            "storeReserved": {
+                                "type": NUMERIC,
+                                "value": storeReserved,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "storeReservedLastUpdatedTimestamp": {
+                                "type": NUMERIC,
+                                "value": storeReservedLastUpdatedTimestamp,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # store reserved
+                            "confirmedQuantity": {
+                                "type": NUMERIC,
+                                "value": confirmedQuantity,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "standardSafetyStock": {
+                                "type": NUMERIC,
+                                "value": standardSafetyStock,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "bopisSafetyStock": {
+                                "type": NUMERIC,
+                                "value": bopisSafetyStock,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            "virtualHold": {
+                                "type": NUMERIC,
+                                "value": virtualHold,
+                                "field_options": ["SORTABLE", "NOINDEX"],
+                            },
+                            # tags
+                            "availableToSource": {
+                                "type": TAG,
+                                "value": pattern.sub("", availableToSource),
+                                "field_options": [],
+                            },
+                            "standardAvailableToPromise": {
+                                "type": TAG,
+                                "value": pattern.sub("", standardAvailableToPromise),
+                                "field_options": [],
+                            },
+                            "bopisAvailableToPromise": {
+                                "type": TAG,
+                                "value": pattern.sub("", bopisAvailableToPromise),
+                                "field_options": [],
+                            },
+                            "nodeType": {
+                                "type": TAG,
+                                "value": pattern.sub("", nodeType),
+                                "field_options": [],
+                            },
+                            "brand": {
+                                "type": TAG,
+                                "value": pattern.sub("", brand),
+                                "field_options": ["NOINDEX"],
+                            },
+                            "onHold": {
+                                "type": TAG,
+                                "value": pattern.sub("", onHold),
+                                "field_options": [],
+                            },
+                            "exclusionType": {
+                                "type": TAG,
+                                "value": pattern.sub("", exclusionType),
+                                "field_options": [],
+                            },
+                        },
+                    }
                     docs_map[doc_id] = doc
-                    dd = {k: v['value'] for k, v in doc['schema'].items()}
+                    dd = {k: v["value"] for k, v in doc["schema"].items()}
 
                     #                     print("{")
                     #                     for k, v in dd.items():
@@ -166,28 +269,66 @@ def process_inventory(row, market_count, nodes, total_nodes, docs_map, product_i
     return nodes, total_nodes, docs_map, added_docs, product_ids
 
 
-def generate_ft_aggregate_row(index, countries_alpha_3, countries_alpha_p, maxSkusList, skus, maxNodesList, nodes):
+def generate_ft_aggregate_row(
+    index, countries_alpha_3, countries_alpha_p, maxSkusList, skus, maxNodesList, nodes
+):
     product_id_list = []
     market = random.choices(countries_alpha_3, weights=countries_alpha_p)[0]
 
     skuId_list = random.choices(skus, k=maxSkusList)
     nodeId_list = random.choices(nodes, k=maxNodesList)
 
-    cmd = ["READ", "R1", 1, "FT.AGGREGATE", "{index}".format(index=index),
-           "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(market,
-                                                                   "|".join(skuId_list),
-                                                                   "|".join(nodeId_list))
-        , "LOAD", "21", "@market", "@skuId", "@nodeId", "@brand", "@nodeType", "@onhand", "@allocated",
-           "@confirmedQuantity", "@reserved", "@virtualHold", "@availableToSource", "@standardAvailableToPromise",
-           "@bopisAvailableToPromise", "@storeAllocated", "@bopisSafetyStock", "@transferAllocated",
-           "@standardSafetyStock", "@storeReserved", "@availableToSource", "@exclusionType", "@onHold", "WITHCURSOR",
-           "COUNT", "500"]
+    cmd = [
+        "READ",
+        "R1",
+        1,
+        "FT.AGGREGATE",
+        "{index}".format(index=index),
+        "@market:{{{0}}} @skuId:{{{1}}} @nodeId:{{{2}}}".format(
+            market, "|".join(skuId_list), "|".join(nodeId_list)
+        ),
+        "LOAD",
+        "21",
+        "@market",
+        "@skuId",
+        "@nodeId",
+        "@brand",
+        "@nodeType",
+        "@onhand",
+        "@allocated",
+        "@confirmedQuantity",
+        "@reserved",
+        "@virtualHold",
+        "@availableToSource",
+        "@standardAvailableToPromise",
+        "@bopisAvailableToPromise",
+        "@storeAllocated",
+        "@bopisSafetyStock",
+        "@transferAllocated",
+        "@standardSafetyStock",
+        "@storeReserved",
+        "@availableToSource",
+        "@exclusionType",
+        "@onHold",
+        "WITHCURSOR",
+        "COUNT",
+        "500",
+    ]
     return cmd
 
 
 def generate_ft_add_row(index, doc):
-    cmd = ["SETUP_WRITE", "S1", 2, "FT.ADD", "{index}".format(index=index),
-           "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]), 1.0, "REPLACE", "FIELDS"]
+    cmd = [
+        "SETUP_WRITE",
+        "S1",
+        2,
+        "FT.ADD",
+        "{index}".format(index=index),
+        "{index}-{doc_id}".format(index=index, doc_id=doc["doc_id"]),
+        1.0,
+        "REPLACE",
+        "FIELDS",
+    ]
     for f, v in doc["schema"].items():
         cmd.append(f)
         cmd.append(v["value"])
@@ -210,19 +351,39 @@ def generate_ft_drop_row(index):
 
 
 def generate_ft_add_update_row(indexname, doc):
-    cmd = ["UPDATE", "U1", 2, "FT.ADD", "{index}".format(index=indexname),
-           "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]), 1.0,
-           "REPLACE", "PARTIAL", "FIELDS"]
+    cmd = [
+        "UPDATE",
+        "U1",
+        2,
+        "FT.ADD",
+        "{index}".format(index=indexname),
+        "{index}-{doc_id}".format(index=indexname, doc_id=doc["doc_id"]),
+        1.0,
+        "REPLACE",
+        "PARTIAL",
+        "FIELDS",
+    ]
     TRUES = "true"
     FALSES = "false"
-    standardAvailableToPromise = TRUES if bool(random.getrandbits(1)) == True else FALSES
+    standardAvailableToPromise = (
+        TRUES if bool(random.getrandbits(1)) == True else FALSES
+    )
     availableToSource = TRUES if bool(random.getrandbits(1)) == True else FALSES
     market = doc["schema"]["market"]["value"]
     nodeId = doc["schema"]["nodeId"]["value"]
     nodeType = doc["schema"]["nodeType"]["value"]
     new = [
-        "market", market, "nodeId", nodeId, "nodeType", nodeType, "availableToSource", availableToSource,
-        "standardAvailableToPromise", standardAvailableToPromise]
+        "market",
+        market,
+        "nodeId",
+        nodeId,
+        "nodeType",
+        nodeType,
+        "availableToSource",
+        availableToSource,
+        "standardAvailableToPromise",
+        standardAvailableToPromise,
+    ]
     cmd.extend(new)
 
     return cmd
@@ -235,13 +396,19 @@ def generate_setup_commands():
     print("Reading csv data to generate docs")
     progress = tqdm(unit="docs", total=doc_limit)
     while total_docs < doc_limit:
-        with open(input_data_filename, newline='') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',')
+        with open(input_data_filename, newline="") as csvfile:
+            spamreader = csv.reader(csvfile, delimiter=",")
             for row in spamreader:
-                nodes, total_nodes, docs_map, added_docs, skusIds = process_inventory(row, 5, nodes, total_nodes,
-                                                                                      docs_map, skusIds,
-                                                                                      countries_alpha_3,
-                                                                                      countries_alpha_p)
+                nodes, total_nodes, docs_map, added_docs, skusIds = process_inventory(
+                    row,
+                    5,
+                    nodes,
+                    total_nodes,
+                    docs_map,
+                    skusIds,
+                    countries_alpha_3,
+                    countries_alpha_p,
+                )
                 total_docs = total_docs + added_docs
                 if total_docs > doc_limit:
                     break
@@ -250,16 +417,19 @@ def generate_setup_commands():
             break
     progress.close()
     total_skids = len(list(skusIds.keys()))
-    print("Generated {} total docs with {} distinct skids and {} distinct nodes".format(total_docs, total_skids,
-                                                                                        total_nodes))
+    print(
+        "Generated {} total docs with {} distinct skids and {} distinct nodes".format(
+            total_docs, total_skids, total_nodes
+        )
+    )
 
 
 def save_setup_csv_command_list():
     global all_csvfile, all_csv_writer, progress, doc, generated_row
-    all_csvfile = open(all_fname, 'w', newline='')
-    setup_csvfile = open(setup_fname, 'w', newline='')
-    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
-    setup_csv_writer = csv.writer(setup_csvfile, delimiter=',')
+    all_csvfile = open(all_fname, "w", newline="")
+    setup_csvfile = open(setup_fname, "w", newline="")
+    all_csv_writer = csv.writer(all_csvfile, delimiter=",")
+    setup_csv_writer = csv.writer(setup_csvfile, delimiter=",")
     progress = tqdm(unit="docs", total=total_docs)
     for doc in docs_map.values():
         generated_row = generate_ft_add_row(indexname, doc)
@@ -275,25 +445,33 @@ def generate_benchmark_commands():
     global all_csvfile, progress, doc, generated_row, total_updates, total_reads
     print("-- generating {} update/read commands -- ".format(total_benchmark_commands))
     print("\t saving to {} and {}".format(bench_fname, all_fname))
-    all_csvfile = open(all_fname, 'a', newline='')
-    bench_csvfile = open(bench_fname, 'w', newline='')
-    all_csv_writer = csv.writer(all_csvfile, delimiter=',')
-    bench_csv_writer = csv.writer(bench_csvfile, delimiter=',')
+    all_csvfile = open(all_fname, "a", newline="")
+    bench_csvfile = open(bench_fname, "w", newline="")
+    all_csv_writer = csv.writer(all_csvfile, delimiter=",")
+    bench_csv_writer = csv.writer(bench_csvfile, delimiter=",")
     docs_list = list(docs_map.values())
     skusIds_list = list(skusIds.keys())
     nodesIds = ["{}".format(x) for x in range(1, total_nodes)]
     progress = tqdm(unit="docs", total=total_benchmark_commands)
     for _ in range(0, total_benchmark_commands):
-        choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[0]
+        choice = random.choices(["update", "read"], weights=[update_ratio, read_ratio])[
+            0
+        ]
         if choice == "update":
             random_doc_pos = random.randint(0, total_docs - 1)
             doc = docs_list[random_doc_pos]
             generated_row = generate_ft_add_update_row(indexname, doc)
             total_updates = total_updates + 1
         elif choice == "read":
-            generated_row = generate_ft_aggregate_row(indexname, countries_alpha_3, countries_alpha_p,
-                                                      max_skus_per_aggregate, skusIds_list,
-                                                      max_nodes_per_aggregate, nodesIds)
+            generated_row = generate_ft_aggregate_row(
+                indexname,
+                countries_alpha_3,
+                countries_alpha_p,
+                max_skus_per_aggregate,
+                skusIds_list,
+                max_nodes_per_aggregate,
+                nodesIds,
+            )
             total_reads = total_reads + 1
         all_csv_writer.writerow(generated_row)
         bench_csv_writer.writerow(generated_row)
@@ -303,38 +481,92 @@ def generate_benchmark_commands():
     all_csvfile.close()
 
 
-if (__name__ == "__main__"):
-    parser = argparse.ArgumentParser(description='RediSearch FTSB data generator.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--project', type=str, default="redisearch",
-                        help='the project being tested')
-    parser.add_argument('--update-ratio', type=float, default=0.85,
-                        help='the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)')
-    parser.add_argument('--seed', type=int, default=12345,
-                        help='the random seed used to generate random deterministic outputs')
-    parser.add_argument('--doc-limit', type=int, default=1000000,
-                        help='the total documents to generate to be added in the setup stage')
-    parser.add_argument('--total-benchmark-commands', type=int, default=1000000,
-                        help='the total commands to generate to be issued in the benchmark stage')
-    parser.add_argument('--max-skus-per-aggregate', type=int, default=100,
-                        help='the maximum number of random @skuId:\{...\}\'s to be queried per aggregate command')
-    parser.add_argument('--max-nodes-per-aggregate', type=int, default=100,
-                        help='the maximum number of random @nodeId:\{...\}\'s to be queried per aggregate command')
-    parser.add_argument('--index-name', type=str, default="inventory",
-                        help='the name of the RediSearch index to be used')
-    parser.add_argument('--test-name', type=str, default="1M-ecommerce-inventory", help='the name of the test')
-    parser.add_argument('--test-description', type=str,
-                        default="benchmark focused on updates and aggregate performance",
-                        help='the full description of the test')
-    parser.add_argument('--countries-alpha3', type=str, default="US,CA,FR,IL,UK",
-                        help='comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability')
-    parser.add_argument('--countries-alpha3-probability', type=str, default="0.8,0.05,0.05,0.05,0.05",
-                        help='comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3')
-    parser.add_argument('--upload-artifacts-s3', default=False, action='store_true',
-                        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required")
-    parser.add_argument('--input-data-filename', type=str,
-                        default="./../../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv",
-                        help='path of the input file containing the origin CSV dataset to read the data from.')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="RediSearch FTSB data generator.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--project", type=str, default="redisearch", help="the project being tested"
+    )
+    parser.add_argument(
+        "--update-ratio",
+        type=float,
+        default=0.85,
+        help="the total ratio of updates ( FT.ADD with REPLACE ). The Aggregate ratio will be given by (1 - update-ratio)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=12345,
+        help="the random seed used to generate random deterministic outputs",
+    )
+    parser.add_argument(
+        "--doc-limit",
+        type=int,
+        default=1000000,
+        help="the total documents to generate to be added in the setup stage",
+    )
+    parser.add_argument(
+        "--total-benchmark-commands",
+        type=int,
+        default=1000000,
+        help="the total commands to generate to be issued in the benchmark stage",
+    )
+    parser.add_argument(
+        "--max-skus-per-aggregate",
+        type=int,
+        default=100,
+        help="the maximum number of random @skuId:\{...\}'s to be queried per aggregate command",
+    )
+    parser.add_argument(
+        "--max-nodes-per-aggregate",
+        type=int,
+        default=100,
+        help="the maximum number of random @nodeId:\{...\}'s to be queried per aggregate command",
+    )
+    parser.add_argument(
+        "--index-name",
+        type=str,
+        default="inventory",
+        help="the name of the RediSearch index to be used",
+    )
+    parser.add_argument(
+        "--test-name",
+        type=str,
+        default="1M-ecommerce-inventory",
+        help="the name of the test",
+    )
+    parser.add_argument(
+        "--test-description",
+        type=str,
+        default="benchmark focused on updates and aggregate performance",
+        help="the full description of the test",
+    )
+    parser.add_argument(
+        "--countries-alpha3",
+        type=str,
+        default="US,CA,FR,IL,UK",
+        help="comma separated full list of countries alpha3 codes used to populate the @market field. Needs to have the same number of elements as --countries-alpha3-probability",
+    )
+    parser.add_argument(
+        "--countries-alpha3-probability",
+        type=str,
+        default="0.8,0.05,0.05,0.05,0.05",
+        help="comma separated probability of the list of countries passed via --countries-alpha3. Needs to have the same number of elements as --countries-alpha3",
+    )
+    parser.add_argument(
+        "--upload-artifacts-s3",
+        default=False,
+        action="store_true",
+        help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
+    )
+    parser.add_argument(
+        "--input-data-filename",
+        type=str,
+        default="./../../../scripts/usecases/ecommerce/amazon_co-ecommerce_sample.csv",
+        help="path of the input file containing the origin CSV dataset to read the data from.",
+    )
 
     args = parser.parse_args()
     use_case_specific_arguments = del_non_use_case_specific_keys(dict(args.__dict__))
@@ -348,13 +580,19 @@ if (__name__ == "__main__"):
     description = args.test_description
     s3_bucket_name = "benchmarks.redislabs"
     s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
-    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
-                                                                           bucket_path=s3_bucket_path)
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(
+        bucket_name=s3_bucket_name, bucket_path=s3_bucket_path
+    )
 
-    benchmark_output_file = "{test_name}.{project}.commands".format(test_name=test_name, project=project)
-    benchmark_config_file = "{test_name}.{project}.cfg.json".format(test_name=test_name, project=project)
-    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(bucket_name=s3_bucket_name,
-                                                                           bucket_path=s3_bucket_path)
+    benchmark_output_file = "{test_name}.{project}.commands".format(
+        test_name=test_name, project=project
+    )
+    benchmark_config_file = "{test_name}.{project}.cfg.json".format(
+        test_name=test_name, project=project
+    )
+    s3_uri = "https://s3.amazonaws.com/{bucket_name}/{bucket_path}".format(
+        bucket_name=s3_bucket_name, bucket_path=s3_bucket_path
+    )
     all_fname = "{}.ALL.csv".format(benchmark_output_file)
     setup_fname = "{}.SETUP.csv".format(benchmark_output_file)
     bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
@@ -368,8 +606,15 @@ if (__name__ == "__main__"):
     benchmark_repetitions_require_teardown_and_resetup = False
 
     ## remove previous files if they exist
-    all_artifacts = [all_fname, setup_fname, bench_fname, all_fname_compressed, setup_fname_compressed,
-                     bench_fname_compressed, benchmark_config_file]
+    all_artifacts = [
+        all_fname,
+        setup_fname,
+        bench_fname,
+        all_fname_compressed,
+        setup_fname_compressed,
+        bench_fname_compressed,
+        benchmark_config_file,
+    ]
     for artifact in all_artifacts:
         remove_file_if_exists(artifact)
 
@@ -394,7 +639,8 @@ if (__name__ == "__main__"):
             "metric-type": "numeric",
             "comparison": "higher-better",
             "per-step-comparison-metric-priority": 1,
-        }, {
+        },
+        {
             "step": "benchmark",
             "metric-family": "latency",
             "metric-json-path": "OverallQuantiles.allCommands.q50",
@@ -413,7 +659,8 @@ if (__name__ == "__main__"):
             "metric-type": "numeric",
             "comparison": "higher-better",
             "per-step-comparison-metric-priority": None,
-        }, {
+        },
+        {
             "step": "benchmark",
             "metric-family": "latency",
             "metric-json-path": "OverallQuantiles.READ-R1.q50",
@@ -432,7 +679,8 @@ if (__name__ == "__main__"):
             "metric-type": "numeric",
             "comparison": "higher-better",
             "per-step-comparison-metric-priority": None,
-        }, {
+        },
+        {
             "step": "benchmark",
             "metric-family": "latency",
             "metric-json-path": "OverallQuantiles.UPDATE-U1.q50",
@@ -482,8 +730,11 @@ if (__name__ == "__main__"):
     countries_p_str = []
     for idx, country in enumerate(countries_alpha_3):
         countries_p_str.append("{} {}%".format(country, countries_alpha_p[idx] * 100.0))
-    print("Using {0} countries with the following probabilities {1}".format(len(countries_alpha_3),
-                                                                            " ".join(countries_p_str)))
+    print(
+        "Using {0} countries with the following probabilities {1}".format(
+            len(countries_alpha_3), " ".join(countries_p_str)
+        )
+    )
     print("Using random seed {0}".format(args.seed))
     random.seed(args.seed)
 
@@ -524,52 +775,104 @@ if (__name__ == "__main__"):
         "deletes": total_deletes,
     }
 
-    status, uncompressed_size, compressed_size = compress_files([all_fname], all_fname_compressed)
-    inputs_entry_all = generate_inputs_dict_item("all", all_fname, "contains both setup and benchmark commands",
-                                                 remote_url_all, uncompressed_size, all_fname_compressed,
-                                                 compressed_size, total_commands, cmd_category_all)
+    status, uncompressed_size, compressed_size = compress_files(
+        [all_fname], all_fname_compressed
+    )
+    inputs_entry_all = generate_inputs_dict_item(
+        "all",
+        all_fname,
+        "contains both setup and benchmark commands",
+        remote_url_all,
+        uncompressed_size,
+        all_fname_compressed,
+        compressed_size,
+        total_commands,
+        cmd_category_all,
+    )
 
-    status, uncompressed_size, compressed_size = compress_files([setup_fname], setup_fname_compressed)
-    inputs_entry_setup = generate_inputs_dict_item("setup", setup_fname,
-                                                   "contains only the commands required to populate the dataset",
-                                                   remote_url_setup, uncompressed_size, setup_fname_compressed,
-                                                   compressed_size, total_setup_commands, cmd_category_setup)
+    status, uncompressed_size, compressed_size = compress_files(
+        [setup_fname], setup_fname_compressed
+    )
+    inputs_entry_setup = generate_inputs_dict_item(
+        "setup",
+        setup_fname,
+        "contains only the commands required to populate the dataset",
+        remote_url_setup,
+        uncompressed_size,
+        setup_fname_compressed,
+        compressed_size,
+        total_setup_commands,
+        cmd_category_setup,
+    )
 
-    status, uncompressed_size, compressed_size = compress_files([bench_fname], bench_fname_compressed)
-    inputs_entry_benchmark = generate_inputs_dict_item("benchmark", bench_fname,
-                                                       "contains only the benchmark commands (required the dataset to have been previously populated)",
-                                                       remote_url_bench, uncompressed_size, bench_fname_compressed,
-                                                       compressed_size, total_benchmark_commands,
-                                                       cmd_category_benchmark)
+    status, uncompressed_size, compressed_size = compress_files(
+        [bench_fname], bench_fname_compressed
+    )
+    inputs_entry_benchmark = generate_inputs_dict_item(
+        "benchmark",
+        bench_fname,
+        "contains only the benchmark commands (required the dataset to have been previously populated)",
+        remote_url_bench,
+        uncompressed_size,
+        bench_fname_compressed,
+        compressed_size,
+        total_benchmark_commands,
+        cmd_category_benchmark,
+    )
 
-    inputs = {"all": inputs_entry_all, "setup": inputs_entry_setup, "benchmark": inputs_entry_benchmark}
+    inputs = {
+        "all": inputs_entry_all,
+        "setup": inputs_entry_setup,
+        "benchmark": inputs_entry_benchmark,
+    }
 
     deployment_requirements = init_deployment_requirement()
-    add_deployment_requirements_redis_server_module(deployment_requirements, "search", {})
-    add_deployment_requirements_utilities(deployment_requirements, "ftsb_redisearch", {})
-    add_deployment_requirements_benchmark_tool(deployment_requirements, "ftsb_redisearch")
+    add_deployment_requirements_redis_server_module(
+        deployment_requirements, "search", {}
+    )
+    add_deployment_requirements_utilities(
+        deployment_requirements, "ftsb_redisearch", {}
+    )
+    add_deployment_requirements_benchmark_tool(
+        deployment_requirements, "ftsb_redisearch"
+    )
 
     run_stages = ["setup", "benchmark"]
     with open(benchmark_config_file, "w") as setupf:
-        setup_json = generate_setup_json(json_version, project, use_case_specific_arguments, test_name, description,
-                                         run_stages,
-                                         deployment_requirements,
-                                         key_metrics, inputs,
-                                         setup_commands,
-                                         teardown_commands,
-                                         used_indices,
-                                         total_commands,
-                                         total_setup_commands,
-                                         total_benchmark_commands, total_docs, total_writes, total_updates, total_reads,
-                                         total_deletes,
-                                         benchmark_repetitions_require_teardown_and_resetup,
-                                         ["setup"],
-                                         ["benchmark"]
-                                         )
+        setup_json = generate_setup_json(
+            json_version,
+            project,
+            use_case_specific_arguments,
+            test_name,
+            description,
+            run_stages,
+            deployment_requirements,
+            key_metrics,
+            inputs,
+            setup_commands,
+            teardown_commands,
+            used_indices,
+            total_commands,
+            total_setup_commands,
+            total_benchmark_commands,
+            total_docs,
+            total_writes,
+            total_updates,
+            total_reads,
+            total_deletes,
+            benchmark_repetitions_require_teardown_and_resetup,
+            ["setup"],
+            ["benchmark"],
+        )
         json.dump(setup_json, setupf, indent=2)
 
     if args.upload_artifacts_s3:
-        artifacts = [benchmark_config_file, all_fname_compressed, setup_fname_compressed, bench_fname_compressed]
+        artifacts = [
+            benchmark_config_file,
+            all_fname_compressed,
+            setup_fname_compressed,
+            bench_fname_compressed,
+        ]
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")
