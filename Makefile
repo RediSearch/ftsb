@@ -8,7 +8,11 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=$(GOCMD) fmt
 BIN_NAME=ftsb_redisearch
+<<<<<<< HEAD
 MODULE=redisearch
+=======
+MODULE=ftsb_redisearch
+>>>>>>> master
 DISTDIR = ./dist
 
 .PHONY: ftsb_redisearch
@@ -49,5 +53,9 @@ publish: release
 	@for f in $(shell ls ${DISTDIR}); \
 	do \
 	echo "copying ${DISTDIR}/$${f}"; \
+<<<<<<< HEAD
 	aws s3 cp ${DISTDIR}/$${f} s3://benchmarks.redislabs/${MODULE}/tools/ftsb/$${f} --acl public-read; \
+=======
+	aws s3 cp ${DISTDIR}/$${f} s3://benchmarks.redislabs/${MODULE}/tools/${BIN_NAME}/$${f} --acl public-read; \
+>>>>>>> master
 	done
