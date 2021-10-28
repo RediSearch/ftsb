@@ -52,6 +52,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 			log.Fatalf("Error retrieving cluster topology. error = %v", err)
 		}
 		p.clusterTopo = p.vanillaCluster.Topo()
+		log.Println(fmt.Sprintf("Cluster has %d nodes", len(p.clusterTopo)))
 	} else {
 		// add randomness on ping interval
 		//pingInterval := (20+rand.Intn(10))*1000000000
@@ -76,6 +77,7 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 		timesSlots = append(timesSlots, make([]time.Time, 0, 0))
 	} else {
 		for _, ClusterNode := range p.clusterTopo {
+
 			for _, slot := range ClusterNode.Slots {
 				clusterSlots = append(clusterSlots, slot)
 				cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
