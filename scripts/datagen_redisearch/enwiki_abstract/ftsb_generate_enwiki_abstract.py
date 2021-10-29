@@ -51,7 +51,10 @@ def generate_enwiki_abstract_index_type():
     return types
 
 
-def generate_ft_create_row(index, index_types, use_ftadd):
+def generate_ft_create_row(index, index_types, use_ftadd, use_json=False):
+    on_type = '"HASH"'
+    if use_json:
+        on_type = '"JSON"'
     if use_ftadd:
         cmd = ['"FT.CREATE"', '"{index}"'.format(index=index), '"SCHEMA"']
     else:
@@ -59,13 +62,17 @@ def generate_ft_create_row(index, index_types, use_ftadd):
             '"FT.CREATE"',
             '"{index}"'.format(index=index),
             '"ON"',
-            '"HASH"',
+            on_type,
             '"SCHEMA"',
         ]
     for f, v in index_types.items():
+        if use_json:
+            cmd.append('"$.{}"'.format(f))
+            cmd.append('"AS"')
         cmd.append('"{}"'.format(f))
         cmd.append('"{}"'.format(v))
-        cmd.append('"SORTABLE"')
+        if v != "tag":
+            cmd.append('"SORTABLE"')
     return cmd
 
 
@@ -80,7 +87,14 @@ def EscapeTextFileString(field):
     return field
 
 
-def use_case_to_cmd(use_ftadd, title, url, abstract, total_docs):
+def use_case_to_cmd(
+    use_ftadd,
+    title,
+    url,
+    abstract,
+    total_docs,
+    use_json_set=False,
+):
     hash = {
         "title": EscapeTextFileString(title),
         "url": EscapeTextFileString(url),
@@ -88,16 +102,21 @@ def use_case_to_cmd(use_ftadd, title, url, abstract, total_docs):
     }
     docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)
     fields = []
+    final_json = {}
     for f, v in hash.items():
         if v is not None:
             fields.append(f)
             fields.append(v)
-    if use_ftadd is False:
-        cmd = ["WRITE", "W1", 1, "HSET", docid_str]
+            final_json[f] = v
+    if use_json_set:
+        cmd = ["WRITE", "W1", 1, "JSON.SET", docid_str, "$", json.dumps(final_json)]
     else:
-        cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
-    for x in fields:
-        cmd.append(x)
+        if use_ftadd is False:
+            cmd = ["WRITE", "W1", 1, "HSET", docid_str]
+        else:
+            cmd = ["WRITE", "W1", 2, "FT.ADD", indexname, docid_str, "1.0", "FIELDS"]
+        for x in fields:
+            cmd.append(x)
     return cmd
 
 
@@ -258,6 +277,12 @@ if __name__ == "__main__":
         help="Use FT.ADD instead of HSET",
     )
     parser.add_argument(
+        "--use-jsonset",
+        default=False,
+        action="store_true",
+        help="Use JSON.SET instead of HSET",
+    )
+    parser.add_argument(
         "--search-no-content",
         default=False,
         action="store_true",
@@ -282,10 +307,14 @@ if __name__ == "__main__":
     stop_words = args.stop_words.split(",")
     indexname = args.index_name
     test_name = args.test_name
+    use_json_set = args.use_jsonset
+    if use_json_set:
+        test_name = "1M-enwiki_abstract-json"
     search_no_content = args.search_no_content
     query_choices = args.query_choices.split(",")
     if search_no_content:
         test_name += "-search-no-content"
+
     description = args.test_description
     s3_bucket_name = "benchmarks.redislabs"
     s3_bucket_path = "redisearch/datasets/{}/".format(test_name)
@@ -401,7 +430,9 @@ if __name__ == "__main__":
 
     index_types = generate_enwiki_abstract_index_type()
     print("-- generating the ft.create commands -- ")
-    ft_create_cmd = generate_ft_create_row(indexname, index_types, use_ftadd)
+    ft_create_cmd = generate_ft_create_row(
+        indexname, index_types, use_ftadd, use_json_set
+    )
     print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
     setup_commands.append(ft_create_cmd)
 
@@ -457,7 +488,12 @@ if __name__ == "__main__":
         random_doc_pos = random.randint(0, len(docs) - 1)
         doc = docs[random_doc_pos]
         cmd = use_case_to_cmd(
-            use_ftadd, doc["title"], doc["url"], doc["abstract"], total_docs
+            use_ftadd,
+            doc["title"],
+            doc["url"],
+            doc["abstract"],
+            total_docs,
+            use_json_set,
         )
         progress.update()
         setup_csv_writer.writerow(cmd)
