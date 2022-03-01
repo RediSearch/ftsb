@@ -90,19 +90,32 @@ def rand_arr_post(minN, maxN):
     return arr
 
 
-def use_case_csv_row_to_cmd():
-    doc = {
-        "title": rand_str(5, 50),
-        "qid": uuid.uuid4().hex,
-        "answers": rand_arr_post(2, 5),
-        "tag": rand_arr(2, 10),
-        "user": rand_str(5, 20),
-        "numericArray": rand_numeric_arr(5, 10),
-        "creationDate": rand_date(),
-    }
+def use_case_csv_row_to_cmd(vanilla=False):
+    answers = rand_arr_post(2, 5)
     docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)
-
-    cmd = ["WRITE", "W1", 1, "JSON.SET", docid_str, ".", "{}".format(json.dumps(doc))]
+    if vanilla:
+        cmd = ["WRITE", "W1", 1, "RPUSH", docid_str]
+        for answer in answers:
+            cmd.append(answer)
+    else:
+        doc = {
+            "title": rand_str(5, 50),
+            "qid": uuid.uuid4().hex,
+            "answers": answers,
+            "tag": rand_arr(2, 10),
+            "user": rand_str(5, 20),
+            "numericArray": rand_numeric_arr(5, 10),
+            "creationDate": rand_date(),
+        }
+        cmd = [
+            "WRITE",
+            "W1",
+            1,
+            "JSON.SET",
+            docid_str,
+            ".",
+            "{}".format(json.dumps(doc)),
+        ]
     return docid_str, cmd
 
 
@@ -163,16 +176,58 @@ def arrpop_nested_obj_to_cmd(doc_id):
     ]
 
 
+def arrappend_simple_obj_to_cmd(doc_id, vanilla=False):
+    if vanilla is False:
+        return [
+            "WRITE",
+            "W5",
+            1,
+            "JSON.ARRAPPEND",
+            doc_id,
+            "$.",
+            "{}".format(json.dumps(rand_post())),
+        ]
+    else:
+        return [
+            "WRITE",
+            "W5",
+            1,
+            "RPUSH",
+            doc_id,
+            "{}".format(json.dumps(rand_post())),
+        ]
+
+
+def arrpop_simple_obj_to_cmd(doc_id, vanilla=False):
+    if vanilla is False:
+        return [
+            "WRITE",
+            "W4",
+            1,
+            "JSON.ARRPOP",
+            doc_id,
+            "$.",
+            "{}".format(0),
+        ]
+    else:
+        return ["WRITE", "W4", 1, "RPOP", doc_id]
+
+
 def del_nested_obj_to_cmd(doc_id):
     return ["DELETE", "D1", 1, "JSON.DEL", doc_id, "$.tag"]
 
 
 ARRAPPEND = "ARRAPPEND-NESTED-OBJ"
+ARRAPPEND_SIMPLE = "ARRAPPEND-SIMPLE-OBJ"
 ARRPOP = "ARRPOP-NESTED-OBJ"
+ARRPOP_SIMPLE = "ARRPOP-SIMPLE-OBJ"
 NUMINCRBY = "NUMINCRBY-NESTED"
 UPDATE = "UPDATE-NESTED-OBJ"
 DEL = "DEL-NESTED-OBJ"
-choices_str = "{},{},{},{},{}".format(ARRAPPEND, NUMINCRBY, UPDATE, DEL, ARRPOP)
+choices_str = "{},{},{},{},{},{},{}".format(
+    ARRAPPEND_SIMPLE, ARRPOP_SIMPLE, ARRAPPEND, NUMINCRBY, UPDATE, DEL, ARRPOP
+)
+choices_vanilla = "{},{}".format(ARRAPPEND_SIMPLE, ARRPOP_SIMPLE)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -205,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--total-benchmark-commands",
         type=int,
-        default=1000000,
+        default=50000000,
         help="the total commands to generate to be issued in the benchmark stage",
     )
     parser.add_argument(
@@ -237,10 +292,20 @@ if __name__ == "__main__":
         default="./tmp",
         help="The temporary dir to use as working directory for file download, compression,etc... ",
     )
+    parser.add_argument(
+        "--vanilla",
+        default=False,
+        action="store_true",
+        help="Use vanilla Redis variant",
+    )
 
     args = parser.parse_args()
     use_case_specific_arguments = del_non_use_case_specific_keys(dict(args.__dict__))
-    query_choices = args.query_choices.split(",")
+    choices = args.query_choices
+    if args.vanilla is True:
+        choices = choices_vanilla
+
+    query_choices = choices.split(",")
     total_benchmark_commands = args.total_benchmark_commands
     # generate the temporary working dir if required
     working_dir = args.temporary_work_dir
@@ -286,6 +351,7 @@ if __name__ == "__main__":
 
     print("-- Benchmark: {} -- ".format(test_name))
     print("-- Description: {} -- ".format(description))
+    print("-- Query choices: {} -- ".format(choices))
 
     total_docs = 0
 
@@ -299,7 +365,7 @@ if __name__ == "__main__":
     all_csvfile = open(setup_fname, "a", newline="")
     all_csv_writer = csv.writer(all_csvfile, delimiter=",")
     for row_n in range(0, doc_limit):
-        docid, cmd = use_case_csv_row_to_cmd()
+        docid, cmd = use_case_csv_row_to_cmd(args.vanilla)
         all_csv_writer.writerow(cmd)
         progress.update()
         doc_ids.append(docid)
@@ -328,6 +394,15 @@ if __name__ == "__main__":
             row_n = row_n + 1
             progress.update()
             cmd = arrpop_nested_obj_to_cmd(doc_id)
+        elif choice == ARRAPPEND_SIMPLE:
+            cmd = arrappend_simple_obj_to_cmd(doc_id, args.vanilla)
+        elif choice == ARRPOP_SIMPLE:
+            # ensure we add an element before we pop from it
+            cmd = arrappend_simple_obj_to_cmd(doc_id, args.vanilla)
+            all_csv_writer.writerow(cmd)
+            row_n = row_n + 1
+            progress.update()
+            cmd = arrpop_simple_obj_to_cmd(doc_id, args.vanilla)
         row_n = row_n + 1
         all_csv_writer.writerow(cmd)
         progress.update()
