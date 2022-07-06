@@ -744,6 +744,7 @@ if __name__ == "__main__":
 
     print("-- generating the ft.create commands -- ")
     ft_create_cmd = generate_ft_create_row(indexname, list(docs_map.values())[0])
+    print("FT.CREATE command: {}".format(" ".join(ft_create_cmd)))
     setup_commands.append(ft_create_cmd)
 
     print("-- generating the ft.drop commands -- ")
