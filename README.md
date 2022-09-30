@@ -46,16 +46,44 @@ The aggregate queries are designed to be extremely costly both on computation an
 
 ### Installation
 
-FTSB is a collection of Go programs (with some auxiliary bash and Python scripts). The easiest way to get and install the Go programs is to use go get and then  issuing make:
+#### Download Standalone binaries ( no Golang needed )
+
+If you don't have go on your machine and just want to use the produced binaries you can download the following prebuilt bins:
+
+https://github.com/RediSearch/ftsb/releases/latest
+
+| OS | Arch | Link |
+| :---         |     :---:      |          ---: |
+| Linux   | amd64  (64-bit X86)     | [ftsb_redisearch-linux-amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-linux-amd64.tar.gz)    |
+| Linux   | arm64 (64-bit ARM)     | [ftsb_redisearch-linux-arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-linux-arm64.tar.gz)    |
+| Darwin   | amd64  (64-bit X86)     | [ftsb_redisearch-darwin-amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-darwin-amd64.tar.gz)    |
+| Darwin   | arm64 (64-bit ARM)     | [ftsb_redisearch-darwin-arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-darwin-arm64.tar.gz)    |
+
+Here's how bash script to download and try it:
+
+```bash
+wget -c https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-$(uname -mrs | awk '{ print tolower($1) }')-$(dpkg --print-architecture).tar.gz -O - | tar -xz
+
+# give it a try
+./ftsb_redisearch --help
 ```
+
+
+#### Installation in a Golang env
+
+To install the benchmark utility with a Go Env do as follow:
+
+```bash
 # Fetch FTSB and its dependencies
 go get github.com/RediSearch/ftsb
 cd $GOPATH/src/github.com/RediSearch/ftsb
 
 # Install desired binaries. At a minimum this includes ftsb_redisearch binary:
 make
-```
 
+# give it a try
+./bin/ftsb_redisearch --help
+```
 
 
 
@@ -96,11 +124,16 @@ Apart from the CSV files, and not mandatory, there is a benchmark suite specific
 So that benchmarking results are not affected by generating data or queries on-the-fly, you are always required to feed an input file to the benchmark runner that respects the previous specification format. The overall idea is that the benchmark runner only concerns himself on executing the queries as fast as possible while enabling client runtime variations that influence performance ( and are not related to the use-case himself ) like, command pipelining ( auto pipelining based on time or number of commands ), cluster support, number of concurrent clients, rate limiting ( to find sustainable throughputs ), etc… 
 
 Running a benchmark is as simple as feeding an input file to the DB benchmark runner ( in this case ftsb_redisearch ):
-```
+
+```bash
+
 ftsb_redisearch --file ecommerce-inventory.redisearch.commands.BENCH.csv
 ```
+
+
 The resulting stdout output will look similar to this:
-```
+
+```bash
 $ ftsb_redisearch --file ecommerce-inventory.redisearch.commands.BENCH.csv 
     setup writes/sec          writes/sec         updates/sec           reads/sec    cursor reads/sec         deletes/sec     current ops/sec           total ops             TX BW/sRX BW/s
           0 (0.000)           0 (0.000)        1571 (2.623)         288 (7.451)           0 (0.000)           0 (0.000)        1859 (3.713)                1860             3.1KB/s  1.4MB/s
@@ -122,30 +155,35 @@ Issued 9885 Commands in 5.455sec with 8 workers
         Overall TX Byte Rate: 3KB/sec
         Overall RX Byte Rate: 1.4MB/sec
 ```
+
+
 Apart from the input file, you should also always specify the name of JSON output file to output benchmark results, in order to do more complex analysis or store the results. Here is the full list of supported options:
-```
-$ ftsb_redisearch -h
-Usage of ftsb_redisearch:
+
+```bash
+$ ./ftsb_redisearch --help
+Usage of ./bin/ftsb_redisearch:
+  -a string
+        Password for Redis Auth.
   -cluster-mode
         If set to true, it will run the client in cluster mode.
+  -continue-on-error
+        If set to true, it will continue the benchmark and print the error message to stderr.
   -debug int
         Debug printing (choices: 0, 1, 2). (default 0)
   -do-benchmark
         Whether to write databuild. Set this flag to false to check input read speed. (default true)
-  -file string
-        File name to read databuild from
   -host string
         The host:port for Redis connection (default "localhost:6379")
+  -input string
+        File name to read databuild from
   -json-out-file string
         Name of json output file to output benchmark results. If not set, will not print to json.
   -max-rps uint
         enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal "modus operandi" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.
   -metadata-string string
         Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.
-  -pipeline-max-size int
-        If limit is zero then no limit will be used and pipelines will only be limited by the specified time window (default 100)
-  -pipeline-window-ms float
-        If window is zero then implicit pipelining will be disabled (default 0.5)
+  -pipeline int
+        Pipeline <numreq> requests. Default 1 (no pipeline). (default 1)
   -reporting-period duration
         Period to report write stats (default 1s)
   -requests uint

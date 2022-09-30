@@ -30,13 +30,11 @@ fmt:
 
 ftsb_redisearch: test
 	$(GOBUILD) -o bin/$@ ./cmd/$@
-	$(GOINSTALL) ./cmd/$@
 
 get:
 	$(GOGET) ./...
 
 test: get
-
 
 release:
 	$(GOGET) github.com/mitchellh/gox
