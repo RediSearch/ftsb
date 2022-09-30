@@ -16,8 +16,17 @@ import boto3
 from tqdm import tqdm
 
 # package local imports
+
 sys.path.append(os.getcwd() + "/..")
 field_tokenization = ",.<>{}[]\"':;!@#$%^&*()-+=~"
+
+SIMPLE_WORD_QUERY = "simple-1word-query"
+SIMPLE_2WORD_UNION_QUERY = "2word-union-query"
+SIMPLE_2WORD_INT_QUERY = "2word-intersection-query"
+WILDCARD_QUERY = "wildcard"
+SUFFIX_QUERY = "suffix"
+CONTAINS_QUERY = "contains"
+PREFIX_QUERY = "prefix"
 
 from common_datagen import (
     download_url,
@@ -140,22 +149,64 @@ def generate_benchmark_commands(
         doc = docs[random_doc_pos]
         words, totalW = getQueryWords(doc, stop_words, 2)
         choice = random.choices(query_choices)[0]
+        if len(words) < 1:
+            continue
+        term = words[0]
+        len_w1 = len(term)
+        prefix_min = 3
+        prefix_max = 3
         generated_row = None
-        if choice == "simple-1word-query" and len(words) >= 1:
+        if choice == SIMPLE_WORD_QUERY and len(words) >= 1:
             generated_row = generate_ft_search_row(
-                indexname, "simple-1word-query", words[0], search_no_content
+                indexname, SIMPLE_WORD_QUERY, words[0], search_no_content
             )
-        elif choice == "2word-union-query" and len(words) >= 2:
+        elif choice == WILDCARD_QUERY and len(term) >= prefix_max:
+            generated_row = generate_wildcard_row(
+                indexname,
+                WILDCARD_QUERY,
+                term,
+                prefix_min,
+                prefix_max,
+                search_no_content,
+            )
+        elif choice == PREFIX_QUERY and len(term) >= prefix_max:
+            generated_row = generate_prefix_row(
+                indexname,
+                PREFIX_QUERY,
+                term,
+                prefix_min,
+                prefix_max,
+                search_no_content,
+            )
+        elif choice == SUFFIX_QUERY and len(term) >= prefix_max:
+            generated_row = generate_suffix_row(
+                indexname,
+                SUFFIX_QUERY,
+                term,
+                prefix_min,
+                prefix_max,
+                search_no_content,
+            )
+        elif choice == CONTAINS_QUERY and len(term) >= prefix_max:
+            generated_row = generate_contains_row(
+                indexname,
+                CONTAINS_QUERY,
+                term,
+                prefix_min,
+                prefix_max,
+                search_no_content,
+            )
+        elif choice == SIMPLE_2WORD_UNION_QUERY and len(words) >= 2:
             generated_row = generate_ft_search_row(
                 indexname,
-                "2word-union-query",
+                SIMPLE_2WORD_UNION_QUERY,
                 "{} {}".format(words[0], words[1]),
                 search_no_content,
             )
-        elif choice == "2word-intersection-query" and len(words) >= 2:
+        elif choice == SIMPLE_2WORD_INT_QUERY and len(words) >= 2:
             generated_row = generate_ft_search_row(
                 indexname,
-                "2word-intersection-query",
+                SIMPLE_2WORD_INT_QUERY,
                 "{}|{}".format(words[0], words[1]),
                 search_no_content,
             )
@@ -167,6 +218,76 @@ def generate_benchmark_commands(
     progress.close()
     bench_csvfile.close()
     all_csvfile.close()
+
+
+def generate_wildcard_row(
+    index, query_name, query, prefix_min, prefix_max, search_no_content
+):
+    if (prefix_max - 2) <= prefix_min:
+        prefix_max = prefix_min + 2
+    term = query[:prefix_min] + "*" + query[prefix_min + 1 : prefix_max]
+    cmd = [
+        "READ",
+        query_name,
+        1,
+        "FT.SEARCH",
+        "{index}".format(index=index),
+        "{query}".format(query=term),
+    ]
+    if search_no_content:
+        cmd.append("NOCONTENT")
+    return cmd
+
+
+def generate_prefix_row(
+    index, query_name, query, prefix_min, prefix_max, search_no_content
+):
+    term = query[:prefix_min] + "*"
+    cmd = [
+        "READ",
+        query_name,
+        1,
+        "FT.SEARCH",
+        "{index}".format(index=index),
+        "{query}".format(query=term),
+    ]
+    if search_no_content:
+        cmd.append("NOCONTENT")
+    return cmd
+
+
+def generate_suffix_row(
+    index, query_name, query, prefix_min, prefix_max, search_no_content
+):
+    term = "*" + query[:prefix_min]
+    cmd = [
+        "READ",
+        query_name,
+        1,
+        "FT.SEARCH",
+        "{index}".format(index=index),
+        "{query}".format(query=term),
+    ]
+    if search_no_content:
+        cmd.append("NOCONTENT")
+    return cmd
+
+
+def generate_contains_row(
+    index, query_name, query, prefix_min, prefix_max, search_no_content
+):
+    term = "*" + query[:prefix_min] + "*"
+    cmd = [
+        "READ",
+        query_name,
+        1,
+        "FT.SEARCH",
+        "{index}".format(index=index),
+        "{query}".format(query=term),
+    ]
+    if search_no_content:
+        cmd.append("NOCONTENT")
+    return cmd
 
 
 def generate_ft_search_row(index, query_name, query, search_no_content):
@@ -236,8 +357,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--query-choices",
         type=str,
-        default="simple-1word-query,2word-union-query,2word-intersection-query",
-        help="comma separated list of queries to produce. one of: simple-1word-query,2word-union-query,2word-intersection-query",
+        default=",".join(
+            [
+                SIMPLE_WORD_QUERY,
+                SIMPLE_2WORD_UNION_QUERY,
+                SIMPLE_2WORD_INT_QUERY,
+            ]
+        ),
+        help="comma separated list of queries to produce. one of: {}".format(
+            [
+                SIMPLE_WORD_QUERY,
+                SIMPLE_2WORD_UNION_QUERY,
+                SIMPLE_2WORD_INT_QUERY,
+                PREFIX_QUERY,
+                SUFFIX_QUERY,
+                CONTAINS_QUERY,
+                WILDCARD_QUERY,
+            ]
+        ),
     )
     parser.add_argument(
         "--upload-artifacts-s3-uncompressed",
@@ -428,6 +565,7 @@ if __name__ == "__main__":
     tree = ET.iterparse(decompressed_fname)
     print("Reading {}\n".format(decompressed_fname))
     progress = tqdm(unit="docs")
+    total_produced = 0
     for event, elem in tree:
         if elem.tag == "doc":
             doc = {}
@@ -437,6 +575,10 @@ if __name__ == "__main__":
             doc["abstract"] = elem.findtext("abstract")
             docs.append(doc)
             progress.update()
+            total_produced = total_produced + 1
+            if total_produced >= doc_limit and doc_limit > 0:
+                print("stopping doc read process")
+                break
             elem.clear()  # won't need the children any more
     progress.close()
 
