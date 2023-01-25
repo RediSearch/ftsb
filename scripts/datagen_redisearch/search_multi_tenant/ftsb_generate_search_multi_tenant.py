@@ -407,7 +407,7 @@ if __name__ == "__main__":
         progress.close()
         setup_fname_csvfile.close()
 
-        artifacts.append(setup_fname_csvfile)
+        artifacts.append(setup_fname)
 
     if args.upload_artifacts_s3:
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
