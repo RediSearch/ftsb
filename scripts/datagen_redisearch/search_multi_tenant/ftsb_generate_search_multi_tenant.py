@@ -382,7 +382,7 @@ if __name__ == "__main__":
     print("Total expected size {0}B".format(total_size_human))
 
     progress = tqdm(unit="indices", total=index_limit_n)
-    for index_n in range(0, index_limit_n):
+    for index_n in range(1, index_limit_n + 1):
         index_name = "{}:index_{}".format(general_prefix, index_n)
         index_prefix = "{}:index_{}:doc".format(general_prefix, index_n)
         cmd = generate_ft_create_row(index_name, schema_dict, index_prefix)
