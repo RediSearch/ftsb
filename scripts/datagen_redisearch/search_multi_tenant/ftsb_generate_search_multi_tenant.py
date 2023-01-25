@@ -261,7 +261,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     schema_dict = {}
 
-    for n in range(1, args.number_numeric_fields):
+    for n in range(1, args.number_numeric_fields + 1):
         fieldname = "$.num_field_{}".format(n)
         alias = "num_field_{}".format(n)
         type = "NUMERIC"
@@ -272,7 +272,7 @@ if __name__ == "__main__":
             "field_options": field_options,
         }
 
-    for n in range(1, args.number_text_fields):
+    for n in range(1, args.number_text_fields + 1):
         fieldname = "$.text_field_{}".format(n)
         alias = "text_field_{}".format(n)
         type = "TEXT"
@@ -283,7 +283,7 @@ if __name__ == "__main__":
             "field_options": field_options,
         }
 
-    for n in range(1, args.number_tag_fields):
+    for n in range(1, args.number_tag_fields + 1):
         fieldname = "$.tag_field_{}".format(n)
         alias = "tag_field_{}".format(n)
         type = "TAG"
