@@ -151,8 +151,9 @@ def use_case_csv_row_to_cmd(docid_str, schema_dict):
         if fieldtype == "NUMERIC":
             doc[fieldname] = random.random()
 
-    cmd = ["WRITE", "W1", 1, "JSON.SET", docid_str, ".", "{}".format(json.dumps(doc))]
-    return docid_str, cmd
+    json_dump = "{}".format(json.dumps(doc))
+    cmd = ["WRITE", "W1", 1, "JSON.SET", docid_str, ".", json_dump]
+    return docid_str, cmd, doc, json_dump
 
 
 if __name__ == "__main__":
@@ -197,6 +198,12 @@ if __name__ == "__main__":
         type=int,
         default=100000,
         help="the total indices to generate to be added in the setup stage",
+    )
+    parser.add_argument(
+        "--doc-limit",
+        type=int,
+        default=1000000,
+        help="the total documents to generate to be added in the setup stage",
     )
     parser.add_argument(
         "--max-doc-per-index",
@@ -250,6 +257,11 @@ if __name__ == "__main__":
         "--upload-artifacts-s3-uncompressed",
         action="store_true",
         help="uploads the generated dataset files and configuration file to public benchmarks.redislabs bucket. Proper credentials are required",
+    )
+    parser.add_argument(
+        "--generate-index-commands-only",
+        action="store_true",
+        help="generate only the index commands",
     )
     parser.add_argument(
         "--temporary-work-dir",
@@ -321,7 +333,9 @@ if __name__ == "__main__":
     )
     bench_fname = "{}.BENCH.csv".format(benchmark_output_file)
     setup_fname = "{}.INGEST.csv".format(benchmark_output_file)
-    create_idxs_fname = "{}.FT_CREATE_ONLY.csv".format(benchmark_output_file)
+    create_idxs_fname = "{}.FT_CREATE_ONLY_{}_indices.csv".format(
+        benchmark_output_file, human_format(index_limit_n)
+    )
     drop_idxs_fname = "{}.FT_DROP_ONLY.csv".format(benchmark_output_file)
 
     ## remove previous files if they exist
@@ -349,21 +363,19 @@ if __name__ == "__main__":
     print("Using random seed {0}".format(args.seed))
     random.seed(args.seed)
 
-    total_docs = 0
+    total_docs = args.doc_limit
     doc_ids = []
 
     create_idxs_csvfile = open(create_idxs_fname, "w", newline="")
     create_idxs_csv_writer = csv.writer(create_idxs_csvfile, delimiter=",")
 
-    setup_fname_csvfile = open(setup_fname, "w", newline="")
-    setup_csv_writer = csv.writer(setup_fname_csvfile, delimiter=",")
-
     index_limit_n = args.index_limit
     general_prefix = args.index_prefix
 
     max_doc_per_index = args.max_doc_per_index
-    total_docs = index_limit_n * max_doc_per_index
-    avg_doc_size = 500
+    _, _, _, json_dump = use_case_csv_row_to_cmd("n/a", schema_dict)
+    key_overhead = 100
+    avg_doc_size = len(json_dump) + key_overhead
     total_size = total_docs * avg_doc_size
     total_size_human = human_format(total_size)
     print("Total docs {0}".format(total_docs))
@@ -378,50 +390,26 @@ if __name__ == "__main__":
         progress.update()
     progress.close()
     create_idxs_csvfile.close()
+    artifacts = [create_idxs_fname]
 
-    progress = tqdm(unit="docs", total=total_docs)
-    for doc_n in range(0, total_docs):
-        index_n = random.randint(1, index_limit_n)
-        docid_str = "{}:index_{}:doc{}".format(general_prefix, index_n, doc_n)
-        _, cmd = use_case_csv_row_to_cmd(docid_str, schema_dict)
-        setup_csv_writer.writerow(cmd)
-        progress.update()
-    progress.close()
-    setup_fname_csvfile.close()
-    # all_csvfile = open(setup_fname, "w", newline="")
-    # all_csv_writer = csv.writer(all_csvfile, delimiter=",")
-    #
-    #
-    # index_limit_n = args.index_limit
-    # index_prefix = args.index_prefix
-    # for row_n in range(0, doc_limit):
-    #     docid, cmd = use_case_csv_row_to_cmd(index_prefix,row_n)
-    #     all_csv_writer.writerow(cmd)
-    #     progress.update()
-    #     doc_ids.append(docid)
-    # progress.close()
-    # all_csvfile.close()
-    # progress = tqdm(unit="docs", total=total_benchmark_commands)
-    # all_csvfile = open(bench_fname, "a", newline="")
-    # all_csv_writer = csv.writer(all_csvfile, delimiter=",")
-    # len_docs = len(doc_ids)
-    # row_n = 0
-    # while row_n < total_benchmark_commands:
-    #     index_n = random.randint(1,index_limit)
-    #     doc_id = doc_ids[random.randint(0, len_docs - 1)]
-    #     choice = random.choices(query_choices, weights=query_choices_p)[0]
-    #     if choice == SEARCH:
-    #         cmd = ft_search_numeric_int(index_name)
-    #     elif choice == INGEST:
-    #         _, cmd = use_case_csv_row_to_cmd(,index_n,row_n)
-    #     row_n = row_n + 1
-    #     all_csv_writer.writerow(cmd)
-    #     progress.update()
-    # progress.close()
-    # all_csvfile.close()
+    if args.generate_index_commands_only is False:
+
+        setup_fname_csvfile = open(setup_fname, "w", newline="")
+        setup_csv_writer = csv.writer(setup_fname_csvfile, delimiter=",")
+
+        progress = tqdm(unit="docs", total=total_docs)
+        for doc_n in range(0, total_docs):
+            index_n = random.randint(1, index_limit_n)
+            docid_str = "{}:index_{}:doc{}".format(general_prefix, index_n, doc_n)
+            _, cmd, _, _ = use_case_csv_row_to_cmd(docid_str, schema_dict)
+            setup_csv_writer.writerow(cmd)
+            progress.update()
+        progress.close()
+        setup_fname_csvfile.close()
+
+        artifacts.append(setup_fname_csvfile)
 
     if args.upload_artifacts_s3:
-        artifacts = [create_idxs_fname]
         upload_dataset_artifacts_s3(s3_bucket_name, s3_bucket_path, artifacts)
 
     print("############################################")
