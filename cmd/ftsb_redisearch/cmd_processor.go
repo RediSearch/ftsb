@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/RediSearch/ftsb/benchmark_runner"
-	"github.com/mediocregopher/radix/v3"
+	radix "github.com/mediocregopher/radix/v3"
 	"golang.org/x/time/rate"
 	"log"
 	"strconv"
