@@ -7,6 +7,7 @@ import (
 	radix "github.com/mediocregopher/radix/v3"
 	"golang.org/x/time/rate"
 	"log"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,8 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			}
 		}
 		clusterAddrLen = len(clusterSlots)
+		// start at a random slot between 0 and clusterAddrLen
+		slotP = rand.Intn(clusterAddrLen)
 	}
 
 	for row := range p.rows {
