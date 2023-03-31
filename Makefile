@@ -29,7 +29,9 @@ fmt:
 	$(GOFMT) ./...
 
 ftsb_redisearch: test
-	$(GOBUILD) -o bin/$@ ./cmd/$@
+	$(GOBUILD) \
+		-ldflags=$(LDFLAGS) \
+		-o bin/$@ ./cmd/$@
 
 get:
 	$(GOGET) ./...

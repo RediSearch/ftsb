@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"github.com/RediSearch/ftsb/benchmark_runner"
+	"log"
 )
 
 // Program option vars:
@@ -71,5 +72,11 @@ func (b *benchmark) GetProcessor() benchmark_runner.Processor {
 
 func main() {
 	b := benchmark{}
+	git_sha := toolGitSHA1()
+	git_dirty_str := ""
+	if toolGitDirty() {
+		git_dirty_str = "-dirty"
+	}
+	log.Printf("ftsb (git_sha1:%s%s)\n", git_sha, git_dirty_str)
 	loader.RunBenchmark(&b, benchmark_runner.SingleQueue)
 }
