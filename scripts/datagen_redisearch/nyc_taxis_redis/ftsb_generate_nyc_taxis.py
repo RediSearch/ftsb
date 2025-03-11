@@ -166,69 +166,49 @@ def use_case_csv_row_to_cmd(
         dropoff_location_long = None
 
     hash = {
-        "total_amount": (
-            None
-            if total_amount_pos is None
-            else str_to_float_or_zero(row[total_amount_pos])
-        ),
-        "improvement_surcharge": (
-            None
-            if improvement_surcharge_pos is None
-            else str_to_float_or_zero(row[improvement_surcharge_pos])
-        ),
-        "pickup_location_long_lat": (
-            None
-            if (pickup_location_long is None or pickup_location_lat is None)
-            else "{:.6f},{:.6f}".format(pickup_location_long, pickup_location_lat)
-        ),
-        "pickup_datetime": (
-            None
-            if pickup_datetime_pos is None
-            else '"{}"'.format(row[pickup_datetime_pos])
-        ),
+        "total_amount": None
+        if total_amount_pos is None
+        else str_to_float_or_zero(row[total_amount_pos]),
+        "improvement_surcharge": None
+        if improvement_surcharge_pos is None
+        else str_to_float_or_zero(row[improvement_surcharge_pos]),
+        "pickup_location_long_lat": None
+        if (pickup_location_long is None or pickup_location_lat is None)
+        else "{:.6f},{:.6f}".format(pickup_location_long, pickup_location_lat),
+        "pickup_datetime": None
+        if pickup_datetime_pos is None
+        else '"{}"'.format(row[pickup_datetime_pos]),
         "trip_type": "1",
-        "dropoff_datetime": (
-            None
-            if dropoff_datetime_pos is None
-            else '"{}"'.format(row[dropoff_datetime_pos])
-        ),
+        "dropoff_datetime": None
+        if dropoff_datetime_pos is None
+        else '"{}"'.format(row[dropoff_datetime_pos]),
         "rate_code_id": None if rate_code_id_pos is None else row[rate_code_id_pos],
-        "tolls_amount": (
-            None
-            if tolls_amount_pos is None
-            else str_to_float_or_zero(row[tolls_amount_pos])
-        ),
-        "dropoff_location_long_lat": (
-            None
-            if (dropoff_location_long is None or dropoff_location_lat is None)
-            else "{:.6f},{:.6f}".format(dropoff_location_long, dropoff_location_lat)
-        ),
-        "passenger_count": (
-            None if passenger_count_pos is None else row[passenger_count_pos]
-        ),
-        "fare_amount": (
-            None
-            if fare_amount_pos is None
-            else str_to_float_or_zero(row[fare_amount_pos])
-        ),
+        "tolls_amount": None
+        if tolls_amount_pos is None
+        else str_to_float_or_zero(row[tolls_amount_pos]),
+        "dropoff_location_long_lat": None
+        if (dropoff_location_long is None or dropoff_location_lat is None)
+        else "{:.6f},{:.6f}".format(dropoff_location_long, dropoff_location_lat),
+        "passenger_count": None
+        if passenger_count_pos is None
+        else row[passenger_count_pos],
+        "fare_amount": None
+        if fare_amount_pos is None
+        else str_to_float_or_zero(row[fare_amount_pos]),
         "extra": None if extra_pos is None else str_to_float_or_zero(row[extra_pos]),
-        "trip_distance": (
-            None
-            if trip_distance_pos is None
-            else str_to_float_or_zero(row[trip_distance_pos])
-        ),
-        "tip_amount": (
-            None
-            if tip_amount_pos is None
-            else str_to_float_or_zero(row[tip_amount_pos])
-        ),
-        "store_and_fwd_flag": (
-            None if store_and_fwd_flag_pos is None else row[store_and_fwd_flag_pos]
-        ),
+        "trip_distance": None
+        if trip_distance_pos is None
+        else str_to_float_or_zero(row[trip_distance_pos]),
+        "tip_amount": None
+        if tip_amount_pos is None
+        else str_to_float_or_zero(row[tip_amount_pos]),
+        "store_and_fwd_flag": None
+        if store_and_fwd_flag_pos is None
+        else row[store_and_fwd_flag_pos],
         "payment_type": None if payment_type_pos is None else row[payment_type_pos],
-        "mta_tax": (
-            None if mta_tax_pos is None else str_to_float_or_zero(row[mta_tax_pos])
-        ),
+        "mta_tax": None
+        if mta_tax_pos is None
+        else str_to_float_or_zero(row[mta_tax_pos]),
         "vendor_id": None if vendor_id_pos is None else row[vendor_id_pos],
     }
     docid_str = "doc:{hash}:{n}".format(hash=uuid.uuid4().hex, n=total_docs)

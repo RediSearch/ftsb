@@ -3,15 +3,16 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/RediSearch/ftsb/benchmark_runner"
-	radix "github.com/mediocregopher/radix/v3"
-	"golang.org/x/time/rate"
 	"log"
 	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/RediSearch/ftsb/benchmark_runner"
+	radix "github.com/mediocregopher/radix/v3"
+	"golang.org/x/time/rate"
 )
 
 type processor struct {
@@ -29,7 +30,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	if password != "" {
 		opts = append(opts, radix.DialAuthPass(password))
 	}
-	opts = append(opts, radix.DialTimeout(time.Second*600))
+	opts = append(opts, radix.DialTimeout(time.Second*60))
 
 	customConnFunc := func(network, addr string) (radix.Conn, error) {
 		return radix.Dial(network, addr, opts...,
@@ -168,7 +169,11 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
 				}
 			} else {
-				log.Fatal(err)
+				if strings.Contains(err.Error(), "i/o timeout") {
+					log.Println("Timeout occurred, continuing execution...")
+				} else {
+					log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
+				}
 			}
 		}
 		for pos, t := range times {
