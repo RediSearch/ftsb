@@ -30,7 +30,7 @@ func init() {
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.StringVar(&password, "a", "", "Password for Redis Auth.")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
-	flag.BoolVar(&continueOnErr, "continue-on-error", false, "If set to true, it will continue the benchmark and print the error message to stderr.")
+	flag.BoolVar(&continueOnErr, "continue-on-error", true, "If set to true, it will continue the benchmark and print the error message to stderr.")
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.IntVar(&pipeline, "pipeline", 1, "Pipeline <numreq> requests. Default 1 (no pipeline).")
 	var timeoutSeconds int

@@ -1,6 +1,6 @@
 # FTSB outputs #
 ################
-
+ftsb_redisearch
 cmd/ftsb_redisearch/ftsb_redisearch
 
 ###################
