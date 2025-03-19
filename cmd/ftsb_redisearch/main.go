@@ -34,7 +34,7 @@ func init() {
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.IntVar(&pipeline, "pipeline", 1, "Pipeline <numreq> requests. Default 1 (no pipeline).")
 	var timeoutSeconds int
-	flag.IntVar(&timeoutSeconds, "timeout", 60, "Redis connection timeout in seconds.")
+	flag.IntVar(&timeoutSeconds, "timeout", 600, "Redis connection timeout in seconds.")
 	flag.BoolVar(&versionFlag, "version", false, "Print the version and exit.")
 	flag.Parse()
 	// Convert seconds to time.Duration
