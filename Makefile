@@ -46,11 +46,11 @@ integration-test: get ftsb_redisearch
 release:
 	$(GOGET) github.com/mitchellh/gox
 	$(GOGET) github.com/tcnksm/ghr
-	GO111MODULE=on gox  -osarch "linux/amd64 darwin/amd64 linux/arm64 darwin/arm64" \
+	GO111MODULE=on gox  -osarch ${OS_ARCHs} \
 		-ldflags=$(LDFLAGS) \
 		-output "${DISTDIR}/${BIN_NAME}_{{.OS}}_{{.Arch}}" ./cmd/ftsb_redisearch
 
-publish:
+publish: release
 	@for f in $(shell ls ${DISTDIR}); \
 	do \
 	echo "copying ${DISTDIR}/$${f}"; \
