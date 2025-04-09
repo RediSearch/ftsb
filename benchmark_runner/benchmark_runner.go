@@ -40,13 +40,15 @@ const (
 // BenchmarkRunner is responsible for initializing and storing common
 // flags across all database systems and ultimately running a supplied Benchmark
 type BenchmarkRunner struct {
-	// flag fields
+	txTotalBytes uint64
+	rxTotalBytes uint64
+	maxRPS       uint64
+	limit        uint64
+
 	JsonOutFile     string
 	Metadata        string
 	batchSize       uint
 	workers         uint
-	maxRPS          uint64
-	limit           uint64
 	doLoad          bool
 	reportingPeriod time.Duration
 	fileName        string
@@ -56,7 +58,6 @@ type BenchmarkRunner struct {
 	// time-based run support
 	Duration time.Duration
 
-	// non-flag fields
 	br                         *bufio.Reader
 	detailedMapHistogramsMutex sync.RWMutex
 	detailedMapHistograms      map[string]*hdrhistogram.Histogram
@@ -69,8 +70,7 @@ type BenchmarkRunner struct {
 
 	writeHistogram      *hdrhistogram.Histogram
 	inst_writeHistogram *hdrhistogram.Histogram
-
-	writeTs []DataPoint
+	writeTs             []DataPoint
 
 	updateHistogram      *hdrhistogram.Histogram
 	inst_updateHistogram *hdrhistogram.Histogram
@@ -91,9 +91,6 @@ type BenchmarkRunner struct {
 	totalHistogram      *hdrhistogram.Histogram
 	inst_totalHistogram *hdrhistogram.Histogram
 	totalTs             []DataPoint
-
-	txTotalBytes uint64
-	rxTotalBytes uint64
 
 	testResult TestResult
 }

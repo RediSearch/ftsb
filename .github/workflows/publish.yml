@@ -9,18 +9,25 @@ jobs:
   releases-matrix:
     name: Release Go Binary
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # To sign.
+      contents: write # To upload release assets.
+      actions: read   # To read workflow path.
     strategy:
+      fail-fast: false
       matrix:
         goos: [linux, darwin]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v3
-      - uses: wangyoucao577/go-release-action@v1.28
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          binary_name: "./bin/ftsb_redisearch"
+          binary_name: "ftsb_redisearch"
           sha256sum: true
-          asset_name: ftsb_redisearch-${{ matrix.goos }}-${{ matrix.goarch }}
-          build_command: "make ftsb_redisearch"
+          asset_name: ftsb_redisearch_${{ matrix.goos }}_${{ matrix.goarch }}
+          build_command: "make build"
+          retry: 5
+          overwrite: true
