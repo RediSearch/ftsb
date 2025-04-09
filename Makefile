@@ -12,7 +12,7 @@ MODULE=ftsb_redisearch
 DISTDIR = ./dist
 
 .PHONY: ftsb_redisearch
-all: get test ftsb_redisearch
+all: get ftsb_redisearch integration-test
 
 # Build-time GIT variables
 ifeq ($(GIT_SHA),)
@@ -32,22 +32,23 @@ build:
 fmt:
 	$(GOFMT) ./...
 
-ftsb_redisearch: test
+ftsb_redisearch:
 	$(GOBUILD) \
 		-ldflags=$(LDFLAGS) \
-		-o bin/$@ ./cmd/$@
+		-o bin/ftsb_redisearch ./cmd/ftsb_redisearch
 
 get:
 	$(GOGET) ./...
 
-test: get
+integration-test: get ftsb_redisearch
+	$(GOTEST) -v $(shell go list ./... | grep -v '/cmd/')
 
 release:
 	$(GOGET) github.com/mitchellh/gox
 	$(GOGET) github.com/tcnksm/ghr
-	GO111MODULE=on gox  -osarch ${OS_ARCHs} \
-	    -ldflags="-X 'main.GitSHA1=$(GIT_SHA)' -X 'main.GitDirty=$(GIT_DIRTY)'" \
-	    -output "${DISTDIR}/${BIN_NAME}_{{.OS}}_{{.Arch}}" ./cmd/ftsb_redisearch
+	GO111MODULE=on gox  -osarch "linux/amd64 darwin/amd64 linux/arm64 darwin/arm64" \
+		-ldflags=$(LDFLAGS) \
+		-output "${DISTDIR}/${BIN_NAME}_{{.OS}}_{{.Arch}}" ./cmd/ftsb_redisearch
 
 publish:
 	@for f in $(shell ls ${DISTDIR}); \
