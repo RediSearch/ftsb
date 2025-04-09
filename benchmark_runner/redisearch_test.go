@@ -100,3 +100,54 @@ func TestFTSBWithRequests(t *testing.T) {
 		t.Errorf("Expected Limit to be 50000, got %v", parsed["Limit"])
 	}
 }
+
+func TestFTSBWithNoLimitNoDuration(t *testing.T) {
+	t.Log("Starting Redis container...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.0-M04-bookworm")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with no --requests or --duration")
+	jsonPath := "../testdata/results.nolimit.json"
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--json-out-file", jsonPath,
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+
+	var parsed struct {
+		Limit  int `json:"Limit"`
+		Totals struct {
+			TotalOps int `json:"TotalOps"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v", err)
+	}
+
+	if parsed.Limit != 0 {
+		t.Errorf("Expected Limit to be 0, got %v", parsed.Limit)
+	}
+	if parsed.Totals.TotalOps <= 0 {
+		t.Errorf("Expected Totals.TotalOps to be > 0, got %v", parsed.Totals.TotalOps)
+	}
+}

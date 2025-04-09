@@ -259,6 +259,10 @@ SCAN_LOOP:
 
 			item := decoder.Decode(br)
 			if item == nil {
+				// If no limit or duration is set, do not rewind, just exit
+				if limit == 0 && duration == 0 {
+					break SCAN_LOOP
+				}
 				// Attempt to rewind input
 				newBr, newDecoder := resetReader()
 				if newBr == nil || newDecoder == nil {
