@@ -2,10 +2,15 @@ name: Integration Test
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
+      - 'v*'
   pull_request:
-    branches: [ main ]
-
+    branches:
+      - main
+      - master
+      - 'v*'
 jobs:
   integration:
     runs-on: ubuntu-latest
