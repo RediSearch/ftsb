@@ -12,7 +12,7 @@ MODULE=ftsb_redisearch
 DISTDIR = ./dist
 
 .PHONY: ftsb_redisearch
-all: get test ftsb_redisearch
+all: get ftsb_redisearch integration-test
 
 # Build-time GIT variables
 ifeq ($(GIT_SHA),)
@@ -28,15 +28,16 @@ LDFLAGS = "-X 'main.GitSHA1=$(GIT_SHA)' -X 'main.GitDirty=$(GIT_DIRTY)'"
 fmt:
 	$(GOFMT) ./...
 
-ftsb_redisearch: test
+ftsb_redisearch:
 	$(GOBUILD) \
 		-ldflags=$(LDFLAGS) \
-		-o bin/$@ ./cmd/$@
+		-o bin/ftsb_redisearch ./cmd/ftsb_redisearch
 
 get:
 	$(GOGET) ./...
 
-test: get
+integration-test: get ftsb_redisearch
+	$(GOTEST) -v $(shell go list ./... | grep -v '/cmd/')
 
 release:
 	$(GOGET) github.com/mitchellh/gox

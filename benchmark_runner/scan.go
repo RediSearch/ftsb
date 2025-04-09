@@ -2,7 +2,9 @@ package benchmark_runner
 
 import (
 	"bufio"
+	"context"
 	"reflect"
+	"time"
 )
 
 // ackAndMaybeSend adjust the unsent batches count
@@ -87,7 +89,8 @@ type DocDecoder interface {
 // Data is decoded by DocDecoder decoder and then placed into appropriate batches, using the supplied DocIndexer,
 // which are then dispatched to workers (duplexChannel chosen by DocIndexer). Scan does flow control to make sure workers are not left idle for too long
 // and also that the scanning process  does not starve them of CPU.
-func scanWithIndexer(channels []*duplexChannel, batchSize uint, limit uint64, br *bufio.Reader, decoder DocDecoder, factory BatchFactory, indexer DocIndexer) uint64 {
+func scanWithIndexer(channels []*duplexChannel, batchSize uint, limit uint64, br *bufio.Reader, decoder DocDecoder, factory BatchFactory, indexer DocIndexer,
+) uint64 {
 	var itemsRead uint64
 	numChannels := len(channels)
 
@@ -194,6 +197,100 @@ func scanWithIndexer(channels []*duplexChannel, batchSize uint, limit uint64, br
 		}
 
 		// Try to send batches to workers
+		chosen, _, ok := reflect.Select(cases[:len(cases)-1])
+		if ok {
+			unsentBatches[chosen] = ackAndMaybeSend(channels[chosen], &ocnt, unsentBatches[chosen])
+		}
+	}
+
+	return itemsRead
+}
+
+func scanWithTimeout(ctx context.Context, channels []*duplexChannel, batchSize uint, limit uint64, duration time.Duration, br *bufio.Reader, decoder DocDecoder, factory BatchFactory, indexer DocIndexer,
+	resetReader func() (*bufio.Reader, DocDecoder)) uint64 {
+	var itemsRead uint64
+	numChannels := len(channels)
+	if batchSize < 1 {
+		panic("--batch-size cannot be less than 1")
+	}
+
+	fillingBatches := make([]Batch, numChannels)
+	for i := range fillingBatches {
+		fillingBatches[i] = factory.New()
+	}
+	unsentBatches := make([][]Batch, numChannels)
+	for i := range unsentBatches {
+		unsentBatches[i] = []Batch{}
+	}
+
+	cases := make([]reflect.SelectCase, numChannels+1)
+	for i, ch := range channels {
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(ch.toScanner),
+		}
+	}
+	cases[numChannels] = reflect.SelectCase{
+		Dir: reflect.SelectDefault,
+	}
+
+	ocnt := 0
+	olimit := numChannels * cap(channels[0].toWorker) * 3
+
+SCAN_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break SCAN_LOOP
+		default:
+			if limit > 0 && itemsRead == limit && duration == 0 {
+				break SCAN_LOOP
+			}
+
+			caseLimit := len(cases)
+			if ocnt >= olimit {
+				caseLimit--
+			}
+
+			chosen, _, ok := reflect.Select(cases[:caseLimit])
+			if ok {
+				unsentBatches[chosen] = ackAndMaybeSend(channels[chosen], &ocnt, unsentBatches[chosen])
+			}
+
+			item := decoder.Decode(br)
+			if item == nil {
+				// Attempt to rewind input
+				newBr, newDecoder := resetReader()
+				if newBr == nil || newDecoder == nil {
+					break SCAN_LOOP
+				}
+				br = newBr
+				decoder = newDecoder
+				continue
+			}
+
+			itemsRead++
+
+			idx := indexer.GetIndex(itemsRead, item)
+			fillingBatches[idx].Append(item)
+
+			if fillingBatches[idx].Len() >= int(batchSize) {
+				unsentBatches[idx] = sendOrQueueBatch(channels[idx], &ocnt, fillingBatches[idx], unsentBatches[idx])
+				fillingBatches[idx] = factory.New()
+			}
+		}
+	}
+
+	for idx, b := range fillingBatches {
+		if b.Len() > 0 {
+			unsentBatches[idx] = sendOrQueueBatch(channels[idx], &ocnt, b, unsentBatches[idx])
+		}
+	}
+
+	for {
+		if ocnt == 0 {
+			break
+		}
 		chosen, _, ok := reflect.Select(cases[:len(cases)-1])
 		if ok {
 			unsentBatches[chosen] = ackAndMaybeSend(channels[chosen], &ocnt, unsentBatches[chosen])

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"golang.org/x/time/rate"
 	"io/ioutil"
 	"log"
 	"math"
@@ -16,6 +15,10 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"context"
 
 	"code.cloudfoundry.org/bytefmt"
 	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
@@ -49,6 +52,9 @@ type BenchmarkRunner struct {
 	fileName        string
 	start           time.Time
 	end             time.Time
+	file            *os.File
+	// time-based run support
+	Duration time.Duration
 
 	// non-flag fields
 	br                         *bufio.Reader
@@ -287,6 +293,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.Uint64Var(&loader.limit, "requests", 0, "Number of total requests to issue (0 = all of the present in input file).")
 	flag.BoolVar(&loader.doLoad, "do-benchmark", true, "Whether to write databuild. Set this flag to false to check input read speed.")
 	flag.DurationVar(&loader.reportingPeriod, "reporting-period", 1*time.Second, "Period to report write stats")
+	flag.DurationVar(&loader.Duration, "duration", 0*time.Second, "Max duration for benchmark run (0 to disable)")
 	flag.StringVar(&loader.fileName, "input", "", "File name to read databuild from")
 	flag.Uint64Var(&loader.maxRPS, "max-rps", 0, "enable limiting the rate of queries per second, 0 = no limit. By default no limit is specified and the binaries will stress the DB up to the maximum. A normal \"modus operandi\" would be to initially stress the system ( no limit on RPS) and afterwards that we know the limit vary with lower rps configurations.")
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
@@ -309,6 +316,9 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 		requestBurst = int(l.workers) //int(b.workers)
 	}
 	var rateLimiter = rate.NewLimiter(requestRate, requestBurst)
+	if l.Duration > 0 && l.limit > 0 {
+		log.Printf("Warning! You've specified both --duration %d and --requests %d limits. --duration %d takes precedence over --requests", l.Duration, l.limit, l.Duration)
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < int(l.workers); i++ {
@@ -356,6 +366,7 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 				log.Fatalf("cannot open file for read %s: %v", l.fileName, err)
 				return nil
 			}
+			l.file = file // store raw file for resetting
 			l.br = bufio.NewReaderSize(file, defaultReadSize)
 		} else {
 			// Read from STDIN
@@ -363,6 +374,37 @@ func (l *BenchmarkRunner) GetBufferedReader() *bufio.Reader {
 		}
 	}
 	return l.br
+}
+
+// GetRawFile returns the raw file handle if available (used for rewinding input)
+func (l *BenchmarkRunner) GetRawFile() *os.File {
+	return l.file
+}
+
+// GetResetReaderFunc returns a function that resets the reader and decoder if input can be reused.
+func (l *BenchmarkRunner) GetResetReaderFunc(b Benchmark) func() (*bufio.Reader, DocDecoder) {
+	file := l.GetRawFile()
+	if file == nil {
+		return func() (*bufio.Reader, DocDecoder) {
+			return nil, nil
+		}
+	}
+	rewindCount := 0
+	lastLog := time.Now().Add(-15 * time.Second) // allow immediate log on first rewind
+	return func() (*bufio.Reader, DocDecoder) {
+		_, err := file.Seek(0, 0)
+		rewindCount++
+		if time.Since(lastLog) > 10*time.Second {
+			log.Printf("Rewinding input file: %s (rewinds so far: %d)", file.Name(), rewindCount)
+			lastLog = time.Now()
+		}
+		if err != nil {
+			log.Printf("Failed to rewind input file: %v", err)
+			return nil, nil
+		}
+		newReader := bufio.NewReaderSize(file, defaultReadSize)
+		return newReader, b.GetCmdDecoder(newReader)
+	}
 }
 
 // createChannels create channels from which workers would receive tasks
@@ -394,14 +436,18 @@ func (l *BenchmarkRunner) createChannels(workQueues uint) []*duplexChannel {
 // scan launches any needed reporting mechanism and proceeds to scan input databuild
 // to distribute to workers
 func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start time.Time, w *tabwriter.Writer) uint64 {
-	// Start background reporting process
-	// TODO why it is here? May be it could be moved one level up?
 	if l.reportingPeriod.Nanoseconds() > 0 {
 		go l.report(l.reportingPeriod, start, w)
 	}
+	ctx := context.Background()
+	cancel := context.CancelFunc(func() {})
+	if l.Duration > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), l.Duration)
+		defer cancel()
+	}
 
-	// Scan incoming databuild
-	return scanWithIndexer(channels, 100, l.limit, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))))
+	resetFn := l.GetResetReaderFunc(b)
+	return scanWithTimeout(ctx, channels, 100, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
 }
 
 // work is the processing function for each worker in the loader

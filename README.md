@@ -54,10 +54,10 @@ https://github.com/RediSearch/ftsb/releases/latest
 
 | OS | Arch | Link |
 | :---         |     :---:      |          ---: |
-| Linux   | amd64  (64-bit X86)     | [ftsb_redisearch-linux-amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-linux-amd64.tar.gz)    |
-| Linux   | arm64 (64-bit ARM)     | [ftsb_redisearch-linux-arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-linux-arm64.tar.gz)    |
-| Darwin   | amd64  (64-bit X86)     | [ftsb_redisearch-darwin-amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-darwin-amd64.tar.gz)    |
-| Darwin   | arm64 (64-bit ARM)     | [ftsb_redisearch-darwin-arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-darwin-arm64.tar.gz)    |
+| Linux   | amd64  (64-bit X86)     | [ftsb_redisearch_linux_amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch_linux_amd64.tar.gz)    |
+| Linux   | arm64 (64-bit ARM)     | [ftsb_redisearch_linux_arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch_linux_arm64.tar.gz)    |
+| Darwin   | amd64  (64-bit X86)     | [ftsb_redisearch_darwin_amd64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch_darwin_amd64.tar.gz)    |
+| Darwin   | arm64 (64-bit ARM)     | [ftsb_redisearch_darwin_arm64](https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch_darwin_arm64.tar.gz)    |
 
 Here's how bash script to download and try it:
 
