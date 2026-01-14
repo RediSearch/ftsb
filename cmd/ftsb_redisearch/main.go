@@ -68,10 +68,10 @@ func (i *RedisIndexer) GetIndex(itemsRead uint64, p *benchmark_runner.DocHolder)
 	return int(uint(itemsRead) % i.partitions)
 }
 
-func (b *benchmark) GetCmdDecoder(br *bufio.Reader) benchmark_runner.DocDecoder {
+func (b *benchmark) GetCmdDecoder(br *bufio.Reader, maxTokenSizeMB uint) benchmark_runner.DocDecoder {
 	scanner := bufio.NewScanner(br)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	scanner.Buffer(buf, int(maxTokenSizeMB*1024*1024))
 	return &decoder{scanner: scanner}
 }
 

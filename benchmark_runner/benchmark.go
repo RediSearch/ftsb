@@ -6,7 +6,7 @@ import "bufio"
 // needed to run an insert or benchmark benchmark.
 type Benchmark interface {
 	// GetCmdDecoder returns the DocDecoder to use for this Benchmark
-	GetCmdDecoder(br *bufio.Reader) DocDecoder
+	GetCmdDecoder(br *bufio.Reader, maxTokenSizeMB uint) DocDecoder
 
 	// GetBatchFactory returns the BatchFactory to use for this Benchmark
 	GetBatchFactory() BatchFactory
