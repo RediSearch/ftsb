@@ -62,7 +62,7 @@ https://github.com/RediSearch/ftsb/releases/latest
 Here's how bash script to download and try it:
 
 ```bash
-wget -c https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch-$(uname -mrs | awk '{ print tolower($1) }')-$(dpkg --print-architecture).tar.gz -O - | tar -xz
+wget -c https://github.com/RediSearch/ftsb/releases/latest/download/ftsb_redisearch_$(uname -mrs | awk '{ print tolower($1) }')_$(dpkg --print-architecture).tar.gz -O - | tar -xz
 
 # give it a try
 ./ftsb_redisearch --help

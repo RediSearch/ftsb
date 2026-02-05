@@ -70,6 +70,14 @@ func (c *CmdStat) CmdQueryId() []byte {
 	return c.cmdQueryId
 }
 
+func (c *CmdStat) Error() bool {
+	return c.error
+}
+
+func (c *CmdStat) TimedOut() bool {
+	return c.timedOut
+}
+
 func NewCmdStat(cmdGroup []byte, cmdQueryId []byte, latency uint64, error bool, timedOut bool, rx uint64, tx uint64) *CmdStat {
 	return &CmdStat{cmdQueryGroup: cmdGroup, cmdQueryId: cmdQueryId, latency: latency, error: error, timedOut: timedOut, rx: rx, tx: tx}
 }

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"text/tabwriter"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -58,6 +57,10 @@ type BenchmarkRunner struct {
 	maxTokenSizeMB  uint
 	// time-based run support
 	Duration time.Duration
+
+	// error and timeout tracking
+	totalErrors   uint64
+	totalTimeouts uint64
 
 	br                         *bufio.Reader
 	detailedMapHistogramsMutex sync.RWMutex
@@ -118,6 +121,12 @@ func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 
 	//TotalDeletes
 	configs["Deletes"] = b.deleteHistogram.TotalCount()
+
+	//TotalErrors
+	configs["Errors"] = atomic.LoadUint64(&b.totalErrors)
+
+	//TotalTimeouts
+	configs["Timeouts"] = atomic.LoadUint64(&b.totalTimeouts)
 
 	//TotalTxBytes
 	configs["TxBytes"] = b.txTotalBytes
@@ -325,12 +334,10 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 		go l.work(b, &wg, channels[i%len(channels)], i, rateLimiter, l.maxRPS != 0)
 	}
 
-	w := new(tabwriter.Writer)
-	w.Init(os.Stderr, 20, 0, 0, ' ', tabwriter.AlignRight)
 	// Start scan process - actual databuild read process
 	l.start = time.Now()
 
-	l.scan(b, channels, l.start, w)
+	l.scan(b, channels, l.start)
 
 	// After scan process completed (no more databuild to come) - begin shutdown process
 
@@ -434,9 +441,9 @@ func (l *BenchmarkRunner) createChannels(workQueues uint) []*duplexChannel {
 
 // scan launches any needed reporting mechanism and proceeds to scan input databuild
 // to distribute to workers
-func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start time.Time, w *tabwriter.Writer) uint64 {
+func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start time.Time) uint64 {
 	if l.reportingPeriod.Nanoseconds() > 0 {
-		go l.report(l.reportingPeriod, start, w)
+		go l.report(l.reportingPeriod, start)
 	}
 	ctx := context.Background()
 	cancel := context.CancelFunc(func() {})
@@ -463,6 +470,15 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 		cmdStats := stats.CmdStats()
 		for pos := 0; pos < len(cmdStats); pos++ {
 			cmdStat := cmdStats[pos]
+
+			// Track errors and timeouts
+			if cmdStat.Error() {
+				atomic.AddUint64(&l.totalErrors, 1)
+			}
+			if cmdStat.TimedOut() {
+				atomic.AddUint64(&l.totalTimeouts, 1)
+			}
+
 			_ = l.totalHistogram.RecordValue(int64(cmdStat.Latency()))
 			_ = l.inst_totalHistogram.RecordValue(int64(cmdStat.Latency()))
 
@@ -546,6 +562,8 @@ func (l *BenchmarkRunner) summary() {
 	totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
 	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
+	totalErrors := atomic.LoadUint64(&l.totalErrors)
+	totalTimeouts := atomic.LoadUint64(&l.totalTimeouts)
 
 	setupWriteRate := calculateRateMetrics(setupWriteCount, 0, took)
 	writeRate := calculateRateMetrics(writeCount, 0, took)
@@ -568,9 +586,9 @@ func (l *BenchmarkRunner) summary() {
 	l.testResult.Metadata = l.Metadata
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
-	fmt.Printf("\nSummary:\n")
-	fmt.Printf("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
-	fmt.Printf("\tOverall stats:\n\t"+
+	log.Printf("\nSummary:\n")
+	log.Printf("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
+	log.Printf("\tOverall stats:\n\t"+
 		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
 		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
 		"- Writes %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
@@ -593,8 +611,24 @@ func (l *BenchmarkRunner) summary() {
 		deleteRate,
 		float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
 	)
-	fmt.Printf("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
-	fmt.Printf("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
+	log.Printf("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
+	log.Printf("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
+
+	// Display error and timeout statistics
+
+	// Display error and timeout statistics
+	log.Printf("\n\tError Statistics:\n")
+	errorRate := 0.0
+	if totalErrors > 0 {
+		errorRate = (float64(totalErrors) / float64(totalOps)) * 100.0
+
+	}
+	log.Printf("\t- Total Errors: %d (%.2f%%)\n", totalErrors, errorRate)
+	timeoutRate := 0.0
+	if totalTimeouts > 0 {
+		timeoutRate = (float64(totalTimeouts) / float64(totalOps)) * 100.0
+	}
+	log.Printf("\t- Total Timeouts: %d (%.2f%%)\n", totalTimeouts, timeoutRate)
 
 	if strings.Compare(l.JsonOutFile, "") != 0 {
 
@@ -612,7 +646,7 @@ func (l *BenchmarkRunner) summary() {
 }
 
 // report handles periodic reporting of loading stats
-func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwriter.Writer) {
+func (l *BenchmarkRunner) report(period time.Duration, start time.Time) {
 	prevTime := start
 	prevWriteCount := int64(0)
 	prevSetupWriteCount := int64(0)
@@ -624,8 +658,7 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 	prevTxTotalBytes := uint64(0)
 	prevRxTotalBytes := uint64(0)
 
-	fmt.Fprint(w, "setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\ttotal ops\tTX BW/s\tRX BW/s\n")
-	w.Flush()
+	log.Printf("setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\ttotal ops\tTX BW/s\tRX BW/s\n")
 	for now := range time.NewTicker(period).C {
 		took := now.Sub(prevTime)
 		writeCount := l.writeHistogram.TotalCount()
@@ -659,7 +692,7 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 		l.updateTs = l.addRateMetricsDatapoints(l.updateTs, now, took, l.inst_updateHistogram)
 		l.deleteTs = l.addRateMetricsDatapoints(l.deleteTs, now, took, l.inst_deleteHistogram)
 
-		fmt.Fprint(w, fmt.Sprintf("%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t %.0f (%.3f) \t%d \t %sB/s \t %sB/s\n",
+		log.Printf("%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t %.0f (%.3f) \t%d \t %sB/s \t %sB/s\n",
 			setupWriteRate,
 			float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
 
@@ -680,8 +713,7 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time, w *tabwr
 
 			CurrentOpsRate,
 			float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
-			totalOps, txByteRateStr, rxByteRateStr))
-		w.Flush()
+			totalOps, txByteRateStr, rxByteRateStr)
 		prevSetupWriteCount = setupWriteCount
 		prevWriteCount = writeCount
 		prevReadCount = readCount
