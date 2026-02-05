@@ -30,7 +30,7 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 	if password != "" {
 		opts = append(opts, radix.DialAuthPass(password))
 	}
-	opts = append(opts, radix.DialTimeout(time.Second*60))
+	opts = append(opts, radix.DialTimeout(timeout))
 
 	customConnFunc := func(network, addr string) (radix.Conn, error) {
 		return radix.Dial(network, addr, opts...,
@@ -163,17 +163,19 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			err = client.Do(radix.Pipeline(cmds...))
 		}
 		endT := time.Now()
+		hasError := false
+		isTimeout := false
 		if err != nil {
-			if continueOnErr {
+			hasError = true
+			if strings.Contains(err.Error(), "i/o timeout") {
+				isTimeout = true
+				log.Println(fmt.Sprintf("Timeout occurred with the following command(s): %v, continuing execution...", cmds))
+			} else if continueOnErr {
 				if debug > 0 {
 					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
 				}
 			} else {
-				if strings.Contains(err.Error(), "i/o timeout") {
-					log.Println("Timeout occurred, continuing execution...")
-				} else {
-					log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
-				}
+				log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
 			}
 		}
 		for pos, t := range times {
@@ -181,7 +183,7 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			took := uint64(duration.Microseconds())
 			rcv := replies[pos]
 			rxBytesCount += getRxLen(rcv)
-			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, false, false, txBytesCount, rxBytesCount)
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hasError, isTimeout, txBytesCount, rxBytesCount)
 			p.cmdChan <- *stat
 		}
 		cmds = nil

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -22,6 +23,7 @@ var (
 	continueOnErr bool
 	timeout       time.Duration
 	versionFlag   bool
+	logFile       string
 )
 
 // Parse args:
@@ -36,6 +38,7 @@ func init() {
 	var timeoutSeconds int
 	flag.IntVar(&timeoutSeconds, "timeout", 60, "Redis connection timeout in seconds.")
 	flag.BoolVar(&versionFlag, "version", false, "Print the version and exit.")
+	flag.StringVar(&logFile, "log-file", "", "File to write all log output (in addition to stdout/stderr). If not set, logs only to stdout/stderr.")
 	flag.Parse()
 	// Convert seconds to time.Duration
 	timeout = time.Duration(timeoutSeconds) * time.Second
@@ -57,6 +60,7 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["continueOnError"] = continueOnErr
 	configs["debug"] = debug
 	configs["pipeline"] = pipeline
+	configs["logFile"] = logFile
 	return configs
 }
 
@@ -94,6 +98,24 @@ func main() {
 	if toolGitDirty() {
 		git_dirty_str = "-dirty"
 	}
+
+	// Setup log file if specified
+	if logFile != "" {
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatalf("Failed to open log file %s: %v", logFile, err)
+		}
+		defer f.Close()
+
+		// Create a multi-writer that writes to both stdout and the log file
+		multiWriter := io.MultiWriter(os.Stdout, f)
+
+		// Redirect log output to both stdout and file
+		log.SetOutput(multiWriter)
+
+		log.Printf("Logging to file: %s\n", logFile)
+	}
+
 	log.Printf("ftsb (git_sha1:%s%s)\n", git_sha, git_dirty_str)
 	loader.RunBenchmark(&b, benchmark_runner.SingleQueue)
 }

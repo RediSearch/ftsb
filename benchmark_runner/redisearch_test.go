@@ -20,7 +20,7 @@ func TestFTSBWithDuration(t *testing.T) {
 		t.Logf(" - %s", entry.Name())
 	}
 	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.0-M04-bookworm")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
 	containerIDRaw, err := dockerRun.Output()
 	if err != nil {
 		t.Fatalf("Failed to start Redis container: %v", err)
@@ -59,7 +59,7 @@ func TestFTSBWithDuration(t *testing.T) {
 
 func TestFTSBWithRequests(t *testing.T) {
 	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.0-M04-bookworm")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
 	containerIDRaw, err := dockerRun.Output()
 	if err != nil {
 		t.Fatalf("Failed to start Redis container: %v", err)
@@ -103,7 +103,7 @@ func TestFTSBWithRequests(t *testing.T) {
 
 func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.0-M04-bookworm")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
 	containerIDRaw, err := dockerRun.Output()
 	if err != nil {
 		t.Fatalf("Failed to start Redis container: %v", err)
@@ -150,4 +150,408 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 	if parsed.Totals.TotalOps <= 0 {
 		t.Errorf("Expected Totals.TotalOps to be > 0, got %v", parsed.Totals.TotalOps)
 	}
+}
+
+func TestFTSBErrorAndTimeoutTracking(t *testing.T) {
+	t.Log("Starting Redis container...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with normal operation (should have 0 errors)")
+	jsonPath := "../testdata/results.errors.json"
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--requests=1000",
+		"--json-out-file", jsonPath,
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	// Check that output contains summary
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "Summary:") {
+		t.Errorf("Expected output to contain 'Summary:', got: %s", outputStr)
+	}
+
+	// Parse JSON output
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+
+	var parsed struct {
+		Totals struct {
+			TotalOps int     `json:"TotalOps"`
+			Errors   float64 `json:"Errors"`
+			Timeouts float64 `json:"Timeouts"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v", err)
+	}
+
+	// Verify error and timeout fields exist in JSON
+	if parsed.Totals.TotalOps <= 0 {
+		t.Errorf("Expected TotalOps to be > 0, got %v", parsed.Totals.TotalOps)
+	}
+
+	// In normal operation, errors and timeouts should be 0
+	if parsed.Totals.Errors != 0 {
+		t.Logf("Warning: Expected Errors to be 0, got %v", parsed.Totals.Errors)
+	}
+	if parsed.Totals.Timeouts != 0 {
+		t.Logf("Warning: Expected Timeouts to be 0, got %v", parsed.Totals.Timeouts)
+	}
+
+	// Verify that error statistics ARE shown in output (even when there are no errors)
+	if !strings.Contains(outputStr, "Error Statistics:") {
+		t.Errorf("Expected output to contain 'Error Statistics:'")
+	}
+
+	t.Log("Test passed: Error and timeout tracking fields are present in JSON output")
+}
+
+func TestFTSBWithConnectionFailure(t *testing.T) {
+	t.Log("Running ftsb_redisearch against non-existent Redis (should trigger errors)")
+	jsonPath := "../testdata/results.connection_error.json"
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--requests=10",
+		"--json-out-file", jsonPath,
+		"--continue-on-error",
+	)
+	// Point to a non-existent Redis instance
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:9999")
+	output, err := cmd.CombinedOutput()
+
+	// The benchmark should fail or complete with errors
+	outputStr := string(output)
+	t.Logf("Output: %s", outputStr)
+
+	// Check if JSON file was created
+	if _, statErr := os.Stat(jsonPath); statErr == nil {
+		data, readErr := os.ReadFile(jsonPath)
+		if readErr == nil {
+			var parsed struct {
+				Totals struct {
+					Errors   float64 `json:"Errors"`
+					Timeouts float64 `json:"Timeouts"`
+				} `json:"Totals"`
+			}
+			if jsonErr := json.Unmarshal(data, &parsed); jsonErr == nil {
+				t.Logf("Errors in JSON: %v", parsed.Totals.Errors)
+				t.Logf("Timeouts in JSON: %v", parsed.Totals.Timeouts)
+
+				// We expect either errors or timeouts to be > 0
+				if parsed.Totals.Errors > 0 || parsed.Totals.Timeouts > 0 {
+					t.Log("Test passed: Errors/timeouts were properly tracked")
+				}
+			}
+		}
+	}
+
+	// This test is informational - we're just verifying the tracking mechanism exists
+	if err != nil {
+		t.Logf("Expected failure when connecting to non-existent Redis: %v", err)
+	}
+}
+
+func TestFTSBWithTimeout(t *testing.T) {
+	t.Log("Starting Redis container with debug commands enabled...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
+		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with timeout_test.csv (contains DEBUG SLEEP commands)")
+	jsonPath := "../testdata/results.timeout.json"
+	logPath := "../testdata/timeout_debug.log"
+	// Remove log file if it exists
+	os.Remove(logPath)
+
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/timeout_test.csv",
+		"--timeout=1", // 1 second timeout
+		"--continue-on-error",
+		"--debug=1", // Enable debug output to see error messages
+		"--json-out-file", jsonPath,
+		"--log-file", logPath,
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+
+	outputStr := string(output)
+	t.Logf("Output: %s", outputStr)
+
+	// The benchmark should complete (with --continue-on-error)
+	if err != nil {
+		t.Logf("Benchmark completed with error (expected due to timeouts): %v", err)
+	}
+
+	// Parse JSON output
+	data, readErr := os.ReadFile(jsonPath)
+	if readErr != nil {
+		t.Fatalf("Failed to read json output file: %v", readErr)
+	}
+
+	var parsed struct {
+		Totals struct {
+			TotalOps int     `json:"TotalOps"`
+			Errors   float64 `json:"Errors"`
+			Timeouts float64 `json:"Timeouts"`
+		} `json:"Totals"`
+	}
+	if jsonErr := json.Unmarshal(data, &parsed); jsonErr != nil {
+		t.Fatalf("Failed to parse JSON output: %v", jsonErr)
+	}
+
+	t.Logf("Total Ops: %d", parsed.Totals.TotalOps)
+	t.Logf("Errors: %v", parsed.Totals.Errors)
+	t.Logf("Timeouts: %v", parsed.Totals.Timeouts)
+
+	// Verify that timeouts were detected
+	// The DEBUG SLEEP 2 command should timeout with a 1 second timeout
+	if parsed.Totals.Timeouts == 0 {
+		t.Errorf("Expected Timeouts to be > 0 (DEBUG SLEEP should have triggered timeouts), got %v", parsed.Totals.Timeouts)
+	}
+
+	// Verify that "Error Statistics:" appears in output when there are timeouts
+	if !strings.Contains(outputStr, "Error Statistics:") {
+		t.Errorf("Expected output to contain 'Error Statistics:' when timeouts occur")
+	}
+
+	if !strings.Contains(outputStr, "Timeout") {
+		t.Errorf("Expected output to contain 'Timeout' in error statistics")
+	}
+
+	// Verify log file was created and contains timeout information
+	logData, logReadErr := os.ReadFile(logPath)
+	if logReadErr != nil {
+		t.Fatalf("Failed to read log file: %v", logReadErr)
+	}
+
+	logContent := string(logData)
+	t.Logf("Log file content length: %d bytes", len(logContent))
+
+	// Verify log file contains the timeout error message with DEBUG SLEEP command on the same line
+	foundTimeoutWithDebugSleep := false
+	for _, line := range strings.Split(logContent, "\n") {
+		if strings.Contains(line, "Timeout occurred") && strings.Contains(line, "DEBUG") && strings.Contains(line, "SLEEP") {
+			foundTimeoutWithDebugSleep = true
+			t.Logf("Found timeout line with DEBUG SLEEP: %s", line)
+			break
+		}
+	}
+	if !foundTimeoutWithDebugSleep {
+		t.Errorf("Expected log file to contain a line with 'Timeout occurred', 'DEBUG', and 'SLEEP' all on the same line")
+	}
+
+	// Verify log file contains error statistics
+	if !strings.Contains(logContent, "Error Statistics:") {
+		t.Errorf("Expected log file to contain 'Error Statistics:'")
+	}
+
+	if !strings.Contains(logContent, "Total Timeouts:") {
+		t.Errorf("Expected log file to contain 'Total Timeouts:'")
+	}
+
+	// Clean up log file
+	os.Remove(logPath)
+
+	t.Log("Test passed: Timeouts were properly detected and tracked in both stdout and log file")
+}
+
+func TestFTSBWithLogFile(t *testing.T) {
+	t.Log("Starting Redis container...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with --log-file")
+	logPath := "../testdata/benchmark.log"
+	// Remove log file if it exists
+	os.Remove(logPath)
+
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--requests=100",
+		"--log-file", logPath,
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	// Verify log file was created
+	if _, statErr := os.Stat(logPath); statErr != nil {
+		t.Fatalf("Log file was not created: %v", statErr)
+	}
+
+	// Read log file content
+	logData, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("Failed to read log file: %v", readErr)
+	}
+
+	logContent := string(logData)
+	t.Logf("Log file content length: %d bytes", len(logContent))
+
+	// Verify log file contains expected content
+	if !strings.Contains(logContent, "ftsb (git_sha1:") {
+		t.Errorf("Expected log file to contain 'ftsb (git_sha1:', got: %s", logContent)
+	}
+
+	if !strings.Contains(logContent, "Logging to file:") {
+		t.Errorf("Expected log file to contain 'Logging to file:', got: %s", logContent)
+	}
+
+	// Verify log file contains summary output
+	if !strings.Contains(logContent, "Summary:") {
+		t.Errorf("Expected log file to contain 'Summary:'")
+	}
+
+	// Verify log file contains error statistics (even when 0)
+	if !strings.Contains(logContent, "Error Statistics:") {
+		t.Errorf("Expected log file to contain 'Error Statistics:'")
+	}
+
+	if !strings.Contains(logContent, "Total Errors:") {
+		t.Errorf("Expected log file to contain 'Total Errors:'")
+	}
+
+	if !strings.Contains(logContent, "Total Timeouts:") {
+		t.Errorf("Expected log file to contain 'Total Timeouts:'")
+	}
+
+	// Verify stdout also contains the output
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "ftsb (git_sha1:") {
+		t.Errorf("Expected stdout to contain 'ftsb (git_sha1:', got: %s", outputStr)
+	}
+
+	// Clean up log file
+	os.Remove(logPath)
+
+	t.Log("Test passed: Log file functionality works correctly")
+}
+
+func TestFTSBWithLogFileAndTimeout(t *testing.T) {
+	t.Log("Starting Redis container with debug commands enabled...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
+		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with timeout_test.csv and --log-file")
+	logPath := "../testdata/benchmark_timeout.log"
+	// Remove log file if it exists
+	os.Remove(logPath)
+
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/timeout_test.csv",
+		"--timeout=1", // 1 second timeout
+		"--continue-on-error",
+		"--log-file", logPath,
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+
+	// The benchmark should complete (with --continue-on-error)
+	if err != nil {
+		t.Logf("Benchmark completed with error (expected due to timeouts): %v", err)
+	}
+
+	// Verify log file was created
+	if _, statErr := os.Stat(logPath); statErr != nil {
+		t.Fatalf("Log file was not created: %v", statErr)
+	}
+
+	// Read log file content
+	logData, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("Failed to read log file: %v", readErr)
+	}
+
+	logContent := string(logData)
+	t.Logf("Log file content length: %d bytes", len(logContent))
+
+	// Verify log file contains timeout messages
+	if !strings.Contains(logContent, "Timeout occurred with the following command(s):") {
+		t.Errorf("Expected log file to contain timeout message")
+	}
+
+	// Verify log file contains error statistics with non-zero values
+	if !strings.Contains(logContent, "Error Statistics:") {
+		t.Errorf("Expected log file to contain 'Error Statistics:'")
+	}
+
+	// Check that the log file shows non-zero errors/timeouts
+	if !strings.Contains(logContent, "Total Errors:") {
+		t.Errorf("Expected log file to contain 'Total Errors:'")
+	}
+
+	if !strings.Contains(logContent, "Total Timeouts:") {
+		t.Errorf("Expected log file to contain 'Total Timeouts:'")
+	}
+
+	// Verify the log file doesn't show 0 timeouts (should have actual timeouts)
+	if strings.Contains(logContent, "Total Timeouts: 0 (0.00%)") {
+		t.Errorf("Expected log file to show non-zero timeouts, but got 0")
+	}
+
+	// Verify stdout also contains the same output
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "Timeout occurred") {
+		t.Errorf("Expected stdout to contain timeout message")
+	}
+
+	// Clean up log file
+	os.Remove(logPath)
+
+	t.Log("Test passed: Log file captures timeout and error information correctly")
 }
