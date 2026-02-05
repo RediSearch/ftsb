@@ -167,15 +167,18 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 		isTimeout := false
 		if err != nil {
 			hasError = true
+
+			// Always log the error
+			if continueOnErr {
+				log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
+			} else {
+				log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
+			}
+
+			// Log additional timeout-specific message if it's a timeout
 			if strings.Contains(err.Error(), "i/o timeout") {
 				isTimeout = true
 				log.Println(fmt.Sprintf("Timeout occurred with the following command(s): %v, continuing execution...", cmds))
-			} else if continueOnErr {
-				if debug > 0 {
-					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
-				}
-			} else {
-				log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
 			}
 		}
 		for pos, t := range times {
