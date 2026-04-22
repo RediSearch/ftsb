@@ -191,11 +191,15 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 	replies = append(replies, rcv)
 	start := time.Now()
 	times = append(times, start)
-	cmds, times, hadError := sendIfRequired(p, client, cmdType, cmdQueryId, cmds, err, times, rxBytesCount, replies, txBytesCount)
+	key := ""
+	if len(docfields) > 0 {
+		key = docfields[0]
+	}
+	cmds, times, hadError := sendIfRequired(p, client, cmdType, cmdQueryId, cmd, key, cmds, err, times, rxBytesCount, replies, txBytesCount)
 	return cmds, times, hadError
 }
 
-func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, replies []interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time, bool) {
+func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, redisCmd string, redisKey string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, replies []interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time, bool) {
 	cmdLen := len(cmds)
 	hadError := false
 	if cmdLen >= pipeline {
@@ -212,15 +216,15 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 
 			// Always log the error
 			if continueOnErr {
-				log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
+				log.Println(fmt.Sprintf("Received an error with command: %s %s (%d command(s) in pipeline), error: %v", redisCmd, redisKey, len(cmds), err))
 			} else {
-				log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
+				log.Fatal(fmt.Sprintf("Fatal error with command: %s %s (%d command(s) in pipeline), error: %v", redisCmd, redisKey, len(cmds), err))
 			}
 
 			// Log additional timeout-specific message if it's a timeout
 			if strings.Contains(err.Error(), "i/o timeout") {
 				isTimeout = true
-				log.Println(fmt.Sprintf("Timeout occurred with the following command(s): %v, continuing execution...", cmds))
+				log.Println(fmt.Sprintf("Timeout occurred with command: %s %s (%d command(s) in pipeline), continuing execution...", redisCmd, redisKey, len(cmds)))
 			}
 		}
 		for pos, t := range times {
