@@ -453,7 +453,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	resetFn := l.GetResetReaderFunc(b)
-	return scanWithTimeout(ctx, channels, 100, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br, l.maxTokenSizeMB), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
+	return scanWithTimeout(ctx, channels, l.batchSize, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br, l.maxTokenSizeMB), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
 }
 
 // work is the processing function for each worker in the loader
