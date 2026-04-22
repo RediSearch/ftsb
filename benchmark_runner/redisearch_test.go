@@ -555,3 +555,47 @@ func TestFTSBWithLogFileAndTimeout(t *testing.T) {
 
 	t.Log("Test passed: Log file captures timeout and error information correctly")
 }
+
+func TestFTSBWithBatchSize(t *testing.T) {
+	t.Log("Starting Redis container...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	t.Log("Running ftsb_redisearch with --batch-size=50 --duration=3s")
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--batch-size=50",
+		"--duration=3s",
+	)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	outputStr := string(output)
+	// Guards against the "flag provided but not defined: -batch-size" regression
+	// and against a reintroduction of the zero-batchSize panic.
+	if strings.Contains(outputStr, "flag provided but not defined") {
+		t.Errorf("--batch-size flag not registered; got: %s", outputStr)
+	}
+	if strings.Contains(outputStr, "panic:") {
+		t.Errorf("Benchmark panicked with --batch-size=50; got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "Issued") {
+		t.Errorf("Expected benchmark output to contain 'Issued', got: %s", outputStr)
+	}
+}
