@@ -587,7 +587,8 @@ func (l *BenchmarkRunner) summary() {
 	l.testResult.ResultFormatVersion = CurrentResultFormatVersion
 
 	log.Printf("\nSummary:\n")
-	log.Printf("Issued %d Commands in %0.3fsec with %d workers\n", totalOps, took.Seconds(), l.workers)
+	totalSuccessful := totalOps - int64(totalErrors)
+	log.Printf("Issued %d Commands (%d successful, %d failed) in %0.3fsec with %d workers\n", totalOps, totalSuccessful, totalErrors, took.Seconds(), l.workers)
 	log.Printf("\tOverall stats:\n\t"+
 		"- Total %0.0f ops/sec\t\t\tq50 lat %0.3f ms\n\t"+
 		"- Setup Writes %0.0f ops/sec\t\tq50 lat %0.3f ms\n\t"+
@@ -613,8 +614,6 @@ func (l *BenchmarkRunner) summary() {
 	)
 	log.Printf("\tOverall TX Byte Rate: %sB/sec\n", txByteRateStr)
 	log.Printf("\tOverall RX Byte Rate: %sB/sec\n", rxByteRateStr)
-
-	// Display error and timeout statistics
 
 	// Display error and timeout statistics
 	log.Printf("\n\tError Statistics:\n")
