@@ -215,16 +215,29 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			hadError = true
 
 			// Always log the error
-			if continueOnErr {
-				log.Println(fmt.Sprintf("Received an error with command: %s %s (%d command(s) in pipeline), error: %v", redisCmd, redisKey, len(cmds), err))
+			// For read commands, log full command details; for writes, log only a summary to avoid huge log lines
+			if cmdType == "READ" || cmdType == "READ_CURSOR" {
+				if continueOnErr {
+					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
+				} else {
+					log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
+				}
 			} else {
-				log.Fatal(fmt.Sprintf("Fatal error with command: %s %s (%d command(s) in pipeline), error: %v", redisCmd, redisKey, len(cmds), err))
+				if continueOnErr {
+					log.Println(fmt.Sprintf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", cmdType, redisCmd, redisKey, len(cmds), err))
+				} else {
+					log.Fatal(fmt.Sprintf("Fatal error with %s command: %s %s (%d command(s) in pipeline), error: %v", cmdType, redisCmd, redisKey, len(cmds), err))
+				}
 			}
 
 			// Log additional timeout-specific message if it's a timeout
 			if strings.Contains(err.Error(), "i/o timeout") {
 				isTimeout = true
-				log.Println(fmt.Sprintf("Timeout occurred with command: %s %s (%d command(s) in pipeline), continuing execution...", redisCmd, redisKey, len(cmds)))
+				if cmdType == "READ" || cmdType == "READ_CURSOR" {
+					log.Println(fmt.Sprintf("Timeout occurred with the following command(s): %v, continuing execution...", cmds))
+				} else {
+					log.Println(fmt.Sprintf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", cmdType, redisCmd, redisKey, len(cmds)))
+				}
 			}
 		}
 		for pos, t := range times {
