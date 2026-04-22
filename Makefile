@@ -24,7 +24,7 @@ GIT_DIRTY:=$(shell git diff --no-ext-diff 2> /dev/null | wc -l)
 endif
 
 LDFLAGS = "-X 'main.GitSHA1=$(GIT_SHA)' -X 'main.GitDirty=$(GIT_DIRTY)'"
-OS_ARCHs = "linux/amd64 linux/arm64 linux/arm windows/amd64 darwin/amd64 darwin/arm"
+OS_ARCHs = linux/amd64 linux/arm64 linux/arm windows/amd64 darwin/amd64 darwin/arm64
 
 build:
 	$(GOBUILD) \
@@ -44,11 +44,17 @@ integration-test: get ftsb_redisearch
 	$(GOTEST) -v $(shell go list ./... | grep -v '/cmd/')
 
 release:
-	$(GOGET) github.com/mitchellh/gox
-	$(GOGET) github.com/tcnksm/ghr
-	GO111MODULE=on gox  -osarch ${OS_ARCHs} \
-		-ldflags=$(LDFLAGS) \
-		-output "${DISTDIR}/${BIN_NAME}_{{.OS}}_{{.Arch}}" ./cmd/ftsb_redisearch
+	@mkdir -p ${DISTDIR}
+	@for pair in $(OS_ARCHs); do \
+		os=$${pair%/*}; arch=$${pair#*/}; \
+		ext=""; \
+		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
+		out="${DISTDIR}/${BIN_NAME}_$${os}_$${arch}$${ext}"; \
+		echo "==> building $$os/$$arch -> $$out"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GOBUILD) \
+			-ldflags=$(LDFLAGS) \
+			-o $$out ./cmd/ftsb_redisearch || exit 1; \
+	done
 
 publish: release
 	@for f in $(shell ls ${DISTDIR}); \
