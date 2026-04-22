@@ -306,6 +306,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.StringVar(&loader.JsonOutFile, "json-out-file", "", "Name of json output file to output benchmark results. If not set, will not print to json.")
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	flag.UintVar(&loader.maxTokenSizeMB, "max-token-size-mb", 1, "Maximum size of token to read from input file in MB. Minimum is 1MB.")
+	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together per worker channel before dispatch.")
 	return loader
 }
 
@@ -453,7 +454,7 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 	}
 
 	resetFn := l.GetResetReaderFunc(b)
-	return scanWithTimeout(ctx, channels, 100, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br, l.maxTokenSizeMB), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
+	return scanWithTimeout(ctx, channels, l.batchSize, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br, l.maxTokenSizeMB), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
 }
 
 // work is the processing function for each worker in the loader

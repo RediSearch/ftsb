@@ -28,7 +28,7 @@ var (
 
 // Parse args:
 func init() {
-	loader = benchmark_runner.GetBenchmarkRunnerWithBatchSize(10)
+	loader = benchmark_runner.GetBenchmarkRunnerWithBatchSize(100)
 	flag.StringVar(&host, "host", "localhost:6379", "The host:port for Redis connection")
 	flag.StringVar(&password, "a", "", "Password for Redis Auth.")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
