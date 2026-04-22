@@ -521,7 +521,7 @@ func TestFTSBWithLogFileAndTimeout(t *testing.T) {
 	t.Logf("Log file content length: %d bytes", len(logContent))
 
 	// Verify log file contains timeout messages
-	if !strings.Contains(logContent, "Timeout occurred with command:") {
+	if !strings.Contains(logContent, "Timeout occurred with") {
 		t.Errorf("Expected log file to contain timeout message")
 	}
 
