@@ -266,9 +266,10 @@ func (b *BenchmarkRunner) GetPerSecondEncodedHistogramsMap() map[uint64]string {
 }
 
 // defaultMaxLatencySeconds is the default upper bound for HDR histogram
-// tracking. Disk-backed RediSearch tail latencies routinely exceed 1s, so the
-// default is set high enough to avoid silently capping them.
-const defaultMaxLatencySeconds = 60
+// tracking. Kept at 1s for backwards compatibility with existing dashboards
+// and report consumers; raise via --max-latency-seconds (e.g. 60) when the
+// workload's tail exceeds 1s, as is common on disk-backed RediSearch.
+const defaultMaxLatencySeconds = 1
 
 // Histograms are allocated in initHistograms once flags have been parsed and
 // the configured cap is known.
@@ -337,8 +338,9 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.UintVar(&loader.maxTokenSizeMB, "max-token-size-mb", 1, "Maximum size of token to read from input file in MB. Minimum is 1MB.")
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together per worker channel before dispatch.")
 	flag.Int64Var(&loader.maxLatencySeconds, "max-latency-seconds", defaultMaxLatencySeconds,
-		"Upper bound (in seconds) for HDR histogram latency tracking. Latencies above this cap are clamped. "+
-			"Larger values use more memory per histogram (each histogram is allocated 14 fixed times plus once per query type and once per benchmark second).")
+		"Upper bound (in seconds) for HDR histogram latency tracking. Samples above this cap are dropped (not recorded). "+
+			"Default is 1s for backwards compatibility; raise (e.g. 60) when tail latencies exceed 1s, as on disk-backed RediSearch. "+
+			"Larger values use more memory per histogram (one fixed histogram per phase, plus one per query type and one per benchmark second).")
 	return loader
 }
 

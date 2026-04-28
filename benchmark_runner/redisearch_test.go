@@ -651,30 +651,27 @@ func runSleepBenchmark(t *testing.T, jsonPath string, extraArgs ...string) float
 	return q100
 }
 
-// TestFTSBLatencyCapDefault verifies that with the new 60s default cap, a
-// DEBUG SLEEP 2 latency is recorded above the old 1s ceiling. Prior to the
-// configurable cap, this would have clamped at ~1000 ms.
-func TestFTSBLatencyCapDefault(t *testing.T) {
+// TestFTSBLatencyCapDefaultDropsAboveOneSecond locks in the backwards-
+// compatible default: with the flag unset, the 1s cap drops a 2s DEBUG SLEEP
+// sample (hdrhistogram.RecordValue rejects values above highestTrackable).
+// q100 falls back to the sub-millisecond SET commands.
+func TestFTSBLatencyCapDefaultDropsAboveOneSecond(t *testing.T) {
 	q100 := runSleepBenchmark(t, "../testdata/results.latencycap_default.json")
-	if q100 <= 1000 {
-		t.Errorf("Expected q100 > 1000 ms with default 60s cap (DEBUG SLEEP 2 should record ~2000 ms), got %.2f ms", q100)
-	}
-	if q100 < 1500 {
-		t.Errorf("Expected q100 >= 1500 ms (DEBUG SLEEP 2), got %.2f ms — sleep may not have run", q100)
+	if q100 > 1100 {
+		t.Errorf("Expected q100 <= ~1000 ms with default 1s cap (DEBUG SLEEP 2 should be dropped), got %.2f ms", q100)
 	}
 }
 
-// TestFTSBLatencyCapClamped verifies that --max-latency-seconds=1 actually
-// clamps recorded latencies — proving the flag is wired through to every
-// histogram allocation site (fixed + per-second + per-query).
-func TestFTSBLatencyCapClamped(t *testing.T) {
+// TestFTSBLatencyCapHighOptIn verifies that --max-latency-seconds=60 lifts
+// the cap so a DEBUG SLEEP 2 latency is actually recorded. Proves the flag
+// is wired through to every histogram allocation site (fixed + per-query +
+// per-second).
+func TestFTSBLatencyCapHighOptIn(t *testing.T) {
 	q100 := runSleepBenchmark(t,
-		"../testdata/results.latencycap_clamped.json",
-		"--max-latency-seconds=1",
+		"../testdata/results.latencycap_high.json",
+		"--max-latency-seconds=60",
 	)
-	// hdrhistogram clamps RecordValue to highestTrackable; with cap=1s we
-	// expect q100 <= ~1000 ms even though the real latency was ~2000 ms.
-	if q100 > 1100 {
-		t.Errorf("Expected q100 <= ~1000 ms when capped at 1s, got %.2f ms — flag not honored", q100)
+	if q100 < 1500 {
+		t.Errorf("Expected q100 >= 1500 ms with --max-latency-seconds=60 (DEBUG SLEEP 2 should record ~2000 ms), got %.2f ms", q100)
 	}
 }
