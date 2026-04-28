@@ -270,7 +270,11 @@ func TestFTSBWithConnectionFailure(t *testing.T) {
 	}
 }
 
-func TestFTSBWithTimeout(t *testing.T) {
+// startRedisDebugContainer spins up redis:8.6-rc1 with --enable-debug-command
+// on host port 6379 and registers cleanup. Centralised so duplicated docker
+// boilerplate doesn't flake the SonarCloud duplication gate.
+func startRedisDebugContainer(t *testing.T) {
+	t.Helper()
 	t.Log("Starting Redis container with debug commands enabled...")
 	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
 		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
@@ -283,9 +287,12 @@ func TestFTSBWithTimeout(t *testing.T) {
 		t.Log("Stopping Redis container...")
 		exec.Command("docker", "stop", containerID).Run()
 	})
-
 	t.Log("Waiting for Redis to be ready...")
 	time.Sleep(2 * time.Second)
+}
+
+func TestFTSBWithTimeout(t *testing.T) {
+	startRedisDebugContainer(t)
 
 	t.Log("Running ftsb_redisearch with timeout_test.csv (contains DEBUG SLEEP commands)")
 	jsonPath := "../testdata/results.timeout.json"
@@ -471,21 +478,7 @@ func TestFTSBWithLogFile(t *testing.T) {
 }
 
 func TestFTSBWithLogFileAndTimeout(t *testing.T) {
-	t.Log("Starting Redis container with debug commands enabled...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
-		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisDebugContainer(t)
 
 	t.Log("Running ftsb_redisearch with timeout_test.csv and --log-file")
 	logPath := "../testdata/benchmark_timeout.log"
@@ -607,21 +600,7 @@ func TestFTSBWithBatchSize(t *testing.T) {
 // --max-latency-seconds (and anything else).
 func runSleepBenchmark(t *testing.T, jsonPath string, extraArgs ...string) float64 {
 	t.Helper()
-	t.Log("Starting Redis container with debug commands enabled...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
-		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisDebugContainer(t)
 
 	args := []string{
 		"--input", "../testdata/sleep_test.csv",
