@@ -62,6 +62,11 @@ type BenchmarkRunner struct {
 	totalErrors   uint64
 	totalTimeouts uint64
 
+	// maxLatencySeconds caps the highest trackable latency for every HDR
+	// histogram. Configurable via --max-latency-seconds. Converted to µs at
+	// histogram-allocation time.
+	maxLatencySeconds int64
+
 	br                         *bufio.Reader
 	detailedMapHistogramsMutex sync.RWMutex
 	detailedMapHistograms      map[string]*hdrhistogram.Histogram
@@ -260,30 +265,54 @@ func (b *BenchmarkRunner) GetPerSecondEncodedHistogramsMap() map[uint64]string {
 	return configs
 }
 
+// defaultMaxLatencySeconds is the default upper bound for HDR histogram
+// tracking. Disk-backed RediSearch tail latencies routinely exceed 1s, so the
+// default is set high enough to avoid silently capping them.
+const defaultMaxLatencySeconds = 60
+
+// Histograms are allocated in initHistograms once flags have been parsed and
+// the configured cap is known.
 var loader = &BenchmarkRunner{
-	setupWriteHistogram:      hdrhistogram.New(1, 1000000, 3),
-	inst_setupWriteHistogram: hdrhistogram.New(1, 1000000, 3),
-	setupWriteTs:             make([]DataPoint, 0, 10),
-	writeHistogram:           hdrhistogram.New(1, 1000000, 3),
-	inst_writeHistogram:      hdrhistogram.New(1, 1000000, 3),
-	writeTs:                  make([]DataPoint, 0, 10),
-	updateHistogram:          hdrhistogram.New(1, 1000000, 3),
-	inst_updateHistogram:     hdrhistogram.New(1, 1000000, 3),
-	updateTs:                 make([]DataPoint, 0, 10),
-	readHistogram:            hdrhistogram.New(1, 1000000, 3),
-	inst_readHistogram:       hdrhistogram.New(1, 1000000, 3),
-	readTs:                   make([]DataPoint, 0, 10),
-	readCursorHistogram:      hdrhistogram.New(1, 1000000, 3),
-	inst_readCursorHistogram: hdrhistogram.New(1, 1000000, 3),
-	readCursorTs:             make([]DataPoint, 0, 10),
-	deleteHistogram:          hdrhistogram.New(1, 1000000, 3),
-	inst_deleteHistogram:     hdrhistogram.New(1, 1000000, 3),
-	deleteTs:                 make([]DataPoint, 0, 10),
-	totalHistogram:           hdrhistogram.New(1, 1000000, 3),
-	inst_totalHistogram:      hdrhistogram.New(1, 1000000, 3),
-	totalTs:                  make([]DataPoint, 0, 10),
-	detailedMapHistograms:    make(map[string]*hdrhistogram.Histogram),
-	perSecondHistograms:      make(map[uint64]*hdrhistogram.Histogram),
+	setupWriteTs:          make([]DataPoint, 0, 10),
+	writeTs:               make([]DataPoint, 0, 10),
+	updateTs:              make([]DataPoint, 0, 10),
+	readTs:                make([]DataPoint, 0, 10),
+	readCursorTs:          make([]DataPoint, 0, 10),
+	deleteTs:              make([]DataPoint, 0, 10),
+	totalTs:               make([]DataPoint, 0, 10),
+	detailedMapHistograms: make(map[string]*hdrhistogram.Histogram),
+	perSecondHistograms:   make(map[uint64]*hdrhistogram.Histogram),
+}
+
+// maxLatencyMicros returns the configured cap in microseconds. Falls back to
+// the default when the flag was not registered (e.g., direct programmatic use).
+func (l *BenchmarkRunner) maxLatencyMicros() int64 {
+	secs := l.maxLatencySeconds
+	if secs <= 0 {
+		secs = defaultMaxLatencySeconds
+	}
+	return secs * 1_000_000
+}
+
+// initHistograms allocates the fixed phase histograms using the configured
+// max latency cap. Must be called after flag.Parse and before any worker
+// records into a histogram.
+func (l *BenchmarkRunner) initHistograms() {
+	cap := l.maxLatencyMicros()
+	l.setupWriteHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_setupWriteHistogram = hdrhistogram.New(1, cap, 3)
+	l.writeHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_writeHistogram = hdrhistogram.New(1, cap, 3)
+	l.updateHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_updateHistogram = hdrhistogram.New(1, cap, 3)
+	l.readHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_readHistogram = hdrhistogram.New(1, cap, 3)
+	l.readCursorHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_readCursorHistogram = hdrhistogram.New(1, cap, 3)
+	l.deleteHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_deleteHistogram = hdrhistogram.New(1, cap, 3)
+	l.totalHistogram = hdrhistogram.New(1, cap, 3)
+	l.inst_totalHistogram = hdrhistogram.New(1, cap, 3)
 }
 
 // GetBenchmarkRunner returns the singleton BenchmarkRunner for use in a benchmark program
@@ -307,6 +336,9 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 	flag.StringVar(&loader.Metadata, "metadata-string", "", "Metadata string to add to json-out-file. If -json-out-file is not set, will not use this option.")
 	flag.UintVar(&loader.maxTokenSizeMB, "max-token-size-mb", 1, "Maximum size of token to read from input file in MB. Minimum is 1MB.")
 	flag.UintVar(&loader.batchSize, "batch-size", batchSize, "Number of items to batch together per worker channel before dispatch.")
+	flag.Int64Var(&loader.maxLatencySeconds, "max-latency-seconds", defaultMaxLatencySeconds,
+		"Upper bound (in seconds) for HDR histogram latency tracking. Latencies above this cap are clamped. "+
+			"Larger values use more memory per histogram (each histogram is allocated 14 fixed times plus once per query type and once per benchmark second).")
 	return loader
 }
 
@@ -314,6 +346,7 @@ func GetBenchmarkRunnerWithBatchSize(batchSize uint) *BenchmarkRunner {
 // and reads those to run the benchmark benchmark
 func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	l.br = l.GetBufferedReader()
+	l.initHistograms()
 
 	channels := l.createChannels(workQueues)
 	// Launch all worker processes in background
@@ -490,7 +523,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			groupAndQuery := labelStr + "-" + querystr
 			l.detailedMapHistogramsMutex.Lock()
 			if _, exist := l.detailedMapHistograms[groupAndQuery]; !exist {
-				l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, 1000000, 3)
+				l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
 			}
 			l.detailedMapHistograms[groupAndQuery].RecordValue(int64(cmdStat.Latency()))
 			l.detailedMapHistogramsMutex.Unlock()
@@ -498,7 +531,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 			ts := cmdStat.StartTs()
 			l.perSecondHistogramsMutex.Lock()
 			if _, exist := l.perSecondHistograms[ts]; !exist {
-				l.perSecondHistograms[ts] = hdrhistogram.New(1, 1000000, 3)
+				l.perSecondHistograms[ts] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
 			}
 			l.perSecondHistograms[ts].RecordValue(int64(cmdStat.Latency()))
 			l.perSecondHistogramsMutex.Unlock()
