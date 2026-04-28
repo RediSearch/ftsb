@@ -270,7 +270,11 @@ func TestFTSBWithConnectionFailure(t *testing.T) {
 	}
 }
 
-func TestFTSBWithTimeout(t *testing.T) {
+// startRedisDebugContainer spins up redis:8.6-rc1 with --enable-debug-command
+// on host port 6379 and registers cleanup. Centralised so duplicated docker
+// boilerplate doesn't flake the SonarCloud duplication gate.
+func startRedisDebugContainer(t *testing.T) {
+	t.Helper()
 	t.Log("Starting Redis container with debug commands enabled...")
 	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
 		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
@@ -283,9 +287,12 @@ func TestFTSBWithTimeout(t *testing.T) {
 		t.Log("Stopping Redis container...")
 		exec.Command("docker", "stop", containerID).Run()
 	})
-
 	t.Log("Waiting for Redis to be ready...")
 	time.Sleep(2 * time.Second)
+}
+
+func TestFTSBWithTimeout(t *testing.T) {
+	startRedisDebugContainer(t)
 
 	t.Log("Running ftsb_redisearch with timeout_test.csv (contains DEBUG SLEEP commands)")
 	jsonPath := "../testdata/results.timeout.json"
@@ -471,21 +478,7 @@ func TestFTSBWithLogFile(t *testing.T) {
 }
 
 func TestFTSBWithLogFileAndTimeout(t *testing.T) {
-	t.Log("Starting Redis container with debug commands enabled...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379",
-		"redis:8.6-rc1", "redis-server", "--enable-debug-command", "yes")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisDebugContainer(t)
 
 	t.Log("Running ftsb_redisearch with timeout_test.csv and --log-file")
 	logPath := "../testdata/benchmark_timeout.log"
@@ -597,5 +590,88 @@ func TestFTSBWithBatchSize(t *testing.T) {
 	}
 	if !strings.Contains(outputStr, "Issued") {
 		t.Errorf("Expected benchmark output to contain 'Issued', got: %s", outputStr)
+	}
+}
+
+// runSleepBenchmark spins up a Redis container with debug commands enabled,
+// runs ftsb_redisearch against testdata/sleep_test.csv (which contains a
+// DEBUG SLEEP 2), and returns the q100 (max) latency in milliseconds for the
+// "allCommands" group in the JSON output. extraArgs lets the caller override
+// --max-latency-seconds (and anything else).
+func runSleepBenchmark(t *testing.T, jsonPath string, extraArgs ...string) float64 {
+	t.Helper()
+	startRedisDebugContainer(t)
+
+	args := []string{
+		"--input", "../testdata/sleep_test.csv",
+		"--workers=1",
+		"--timeout=10", // seconds; well above the 2s sleep so the request completes
+		"--json-out-file", jsonPath,
+	}
+	args = append(args, extraArgs...)
+
+	t.Logf("Running ftsb_redisearch %v", args)
+	cmd := exec.Command("../bin/ftsb_redisearch", args...)
+	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+
+	var parsed struct {
+		OverallQuantiles struct {
+			AllCommands map[string]float64 `json:"allCommands"`
+		} `json:"OverallQuantiles"`
+		Totals struct {
+			TotalOps int     `json:"TotalOps"`
+			Timeouts float64 `json:"Timeouts"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v", err)
+	}
+
+	if parsed.Totals.Timeouts > 0 {
+		t.Fatalf("DEBUG SLEEP unexpectedly timed out (%v); raise --timeout in the test setup", parsed.Totals.Timeouts)
+	}
+	if parsed.Totals.TotalOps <= 0 {
+		t.Fatalf("Expected TotalOps > 0, got %v", parsed.Totals.TotalOps)
+	}
+
+	q100, ok := parsed.OverallQuantiles.AllCommands["q100"]
+	if !ok {
+		t.Fatalf("Expected OverallQuantiles.allCommands.q100 in JSON, got: %s", string(data))
+	}
+	t.Logf("q100 (max latency) = %.2f ms", q100)
+	return q100
+}
+
+// TestFTSBLatencyCapDefaultDropsAboveOneSecond locks in the backwards-
+// compatible default: with the flag unset, the 1s cap drops a 2s DEBUG SLEEP
+// sample (hdrhistogram.RecordValue rejects values above highestTrackable).
+// q100 falls back to the sub-millisecond SET commands.
+func TestFTSBLatencyCapDefaultDropsAboveOneSecond(t *testing.T) {
+	q100 := runSleepBenchmark(t, "../testdata/results.latencycap_default.json")
+	if q100 > 1100 {
+		t.Errorf("Expected q100 <= ~1000 ms with default 1s cap (DEBUG SLEEP 2 should be dropped), got %.2f ms", q100)
+	}
+}
+
+// TestFTSBLatencyCapHighOptIn verifies that --max-latency-seconds=60 lifts
+// the cap so a DEBUG SLEEP 2 latency is actually recorded. Proves the flag
+// is wired through to every histogram allocation site (fixed + per-query +
+// per-second).
+func TestFTSBLatencyCapHighOptIn(t *testing.T) {
+	q100 := runSleepBenchmark(t,
+		"../testdata/results.latencycap_high.json",
+		"--max-latency-seconds=60",
+	)
+	if q100 < 1500 {
+		t.Errorf("Expected q100 >= 1500 ms with --max-latency-seconds=60 (DEBUG SLEEP 2 should record ~2000 ms), got %.2f ms", q100)
 	}
 }
