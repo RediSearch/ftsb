@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -14,6 +15,30 @@ import (
 	radix "github.com/mediocregopher/radix/v3"
 	"golang.org/x/time/rate"
 )
+
+// binaryArgMarker prefixes a command argument whose value is base64-encoded
+// binary data (e.g. a raw little-endian float32 vector blob for a VECTOR
+// field). Raw binary can't travel inside the line-oriented CSV input format
+// (embedded newlines break the scanner), so generators emit
+// `__b64__<base64>` and the argument is decoded back to raw bytes here,
+// right before the command is sent to Redis.
+const binaryArgMarker = "__b64__"
+
+// decodeBinaryArgs base64-decodes every `__b64__`-marked argument in place.
+// A marked argument that fails to decode means the input file is corrupt:
+// silently passing it through would ingest garbage into Redis, so it aborts.
+func decodeBinaryArgs(args []string) {
+	for i, arg := range args {
+		if strings.HasPrefix(arg, binaryArgMarker) {
+			decoded, err := base64.StdEncoding.DecodeString(arg[len(binaryArgMarker):])
+			if err != nil {
+				log.Fatalf("failed to base64-decode binary argument at position %d: %v", i, err)
+			}
+			// Go strings carry arbitrary bytes; radix sends them verbatim.
+			args[i] = string(decoded)
+		}
+	}
+}
 
 type processor struct {
 	rows           chan string
@@ -313,6 +338,7 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		clusterSlot = -1
 		if len(argsStr) > 4 {
 			args = argsStr[4:]
+			decodeBinaryArgs(args)
 			key = argsStr[keyPos]
 		}
 		if initialPos >= 0 {

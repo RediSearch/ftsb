@@ -22,8 +22,9 @@ var (
 	clusterMode   bool
 	continueOnErr bool
 	timeout       time.Duration
-	versionFlag   bool
-	logFile       string
+	versionFlag    bool
+	logFile        string
+	timeoutSeconds int
 )
 
 // Parse args:
@@ -35,10 +36,15 @@ func init() {
 	flag.BoolVar(&continueOnErr, "continue-on-error", true, "If set to true, it will continue the benchmark and print the error message to stderr.")
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.IntVar(&pipeline, "pipeline", 1, "Pipeline <numreq> requests. Default 1 (no pipeline).")
-	var timeoutSeconds int
 	flag.IntVar(&timeoutSeconds, "timeout", 60, "Redis connection timeout in seconds.")
 	flag.BoolVar(&versionFlag, "version", false, "Print the version and exit.")
 	flag.StringVar(&logFile, "log-file", "", "File to write all log output (in addition to stdout/stderr). If not set, logs only to stdout/stderr.")
+}
+
+// parseFlags parses the command line after all flags are declared. Parsing
+// happens in main (not init) so `go test` can run this package — the test
+// harness passes -test.* flags that a parse-at-init would reject.
+func parseFlags() {
 	flag.Parse()
 	// Convert seconds to time.Duration
 	timeout = time.Duration(timeoutSeconds) * time.Second
@@ -92,6 +98,7 @@ func (b *benchmark) GetProcessor() benchmark_runner.Processor {
 }
 
 func main() {
+	parseFlags()
 	b := benchmark{}
 	git_sha := toolGitSHA1()
 	git_dirty_str := ""
