@@ -9,6 +9,42 @@ import (
 	"time"
 )
 
+// startRedisContainer starts a throwaway redis:8.4 on :6379, registers cleanup,
+// and waits for it to be ready. Shared by the integration tests so the docker
+// boilerplate lives in one place.
+func startRedisContainer(t *testing.T) {
+	t.Helper()
+	t.Log("Starting Redis container...")
+	containerIDRaw, err := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4").Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+}
+
+// runFTSBReadJSON runs the ftsb_redisearch binary with --json-out-file jsonPath
+// plus the given args, then reads and returns the JSON result file, failing the
+// test on any error. Shared to avoid duplicating the run+read boilerplate.
+func runFTSBReadJSON(t *testing.T, jsonPath string, args ...string) []byte {
+	t.Helper()
+	full := append([]string{"--json-out-file", jsonPath}, args...)
+	output, err := exec.Command("../bin/ftsb_redisearch", full...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+	return data
+}
+
 func TestFTSBWithDuration(t *testing.T) {
 	entries, err := os.ReadDir("../bin")
 	if err != nil {
@@ -19,21 +55,7 @@ func TestFTSBWithDuration(t *testing.T) {
 	for _, entry := range entries {
 		t.Logf(" - %s", entry.Name())
 	}
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --duration=5s")
 	start := time.Now()
@@ -58,38 +80,11 @@ func TestFTSBWithDuration(t *testing.T) {
 }
 
 func TestFTSBWithRequests(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --requests=50000")
-	jsonPath := "../testdata/results.requests.json"
-	cmd := exec.Command("../bin/ftsb_redisearch",
-		"--input", "../testdata/minimal.csv",
-		"--requests=50000",
-		"--json-out-file", jsonPath,
-	)
-	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
-	}
-
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("Failed to read json output file: %v", err)
-	}
+	data := runFTSBReadJSON(t, "../testdata/results.requests.json",
+		"--input", "../testdata/minimal.csv", "--requests=50000")
 
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(data, &parsed); err != nil {
@@ -102,37 +97,11 @@ func TestFTSBWithRequests(t *testing.T) {
 }
 
 func TestFTSBWithNoLimitNoDuration(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with no --requests or --duration")
-	jsonPath := "../testdata/results.nolimit.json"
-	cmd := exec.Command("../bin/ftsb_redisearch",
-		"--input", "../testdata/minimal.csv",
-		"--json-out-file", jsonPath,
-	)
-	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
-	}
-
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("Failed to read json output file: %v", err)
-	}
+	data := runFTSBReadJSON(t, "../testdata/results.nolimit.json",
+		"--input", "../testdata/minimal.csv")
 
 	var parsed struct {
 		Limit  int `json:"Limit"`
@@ -152,21 +121,42 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 	}
 }
 
-func TestFTSBErrorAndTimeoutTracking(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
+// Regression guard for #113/#115: with a pipeline that does not divide the input
+// row count, the trailing partial window must still be flushed (no silent data
+// loss) and every command must be counted. minimal.csv has exactly 100 rows and
+// 100 % 3 != 0, so the pre-fix code dropped the tail (TotalOps=99, and one HSET
+// never reached Redis).
+func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
+	startRedisContainer(t)
 
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	data := runFTSBReadJSON(t, "../testdata/results.pipeline_tail.json",
+		"--input", "../testdata/minimal.csv", "--pipeline", "3")
+
+	var parsed struct {
+		Totals struct {
+			TotalOps int    `json:"TotalOps"`
+			TxBytes  uint64 `json:"TxBytes"`
+			RxBytes  uint64 `json:"RxBytes"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v", err)
+	}
+	if parsed.Totals.TotalOps != 100 {
+		t.Errorf("TotalOps = %d, want 100 (pipeline=3 must flush and count the trailing window of a 100-row input)", parsed.Totals.TotalOps)
+	}
+	// Byte accounting (#111/#112/#114): sent bytes land in TxBytes, and reply
+	// bytes are actually captured (RxBytes>0 — the 100 HSET integer replies).
+	if parsed.Totals.TxBytes == 0 {
+		t.Errorf("TxBytes = 0, want > 0 (sent bytes must be counted)")
+	}
+	if parsed.Totals.RxBytes == 0 {
+		t.Errorf("RxBytes = 0, want > 0 (reply bytes must be captured)")
+	}
+}
+
+func TestFTSBErrorAndTimeoutTracking(t *testing.T) {
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with normal operation (should have 0 errors)")
 	jsonPath := "../testdata/results.errors.json"
@@ -393,20 +383,7 @@ func TestFTSBWithTimeout(t *testing.T) {
 }
 
 func TestFTSBWithLogFile(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --log-file")
 	logPath := "../testdata/benchmark.log"
@@ -550,21 +527,7 @@ func TestFTSBWithLogFileAndTimeout(t *testing.T) {
 }
 
 func TestFTSBWithBatchSize(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --batch-size=50 --duration=3s")
 	cmd := exec.Command("../bin/ftsb_redisearch",

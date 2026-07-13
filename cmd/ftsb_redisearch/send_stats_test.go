@@ -176,10 +176,19 @@ func TestPipelineRecordsPerCommandTxAndDoesNotPanic(t *testing.T) {
 
 	s1 := <-p.cmdChan
 	s2 := <-p.cmdChan
-	tx1 := s1.CmdStats()[0].Tx()
-	tx2 := s2.CmdStats()[0].Tx()
+	c1 := s1.CmdStats()[0]
+	c2 := s2.CmdStats()[0]
 	// Order is preserved: first buffered command recorded first.
-	if tx1 != 100 || tx2 != 200 {
-		t.Fatalf("per-command Tx wrong: got [%d %d], want [100 200] (old code recorded [200 200])", tx1, tx2)
+	if c1.Tx() != 100 || c2.Tx() != 200 {
+		t.Fatalf("per-command Tx wrong: got [%d %d], want [100 200] (old code recorded [200 200])", c1.Tx(), c2.Tx())
+	}
+	// A whole pipeline shares one send->reply round-trip, so per-command latencies
+	// are equal; the >=1us floor means a sub-microsecond timer reading never
+	// records a physically-impossible 0us network latency.
+	if c1.Latency() < 1 || c2.Latency() < 1 {
+		t.Fatalf("latency must be floored to >=1us: got [%d %d]", c1.Latency(), c2.Latency())
+	}
+	if c1.Latency() != c2.Latency() {
+		t.Fatalf("pipelined commands share one round-trip; latencies should be equal: %d != %d", c1.Latency(), c2.Latency())
 	}
 }

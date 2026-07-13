@@ -217,6 +217,27 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			pendingSlots[slotP], _ = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, pendingSlots[slotP])
 		}
 	}
+
+	// Flush the trailing partial window(s). Without this, the last
+	// (rows % pipeline) buffered commands in each slot are never sent to Redis
+	// or counted -- silent data loss whenever pipeline does not divide the row
+	// count. flushPending sends whatever is buffered regardless of pipeline size.
+	if !clusterMode {
+		if len(pendingSlots[0]) > 0 {
+			var hadError bool
+			pendingSlots[0], hadError = flushPending(p, p.vanillaClient, pendingSlots[0])
+			if hadError && continueOnErr {
+				p.reconnectPool()
+			}
+		}
+	} else {
+		for i := range pendingSlots {
+			if len(pendingSlots[i]) > 0 {
+				client, _ := p.vanillaCluster.Client(clusterAddr[i])
+				pendingSlots[i], _ = flushPending(p, client, pendingSlots[i])
+			}
+		}
+	}
 	p.wg.Done()
 }
 
@@ -262,7 +283,6 @@ type pendingCmd struct {
 	redisCmd   string
 	redisKey   string
 	txBytes    uint64
-	start      time.Time
 }
 
 func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, pending []pendingCmd) ([]pendingCmd, bool) {
@@ -279,70 +299,109 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 		redisCmd:   cmd,
 		redisKey:   key,
 		txBytes:    txBytesCount,
-		start:      time.Now(),
 	})
 	return sendIfRequired(p, client, pending)
 }
 
 // sendIfRequired flushes the buffered pipeline window once it reaches `pipeline`
-// commands, records one stat per command (each with its own latency, sent/received
-// bytes, and labels), and returns the emptied buffer. Returning `pending[:0]`
-// reuses the backing array across windows to avoid churn on the hot path.
+// commands; otherwise it buffers and returns. The trailing partial window (fewer
+// than `pipeline` commands, e.g. `rows % pipeline` at end of input) is flushed by
+// the caller via flushPending -- see connectionProcessor -- so those commands are
+// never silently dropped.
 func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
-	hadError := false
 	if len(pending) < pipeline {
-		return pending, hadError
+		return pending, false
 	}
+	return flushPending(p, client, pending)
+}
 
-	var err error
+// flooredMicros converts a duration to whole microseconds with a 1us floor: a
+// real network round-trip is never 0us, so a measured 0 only reflects
+// sub-microsecond timer resolution and would otherwise record a physically
+// impossible 0us latency.
+func flooredMicros(d time.Duration) uint64 {
+	us := uint64(d.Microseconds())
+	if us == 0 {
+		return 1
+	}
+	return us
+}
+
+// logFlushError logs a pipeline-flush failure, honoring -continue-on-error
+// (log-and-continue vs. fatal), and returns whether it was an i/o timeout. A
+// flush may mix command types, so the first buffered command is used as the
+// summary label. Split out of flushPending to keep that function simple.
+func logFlushError(pending []pendingCmd, err error) bool {
+	rep := pending[0]
+	isRead := rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR"
+	// Preserve the historical prefixes: "Fatal error with" on the aborting path
+	// (-continue-on-error=false), "Received an error with" when continuing.
+	prefix := "Received an error with"
+	logf := log.Printf
+	if !continueOnErr {
+		prefix = "Fatal error with"
+		logf = log.Fatalf
+	}
+	if isRead {
+		logf("%s %d command(s) in pipeline, error: %v", prefix, len(pending), err)
+	} else {
+		logf("%s %s command: %s %s (%d command(s) in pipeline), error: %v", prefix, rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
+	}
+	if !strings.Contains(err.Error(), "i/o timeout") {
+		return false
+	}
+	if isRead {
+		log.Printf("Timeout occurred with %d command(s) in pipeline, continuing execution...", len(pending))
+	} else {
+		log.Printf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending))
+	}
+	return true
+}
+
+// flushPending sends the buffered commands (as a pipeline when >1), records one
+// stat per command -- each with its own sent/received bytes and labels, plus the
+// shared batch send->reply latency -- and returns the emptied buffer (reusing the
+// backing array to avoid churn on the hot path). Callers must guard against an
+// empty buffer.
+func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
+	hadError := false
+
+	// Build the action BEFORE timing so the latency window covers only the
+	// round-trip, not client-side slice bookkeeping.
+	var action radix.Action
 	if len(pending) == 1 {
-		// if pipeline is 1 no need to pipeline
-		err = client.Do(pending[0].action)
+		action = pending[0].action // no need to pipeline a single command
 	} else {
 		actions := make([]radix.CmdAction, len(pending))
 		for i := range pending {
 			actions[i] = pending[i].action
 		}
-		err = client.Do(radix.Pipeline(actions...))
+		action = radix.Pipeline(actions...)
 	}
+
+	sendT := time.Now()
+	err := client.Do(action)
 	endT := time.Now()
 	isTimeout := false
 	if err != nil {
 		hadError = true
-		// A flush may mix command types; use the first as the summary label.
-		rep := pending[0]
-		if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
-			if continueOnErr {
-				log.Printf("Received an error with %d command(s) in pipeline, error: %v", len(pending), err)
-			} else {
-				log.Fatalf("Fatal error with %d command(s) in pipeline, error: %v", len(pending), err)
-			}
-		} else {
-			if continueOnErr {
-				log.Printf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
-			} else {
-				log.Fatalf("Fatal error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
-			}
-		}
-
-		// Log additional timeout-specific message if it's a timeout
-		if strings.Contains(err.Error(), "i/o timeout") {
-			isTimeout = true
-			if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
-				log.Printf("Timeout occurred with %d command(s) in pipeline, continuing execution...", len(pending))
-			} else {
-				log.Printf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending))
-			}
-		}
+		isTimeout = logFlushError(pending, err)
 	}
 
+	// A pipeline is one client round-trip for the whole batch, so attribute the
+	// same send->reply latency to every command in it. Measuring from each
+	// command's buffer time instead would fold in client-side queueing (the first
+	// command would absorb the whole window-fill wait). For pipeline=1 sendT is
+	// effectively the command's send time, so latency is unchanged. Floor to 1us:
+	// a real network round-trip is never 0us, so a 0 only reflects sub-microsecond
+	// timer resolution.
+	took := flooredMicros(endT.Sub(sendT))
 	for i := range pending {
 		pc := &pending[i]
-		took := uint64(endT.Sub(pc.start).Microseconds())
 		// AddEntry takes (..., rx, tx): received bytes, then sent bytes. Each
-		// command records its OWN counts, times, and labels.
+		// command records its OWN counts and labels.
 		rxBytesCount := getRxLen(pc.reply)
-		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(pc.start.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
+		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(sendT.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
 		p.cmdChan <- *stat
 	}
 
