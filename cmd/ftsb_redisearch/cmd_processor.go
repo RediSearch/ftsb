@@ -286,13 +286,24 @@ type pendingCmd struct {
 }
 
 func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, pending []pendingCmd) ([]pendingCmd, bool) {
-	reply := new(interface{})
+	// By default use a nil receiver: radix reads and DISCARDS the reply (no
+	// allocation, no reflection) so the measured latency isn't inflated by
+	// client-side unmarshalling -- which is significant for large FT.SEARCH /
+	// FT.AGGREGATE replies (issue #117). --capture-replies opts into decoding the
+	// reply so getRxLen can populate RxBytes. Command errors are surfaced by radix
+	// regardless of the receiver.
+	var reply *interface{}
+	var rcv interface{} // nil interface -> discard
+	if captureReplies {
+		reply = new(interface{})
+		rcv = reply
+	}
 	key := ""
 	if len(docfields) > 0 {
 		key = docfields[0]
 	}
 	pending = append(pending, pendingCmd{
-		action:     radix.Cmd(reply, cmd, docfields...),
+		action:     radix.Cmd(rcv, cmd, docfields...),
 		reply:      reply,
 		cmdType:    cmdType,
 		cmdQueryId: cmdQueryId,

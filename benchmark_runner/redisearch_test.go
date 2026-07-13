@@ -145,13 +145,46 @@ func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
 	if parsed.Totals.TotalOps != 100 {
 		t.Errorf("TotalOps = %d, want 100 (pipeline=3 must flush and count the trailing window of a 100-row input)", parsed.Totals.TotalOps)
 	}
-	// Byte accounting (#111/#112/#114): sent bytes land in TxBytes, and reply
-	// bytes are actually captured (RxBytes>0 — the 100 HSET integer replies).
+	// Byte accounting (#111/#112/#114): sent bytes land in TxBytes.
 	if parsed.Totals.TxBytes == 0 {
 		t.Errorf("TxBytes = 0, want > 0 (sent bytes must be counted)")
 	}
-	if parsed.Totals.RxBytes == 0 {
-		t.Errorf("RxBytes = 0, want > 0 (reply bytes must be captured)")
+	// Reply capture is off by default (#117), so RxBytes is 0 here; see
+	// TestFTSBCaptureRepliesControlsRxBytes for the --capture-replies path.
+	if parsed.Totals.RxBytes != 0 {
+		t.Errorf("RxBytes = %d, want 0 without --capture-replies", parsed.Totals.RxBytes)
+	}
+}
+
+// #117: --capture-replies controls whether reply bytes are decoded and counted.
+// Default off (RxBytes==0, no client-side unmarshal on the latency hot path);
+// on -> RxBytes>0 (the HSET integer replies are decoded).
+func TestFTSBCaptureRepliesControlsRxBytes(t *testing.T) {
+	startRedisContainer(t)
+
+	rx := func(args ...string) uint64 {
+		data := runFTSBReadJSON(t, "../testdata/results.capture.json",
+			append([]string{"--input", "../testdata/minimal.csv"}, args...)...)
+		var parsed struct {
+			Totals struct {
+				TotalOps int    `json:"TotalOps"`
+				RxBytes  uint64 `json:"RxBytes"`
+			} `json:"Totals"`
+		}
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if parsed.Totals.TotalOps != 100 {
+			t.Fatalf("TotalOps = %d, want 100", parsed.Totals.TotalOps)
+		}
+		return parsed.Totals.RxBytes
+	}
+
+	if got := rx(); got != 0 {
+		t.Errorf("default RxBytes = %d, want 0 (capture off)", got)
+	}
+	if got := rx("--capture-replies"); got == 0 {
+		t.Errorf("RxBytes with --capture-replies = 0, want > 0")
 	}
 }
 
