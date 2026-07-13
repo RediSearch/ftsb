@@ -41,7 +41,10 @@ get:
 	$(GOGET) ./...
 
 integration-test: get ftsb_redisearch
-	$(GOTEST) -v $(shell go list ./... | grep -v '/cmd/')
+	# -race instruments the test process so the benchmark_runner concurrency
+	# tests (e.g. TestRecordCmdStatConcurrentIsRaceFree, #116) actually detect a
+	# reintroduced data race.
+	$(GOTEST) -race -v $(shell go list ./... | grep -v '/cmd/')
 
 # unit-test runs the pure-Go tests for the cmd packages, which integration-test
 # excludes. These need no Redis, so they run standalone with the race detector.
