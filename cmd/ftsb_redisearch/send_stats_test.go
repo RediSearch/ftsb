@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -8,11 +9,15 @@ import (
 	radix "github.com/mediocregopher/radix/v3"
 )
 
-// fakeClient is a radix.Client that records nothing and always succeeds, so the
-// recording path in sendFlatCmd/sendIfRequired can be exercised without Redis.
-type fakeClient struct{ calls int }
+// fakeClient is a radix.Client whose Do returns a canned error (nil = success),
+// so the recording path in sendFlatCmd/sendIfRequired can be exercised without
+// a real Redis.
+type fakeClient struct {
+	calls int
+	err   error
+}
 
-func (f *fakeClient) Do(a radix.Action) error { f.calls++; return nil }
+func (f *fakeClient) Do(a radix.Action) error { f.calls++; return f.err }
 func (f *fakeClient) Close() error            { return nil }
 
 // Regression guard for issue #111: the bytes we SEND to Redis (txBytesCount)
@@ -57,5 +62,65 @@ func TestGetRxLen(t *testing.T) {
 	}
 	if got := getRxLen(42); got != 0 {
 		t.Fatalf("getRxLen(int) = %d, want 0", got)
+	}
+}
+
+// On a command error (continue-on-error), a stat must still be recorded, marked
+// as an error, and carry the correct sent-byte count in Tx().
+func TestSendFlatCmdRecordsErrorStatWithCorrectTx(t *testing.T) {
+	savedPipeline, savedContinue := pipeline, continueOnErr
+	pipeline, continueOnErr = 1, true
+	defer func() { pipeline, continueOnErr = savedPipeline, savedContinue }()
+
+	p := &processor{cmdChan: make(chan benchmark_runner.Stat, 1)}
+	const txBytesCount = uint64(128)
+
+	_, _, hadError := sendFlatCmd(
+		p, &fakeClient{err: errors.New("connection refused")}, "WRITE", "w1", "HSET",
+		[]string{"doc:1"}, txBytesCount,
+		make([]radix.CmdAction, 0), make([]interface{}, 0), make([]time.Time, 0),
+	)
+	if !hadError {
+		t.Fatal("expected hadError=true when client.Do returns an error")
+	}
+
+	stat := <-p.cmdChan
+	entries := stat.CmdStats()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 stat entry, got %d", len(entries))
+	}
+	if !entries[0].Error() {
+		t.Fatal("entry should be marked as an error")
+	}
+	if got := entries[0].Tx(); got != txBytesCount {
+		t.Fatalf("Tx() = %d, want %d (sent bytes recorded even on error)", got, txBytesCount)
+	}
+}
+
+// An i/o timeout error must set the timedOut flag on the recorded stat.
+func TestSendFlatCmdMarksTimeout(t *testing.T) {
+	savedPipeline, savedContinue := pipeline, continueOnErr
+	pipeline, continueOnErr = 1, true
+	defer func() { pipeline, continueOnErr = savedPipeline, savedContinue }()
+
+	p := &processor{cmdChan: make(chan benchmark_runner.Stat, 1)}
+	_, _, hadError := sendFlatCmd(
+		p, &fakeClient{err: errors.New("dial tcp 127.0.0.1:6379: i/o timeout")}, "READ", "r1", "FT.SEARCH",
+		[]string{"idx"}, 64,
+		make([]radix.CmdAction, 0), make([]interface{}, 0), make([]time.Time, 0),
+	)
+	if !hadError {
+		t.Fatal("expected hadError=true on timeout")
+	}
+	stat := <-p.cmdChan
+	entries := stat.CmdStats()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 stat entry, got %d", len(entries))
+	}
+	if !entries[0].TimedOut() {
+		t.Fatal("entry should be marked as timed out for an i/o timeout error")
+	}
+	if !entries[0].Error() {
+		t.Fatal("a timeout is also an error")
 	}
 }
