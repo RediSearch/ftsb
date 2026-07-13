@@ -671,3 +671,49 @@ func TestFTSBLatencyCapHighOptIn(t *testing.T) {
 		t.Errorf("Expected q100 >= 1500 ms with --max-latency-seconds=60 (DEBUG SLEEP 2 should record ~2000 ms), got %.2f ms", q100)
 	}
 }
+
+// Regression guard for #121: a stalled output consumer must not prevent the run
+// from completing and writing its --json-out-file result. Output goes to a pipe
+// that is never drained; the fast reporting period fills the 64KB pipe buffer
+// mid-run. Pre-fix, the blocking progress log wedged the process and no result
+// file was written (the test times out).
+func TestFTSBCompletesWithStalledOutputConsumer(t *testing.T) {
+	startRedisContainer(t)
+
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	defer pr.Close() // held open, never read -> the pipe fills and stays full
+
+	jsonPath := "../testdata/results.stalled.json"
+	_ = os.Remove(jsonPath)
+
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--duration", "3s",
+		"--reporting-period", "1ms", // thousands of progress lines -> overflows the pipe buffer
+		"--json-out-file", jsonPath,
+	)
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	pw.Close() // the child holds its own fd; drop the parent's copy
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+		// completed despite the never-drained consumer
+	case <-time.After(45 * time.Second):
+		_ = cmd.Process.Kill()
+		t.Fatal("ftsb hung with a stalled output consumer (never exited)")
+	}
+
+	if _, statErr := os.Stat(jsonPath); statErr != nil {
+		t.Fatalf("result file not written under a stalled consumer: %v", statErr)
+	}
+	_ = os.Remove(jsonPath)
+}

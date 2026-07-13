@@ -109,21 +109,26 @@ func main() {
 		git_dirty_str = "-dirty"
 	}
 
-	// Setup log file if specified
+	// Route console logging through a non-blocking writer so a stalled output
+	// consumer (wedged terminal, run-remote/SSH stream stall, full CI buffer)
+	// can never wedge the benchmark and prevent the result from being written
+	// (issue #121). The log file, if any, is written directly -- a regular file
+	// does not stall, and keeping it off the drop path leaves it complete.
+	// On a healthy consumer each Write is delivered synchronously (so the summary
+	// and any pre-os.Exit fatal message reach stderr); on a stalled consumer a
+	// Write waits at most writeTimeout and then drops, so the run still completes
+	// and writes its result (issue #121).
+	console := newNonBlockingWriter(os.Stderr, 1024, 2*time.Second)
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Fatalf("Failed to open log file %s: %v", logFile, err)
 		}
 		defer f.Close()
-
-		// Create a multi-writer that writes to both stdout and the log file
-		multiWriter := io.MultiWriter(os.Stdout, f)
-
-		// Redirect log output to both stdout and file
-		log.SetOutput(multiWriter)
-
+		log.SetOutput(io.MultiWriter(console, f))
 		log.Printf("Logging to file: %s\n", logFile)
+	} else {
+		log.SetOutput(console)
 	}
 
 	log.Printf("ftsb (git_sha1:%s%s)\n", git_sha, git_dirty_str)
