@@ -302,7 +302,9 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			took := uint64(duration.Microseconds())
 			rcv := replies[pos]
 			rxBytesCount += getRxLen(rcv)
-			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hadError, isTimeout, txBytesCount, rxBytesCount)
+			// AddEntry takes (..., rx, tx): received bytes first, then sent.
+			// txBytesCount is what we send to Redis, rxBytesCount is the reply.
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hadError, isTimeout, rxBytesCount, txBytesCount)
 			p.cmdChan <- *stat
 		}
 		cmds = nil

@@ -22,8 +22,8 @@ type CmdStat struct {
 	latency       uint64 // microseconds latency
 	error         bool
 	timedOut      bool
-	rx            uint64 // bytes received
-	tx            uint64 // bytes received
+	rx            uint64 // bytes received (from Redis replies)
+	tx            uint64 // bytes sent (request/command bytes)
 }
 
 func (c *CmdStat) StartTs() uint64 {
