@@ -112,6 +112,10 @@ func main() {
 	// (issue #121). The log file, if any, is written directly -- a regular file
 	// does not stall, and keeping it off the drop path leaves it complete.
 	console := newNonBlockingWriter(os.Stderr, 1024)
+	// Flush buffered console lines (notably the final summary) before exit. On a
+	// healthy consumer this delivers everything; on a stalled one it returns
+	// after the timeout so shutdown still can't hang.
+	defer console.Close(2 * time.Second)
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
