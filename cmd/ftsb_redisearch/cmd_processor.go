@@ -315,11 +315,18 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 	return flushPending(p, client, pending)
 }
 
-// flushPending sends the buffered commands (as a pipeline when >1), records one
-// stat per command -- each with its own sent/received bytes and labels, plus the
-// shared batch send->reply latency -- and returns the emptied buffer (reusing the
-// backing array to avoid churn on the hot path). Callers must guard against an
-// empty buffer.
+// flooredMicros converts a duration to whole microseconds with a 1us floor: a
+// real network round-trip is never 0us, so a measured 0 only reflects
+// sub-microsecond timer resolution and would otherwise record a physically
+// impossible 0us latency.
+func flooredMicros(d time.Duration) uint64 {
+	us := uint64(d.Microseconds())
+	if us == 0 {
+		return 1
+	}
+	return us
+}
+
 // logFlushError logs a pipeline-flush failure, honoring -continue-on-error
 // (log-and-continue vs. fatal), and returns whether it was an i/o timeout. A
 // flush may mix command types, so the first buffered command is used as the
@@ -327,14 +334,18 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 func logFlushError(pending []pendingCmd, err error) bool {
 	rep := pending[0]
 	isRead := rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR"
+	// Preserve the historical prefixes: "Fatal error with" on the aborting path
+	// (-continue-on-error=false), "Received an error with" when continuing.
+	prefix := "Received an error with"
 	logf := log.Printf
 	if !continueOnErr {
+		prefix = "Fatal error with"
 		logf = log.Fatalf
 	}
 	if isRead {
-		logf("Received an error with %d command(s) in pipeline, error: %v", len(pending), err)
+		logf("%s %d command(s) in pipeline, error: %v", prefix, len(pending), err)
 	} else {
-		logf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
+		logf("%s %s command: %s %s (%d command(s) in pipeline), error: %v", prefix, rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
 	}
 	if !strings.Contains(err.Error(), "i/o timeout") {
 		return false
@@ -347,6 +358,11 @@ func logFlushError(pending []pendingCmd, err error) bool {
 	return true
 }
 
+// flushPending sends the buffered commands (as a pipeline when >1), records one
+// stat per command -- each with its own sent/received bytes and labels, plus the
+// shared batch send->reply latency -- and returns the emptied buffer (reusing the
+// backing array to avoid churn on the hot path). Callers must guard against an
+// empty buffer.
 func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
 	hadError := false
 
@@ -379,10 +395,7 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 	// effectively the command's send time, so latency is unchanged. Floor to 1us:
 	// a real network round-trip is never 0us, so a 0 only reflects sub-microsecond
 	// timer resolution.
-	took := uint64(endT.Sub(sendT).Microseconds())
-	if took == 0 {
-		took = 1
-	}
+	took := flooredMicros(endT.Sub(sendT))
 	for i := range pending {
 		pc := &pending[i]
 		// AddEntry takes (..., rx, tx): received bytes, then sent bytes. Each

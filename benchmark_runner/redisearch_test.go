@@ -134,7 +134,9 @@ func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
 
 	var parsed struct {
 		Totals struct {
-			TotalOps int `json:"TotalOps"`
+			TotalOps int    `json:"TotalOps"`
+			TxBytes  uint64 `json:"TxBytes"`
+			RxBytes  uint64 `json:"RxBytes"`
 		} `json:"Totals"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
@@ -142,6 +144,14 @@ func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
 	}
 	if parsed.Totals.TotalOps != 100 {
 		t.Errorf("TotalOps = %d, want 100 (pipeline=3 must flush and count the trailing window of a 100-row input)", parsed.Totals.TotalOps)
+	}
+	// Byte accounting (#111/#112/#114): sent bytes land in TxBytes, and reply
+	// bytes are actually captured (RxBytes>0 — the 100 HSET integer replies).
+	if parsed.Totals.TxBytes == 0 {
+		t.Errorf("TxBytes = 0, want > 0 (sent bytes must be counted)")
+	}
+	if parsed.Totals.RxBytes == 0 {
+		t.Errorf("RxBytes = 0, want > 0 (reply bytes must be captured)")
 	}
 }
 

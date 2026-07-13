@@ -140,10 +140,10 @@ func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 	configs["Timeouts"] = atomic.LoadUint64(&b.totalTimeouts)
 
 	//TotalTxBytes
-	configs["TxBytes"] = b.txTotalBytes
+	configs["TxBytes"] = atomic.LoadUint64(&b.txTotalBytes)
 
 	//TotalRxBytes
-	configs["RxBytes"] = b.rxTotalBytes
+	configs["RxBytes"] = atomic.LoadUint64(&b.rxTotalBytes)
 	//
 	//for k, _ := range b.detailedMapHistograms {
 	//	fmt.Println(k)
@@ -159,11 +159,19 @@ func (b *BenchmarkRunner) GetMeasuredRatiosMap() map[string]interface{} {
 	/////////
 	configs := map[string]interface{}{}
 
+	// Denominator is the exact atomic op count; numerators are per-label histogram
+	// counts, which drop latencies above the trackable cap. So these ratios can
+	// sum to slightly < 1.0 on tail-heavy runs -- intended (the total is
+	// authoritative). Guard totalOps==0 (empty input): otherwise 0/0 = NaN, which
+	// json.Marshal rejects and would abort the run with no result file written.
 	totalOps := int64(atomic.LoadUint64(&b.totalOps))
-	writeRatio := float64(b.writeHistogram.TotalCount()+b.setupWriteHistogram.TotalCount()) / float64(totalOps)
-	readRatio := float64(b.readHistogram.TotalCount()+b.readCursorHistogram.TotalCount()) / float64(totalOps)
-	updateRatio := float64(b.updateHistogram.TotalCount()) / float64(totalOps)
-	deleteRatio := float64(b.deleteHistogram.TotalCount()) / float64(totalOps)
+	var writeRatio, readRatio, updateRatio, deleteRatio float64
+	if totalOps > 0 {
+		writeRatio = float64(b.writeHistogram.TotalCount()+b.setupWriteHistogram.TotalCount()) / float64(totalOps)
+		readRatio = float64(b.readHistogram.TotalCount()+b.readCursorHistogram.TotalCount()) / float64(totalOps)
+		updateRatio = float64(b.updateHistogram.TotalCount()) / float64(totalOps)
+		deleteRatio = float64(b.deleteHistogram.TotalCount()) / float64(totalOps)
+	}
 
 	//MeasuredWriteRatio
 	configs["MeasuredWriteRatio"] = writeRatio
@@ -702,14 +710,15 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time) {
 		took := now.Sub(prevTime)
 		writeCount := l.writeHistogram.TotalCount()
 		setupWriteCount := l.setupWriteHistogram.TotalCount()
-		totalWriteCount := writeCount + setupWriteCount
 		readCount := l.readHistogram.TotalCount()
 		readCursorCount := l.readCursorHistogram.TotalCount()
-		totalReadCount := readCount + readCursorCount
 		updateCount := l.updateHistogram.TotalCount()
 		deleteCount := l.deleteHistogram.TotalCount()
 
-		totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+		// Live total from the exact atomic counter so the progress line
+		// reconciles with the final TotalOps/overallOpsRate (per-label histogram
+		// sums drop tail-rejected and concurrently-lost ops).
+		totalOps := int64(atomic.LoadUint64(&l.totalOps))
 		txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 		rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
 		setupWriteRate := calculateRateMetrics(setupWriteCount, prevSetupWriteCount, took)

@@ -1,6 +1,7 @@
 package benchmark_runner
 
 import (
+	"math"
 	"sync/atomic"
 	"testing"
 
@@ -94,5 +95,34 @@ func TestTotalOpsIsAtomicNotHistogramDerived(t *testing.T) {
 	atomic.StoreUint64(&b.totalOps, 3)
 	if got := b.GetTotalsMap()["TotalOps"]; got != int64(3) {
 		t.Fatalf("TotalOps = %v, want 3 (must be the atomic count, not the histogram's 0)", got)
+	}
+}
+
+// Empty input (totalOps==0) must yield 0 ratios, not NaN. NaN is unmarshalable
+// by encoding/json, so an unguarded 0/0 would abort the run with no result file.
+func TestGetMeasuredRatiosMapEmptyInputIsZeroNotNaN(t *testing.T) {
+	h := func() *hdrhistogram.Histogram { return hdrhistogram.New(1, 1_000_000, 3) }
+	b := &BenchmarkRunner{
+		writeHistogram:      h(),
+		setupWriteHistogram: h(),
+		readHistogram:       h(),
+		readCursorHistogram: h(),
+		updateHistogram:     h(),
+		deleteHistogram:     h(),
+		// totalOps left 0 => empty input
+	}
+
+	configs := b.GetMeasuredRatiosMap()
+	for _, k := range []string{"MeasuredWriteRatio", "MeasuredReadRatio", "MeasuredUpdateRatio", "MeasuredDeleteRatio"} {
+		v, ok := configs[k].(float64)
+		if !ok {
+			t.Fatalf("%s missing or not float64: %v", k, configs[k])
+		}
+		if math.IsNaN(v) {
+			t.Fatalf("%s is NaN on empty input (would abort json.Marshal)", k)
+		}
+		if v != 0 {
+			t.Fatalf("%s = %v, want 0 on empty input", k, v)
+		}
 	}
 }
