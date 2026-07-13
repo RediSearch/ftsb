@@ -24,6 +24,13 @@ func (f *fakeClient) Close() error            { return nil }
 // must be recorded as Tx(), not Rx(). Before the fix the AddEntry arguments
 // were swapped, so sent bytes were reported under RxBytes and TxBytes was 0.
 func TestSendFlatCmdRecordsSentBytesAsTx(t *testing.T) {
+	// pipeline=1 forces sendIfRequired to flush on the first command. Set it
+	// explicitly (rather than trusting the flag default) so a stray global
+	// left by another test can't make the <-p.cmdChan receive block forever.
+	savedPipeline := pipeline
+	pipeline = 1
+	defer func() { pipeline = savedPipeline }()
+
 	p := &processor{cmdChan: make(chan benchmark_runner.Stat, 1)}
 	const txBytesCount = uint64(4096) // request/sent bytes for this command
 
@@ -122,5 +129,8 @@ func TestSendFlatCmdMarksTimeout(t *testing.T) {
 	}
 	if !entries[0].Error() {
 		t.Fatal("a timeout is also an error")
+	}
+	if got := entries[0].Tx(); got != 64 {
+		t.Fatalf("Tx() = %d, want 64 (sent bytes recorded even on timeout)", got)
 	}
 }
