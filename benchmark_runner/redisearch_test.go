@@ -28,6 +28,23 @@ func startRedisContainer(t *testing.T) {
 	time.Sleep(2 * time.Second)
 }
 
+// runFTSBReadJSON runs the ftsb_redisearch binary with --json-out-file jsonPath
+// plus the given args, then reads and returns the JSON result file, failing the
+// test on any error. Shared to avoid duplicating the run+read boilerplate.
+func runFTSBReadJSON(t *testing.T, jsonPath string, args ...string) []byte {
+	t.Helper()
+	full := append([]string{"--json-out-file", jsonPath}, args...)
+	output, err := exec.Command("../bin/ftsb_redisearch", full...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+	return data
+}
+
 func TestFTSBWithDuration(t *testing.T) {
 	entries, err := os.ReadDir("../bin")
 	if err != nil {
@@ -80,22 +97,8 @@ func TestFTSBWithRequests(t *testing.T) {
 	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --requests=50000")
-	jsonPath := "../testdata/results.requests.json"
-	cmd := exec.Command("../bin/ftsb_redisearch",
-		"--input", "../testdata/minimal.csv",
-		"--requests=50000",
-		"--json-out-file", jsonPath,
-	)
-	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
-	}
-
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("Failed to read json output file: %v", err)
-	}
+	data := runFTSBReadJSON(t, "../testdata/results.requests.json",
+		"--input", "../testdata/minimal.csv", "--requests=50000")
 
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(data, &parsed); err != nil {
@@ -111,21 +114,8 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with no --requests or --duration")
-	jsonPath := "../testdata/results.nolimit.json"
-	cmd := exec.Command("../bin/ftsb_redisearch",
-		"--input", "../testdata/minimal.csv",
-		"--json-out-file", jsonPath,
-	)
-	cmd.Env = append(os.Environ(), "REDIS_URL=redis://localhost:6379")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
-	}
-
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("Failed to read json output file: %v", err)
-	}
+	data := runFTSBReadJSON(t, "../testdata/results.nolimit.json",
+		"--input", "../testdata/minimal.csv")
 
 	var parsed struct {
 		Limit  int `json:"Limit"`
@@ -153,21 +143,9 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
 	startRedisContainer(t)
 
-	jsonPath := "../testdata/results.pipeline_tail.json"
-	cmd := exec.Command("../bin/ftsb_redisearch",
-		"--input", "../testdata/minimal.csv",
-		"--pipeline", "3",
-		"--json-out-file", jsonPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
-	}
+	data := runFTSBReadJSON(t, "../testdata/results.pipeline_tail.json",
+		"--input", "../testdata/minimal.csv", "--pipeline", "3")
 
-	data, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("Failed to read json output file: %v", err)
-	}
 	var parsed struct {
 		Totals struct {
 			TotalOps int `json:"TotalOps"`
