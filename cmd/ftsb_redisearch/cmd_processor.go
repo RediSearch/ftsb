@@ -378,8 +378,11 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 	hadError := false
 
 	// Build the action BEFORE timing so the latency window covers only the
-	// round-trip, not client-side slice bookkeeping.
+	// round-trip, not client-side slice bookkeeping. For a batch we use
+	// pipelineErrs (not radix.Pipeline) so we can attribute failures to the
+	// exact commands that failed instead of blaming the whole window (#118).
 	var action radix.Action
+	var pe *pipelineErrs
 	if len(pending) == 1 {
 		action = pending[0].action // no need to pipeline a single command
 	} else {
@@ -387,16 +390,33 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 		for i := range pending {
 			actions[i] = pending[i].action
 		}
-		action = radix.Pipeline(actions...)
+		pe = &pipelineErrs{cmds: actions, errs: make([]error, len(actions))}
+		action = pe
 	}
 
 	sendT := time.Now()
 	err := client.Do(action)
 	endT := time.Now()
-	isTimeout := false
 	if err != nil {
 		hadError = true
-		isTimeout = logFlushError(pending, err)
+		logFlushError(pending, err)
+	}
+
+	// cmdErr returns command i's own error. For a batch, pe.errs[i] is
+	// authoritative ONCE pe.Run executed (only the commands that actually failed
+	// are non-nil). But client.Do can fail BEFORE pe.Run -- e.g. the pool can't
+	// hand out a connection during a server outage -- in which case pe.errs stays
+	// all-nil even though the whole batch failed; fall back to the Do error so
+	// those commands aren't miscounted as successful. For a single command it's
+	// just the Do error.
+	cmdErr := func(i int) error {
+		if pe != nil {
+			if !pe.ran {
+				return err // batch never executed: whole window failed
+			}
+			return pe.errs[i]
+		}
+		return err
 	}
 
 	// A pipeline is one client round-trip for the whole batch, so attribute the
@@ -409,10 +429,15 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 	took := flooredMicros(endT.Sub(sendT))
 	for i := range pending {
 		pc := &pending[i]
+		// Each command records its OWN error and timeout status (#118): a single
+		// bad reply in a pipeline must not mark its siblings as errored.
+		thisErr := cmdErr(i)
+		cmdHadError := thisErr != nil
+		cmdTimeout := cmdHadError && strings.Contains(thisErr.Error(), "i/o timeout")
 		// AddEntry takes (..., rx, tx): received bytes, then sent bytes. Each
 		// command records its OWN counts and labels.
 		rxBytesCount := getRxLen(pc.reply)
-		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(sendT.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
+		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(sendT.Unix()), took, cmdHadError, cmdTimeout, rxBytesCount, pc.txBytes)
 		p.cmdChan <- *stat
 	}
 
