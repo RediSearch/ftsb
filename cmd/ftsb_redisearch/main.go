@@ -21,6 +21,7 @@ var (
 	pipeline       int
 	clusterMode    bool
 	continueOnErr  bool
+	captureReplies bool
 	timeout        time.Duration
 	versionFlag    bool
 	logFile        string
@@ -34,6 +35,7 @@ func init() {
 	flag.StringVar(&password, "a", "", "Password for Redis Auth.")
 	flag.IntVar(&debug, "debug", 0, "Debug printing (choices: 0, 1, 2). (default 0)")
 	flag.BoolVar(&continueOnErr, "continue-on-error", true, "If set to true, it will continue the benchmark and print the error message to stderr.")
+	flag.BoolVar(&captureReplies, "capture-replies", false, "If true, decode each command's reply so RxBytes is populated. Off by default: capturing fully unmarshals every reply on the client hot path (allocation + reflection inside the measured latency window), which inflates FT.SEARCH/FT.AGGREGATE latency. Command errors are detected regardless of this setting.")
 	flag.BoolVar(&clusterMode, "cluster-mode", false, "If set to true, it will run the client in cluster mode.")
 	flag.IntVar(&pipeline, "pipeline", 1, "Pipeline <numreq> requests. Default 1 (no pipeline).")
 	flag.IntVar(&timeoutSeconds, "timeout", 60, "Redis connection timeout in seconds.")
@@ -64,6 +66,7 @@ func (b *benchmark) GetConfigurationParametersMap() map[string]interface{} {
 	configs["host"] = host
 	configs["clusterMode"] = clusterMode
 	configs["continueOnError"] = continueOnErr
+	configs["captureReplies"] = captureReplies
 	configs["debug"] = debug
 	configs["pipeline"] = pipeline
 	configs["logFile"] = logFile
