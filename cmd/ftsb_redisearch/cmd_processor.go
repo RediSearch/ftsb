@@ -217,6 +217,27 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			pendingSlots[slotP], _ = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, pendingSlots[slotP])
 		}
 	}
+
+	// Flush the trailing partial window(s). Without this, the last
+	// (rows % pipeline) buffered commands in each slot are never sent to Redis
+	// or counted -- silent data loss whenever pipeline does not divide the row
+	// count. flushPending sends whatever is buffered regardless of pipeline size.
+	if !clusterMode {
+		if len(pendingSlots[0]) > 0 {
+			var hadError bool
+			pendingSlots[0], hadError = flushPending(p, p.vanillaClient, pendingSlots[0])
+			if hadError && continueOnErr {
+				p.reconnectPool()
+			}
+		}
+	} else {
+		for i := range pendingSlots {
+			if len(pendingSlots[i]) > 0 {
+				client, _ := p.vanillaCluster.Client(clusterAddr[i])
+				pendingSlots[i], _ = flushPending(p, client, pendingSlots[i])
+			}
+		}
+	}
 	p.wg.Done()
 }
 
@@ -283,27 +304,40 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 }
 
 // sendIfRequired flushes the buffered pipeline window once it reaches `pipeline`
-// commands, records one stat per command (each with its own latency, sent/received
-// bytes, and labels), and returns the emptied buffer. Returning `pending[:0]`
-// reuses the backing array across windows to avoid churn on the hot path.
+// commands; otherwise it buffers and returns. The trailing partial window (fewer
+// than `pipeline` commands, e.g. `rows % pipeline` at end of input) is flushed by
+// the caller via flushPending -- see connectionProcessor -- so those commands are
+// never silently dropped.
 func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
-	hadError := false
 	if len(pending) < pipeline {
-		return pending, hadError
+		return pending, false
 	}
+	return flushPending(p, client, pending)
+}
 
-	var err error
-	sendT := time.Now()
+// flushPending sends the buffered commands (as a pipeline when >1), records one
+// stat per command -- each with its own sent/received bytes and labels, plus the
+// shared batch send->reply latency -- and returns the emptied buffer (reusing the
+// backing array to avoid churn on the hot path). Callers must guard against an
+// empty buffer.
+func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
+	hadError := false
+
+	// Build the action BEFORE timing so the latency window covers only the
+	// round-trip, not client-side slice bookkeeping.
+	var action radix.Action
 	if len(pending) == 1 {
-		// if pipeline is 1 no need to pipeline
-		err = client.Do(pending[0].action)
+		action = pending[0].action // no need to pipeline a single command
 	} else {
 		actions := make([]radix.CmdAction, len(pending))
 		for i := range pending {
 			actions[i] = pending[i].action
 		}
-		err = client.Do(radix.Pipeline(actions...))
+		action = radix.Pipeline(actions...)
 	}
+
+	sendT := time.Now()
+	err := client.Do(action)
 	endT := time.Now()
 	isTimeout := false
 	if err != nil {
@@ -337,11 +371,11 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 
 	// A pipeline is one client round-trip for the whole batch, so attribute the
 	// same send->reply latency to every command in it. Measuring from each
-	// command's buffer time instead would fold in client-side queueing and leave
-	// the last-buffered command at ~0us, which the HDR histogram (min 1us)
-	// silently drops -- undercounting ops. Clamp to >=1us so no command is ever
-	// dropped. For pipeline=1 sendT equals the command's buffer time, so latency
-	// is unchanged.
+	// command's buffer time instead would fold in client-side queueing (the first
+	// command would absorb the whole window-fill wait). For pipeline=1 sendT is
+	// effectively the command's send time, so latency is unchanged. Floor to 1us:
+	// a real network round-trip is never 0us, so a 0 only reflects sub-microsecond
+	// timer resolution.
 	took := uint64(endT.Sub(sendT).Microseconds())
 	if took == 0 {
 		took = 1

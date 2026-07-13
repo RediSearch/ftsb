@@ -1,6 +1,7 @@
 package benchmark_runner
 
 import (
+	"sync/atomic"
 	"testing"
 
 	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
@@ -61,5 +62,37 @@ func TestGetTotalsMapMapsTxRxCorrectly(t *testing.T) {
 	}
 	if got := configs["RxBytes"]; got != uint64(7) {
 		t.Fatalf("configs[\"RxBytes\"] = %v, want 7 (received bytes)", got)
+	}
+}
+
+// TotalOps must come from the exact atomic counter, NOT from the HDR histogram,
+// which rejects any latency above its trackable cap (e.g. a slow query or a
+// multi-second timeout) and would silently undercount ops. This is the fix for
+// the op-drop bug the histogram-derived count had at the high tail.
+func TestTotalOpsIsAtomicNotHistogramDerived(t *testing.T) {
+	h := func() *hdrhistogram.Histogram { return hdrhistogram.New(1, 1_000_000, 3) }
+	b := &BenchmarkRunner{
+		totalHistogram:      h(),
+		setupWriteHistogram: h(),
+		writeHistogram:      h(),
+		readHistogram:       h(),
+		readCursorHistogram: h(),
+		updateHistogram:     h(),
+		deleteHistogram:     h(),
+	}
+
+	// A latency above the trackable cap (1_000_000us) is rejected by the
+	// histogram, so a histogram-derived TotalOps would miss it.
+	if err := b.totalHistogram.RecordValue(60_000_000); err == nil {
+		t.Fatal("expected RecordValue above cap to return an error")
+	}
+	if hc := b.totalHistogram.TotalCount(); hc != 0 {
+		t.Fatalf("histogram TotalCount = %d, want 0 (the value was rejected)", hc)
+	}
+
+	// The atomic counter is the source of truth and is unaffected by that rejection.
+	atomic.StoreUint64(&b.totalOps, 3)
+	if got := b.GetTotalsMap()["TotalOps"]; got != int64(3) {
+		t.Fatalf("TotalOps = %v, want 3 (must be the atomic count, not the histogram's 0)", got)
 	}
 }

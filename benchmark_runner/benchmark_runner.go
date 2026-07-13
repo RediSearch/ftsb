@@ -62,6 +62,12 @@ type BenchmarkRunner struct {
 	totalErrors   uint64
 	totalTimeouts uint64
 
+	// totalOps is an exact count of recorded commands, incremented once per
+	// cmdStat. It is the source of truth for TotalOps/overallOpsRate instead of
+	// the histograms, whose TotalCount() drops any latency above the trackable
+	// cap and loses increments under concurrent (unlocked) RecordValue.
+	totalOps uint64
+
 	// maxLatencySeconds caps the highest trackable latency for every HDR
 	// histogram. Configurable via --max-latency-seconds. Converted to µs at
 	// histogram-allocation time.
@@ -106,8 +112,8 @@ type BenchmarkRunner struct {
 
 func (b *BenchmarkRunner) GetTotalsMap() map[string]interface{} {
 	configs := map[string]interface{}{}
-	//TotalOps
-	configs["TotalOps"] = b.totalHistogram.TotalCount()
+	//TotalOps (exact atomic count, not histogram-derived)
+	configs["TotalOps"] = int64(atomic.LoadUint64(&b.totalOps))
 
 	//SetupTotalWrites
 	configs["SetupWrites"] = b.setupWriteHistogram.TotalCount()
@@ -153,7 +159,7 @@ func (b *BenchmarkRunner) GetMeasuredRatiosMap() map[string]interface{} {
 	/////////
 	configs := map[string]interface{}{}
 
-	totalOps := b.totalHistogram.TotalCount()
+	totalOps := int64(atomic.LoadUint64(&b.totalOps))
 	writeRatio := float64(b.writeHistogram.TotalCount()+b.setupWriteHistogram.TotalCount()) / float64(totalOps)
 	readRatio := float64(b.readHistogram.TotalCount()+b.readCursorHistogram.TotalCount()) / float64(totalOps)
 	updateRatio := float64(b.updateHistogram.TotalCount()) / float64(totalOps)
@@ -183,14 +189,15 @@ func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
 	took := l.end.Sub(l.start)
 	writeCount := l.writeHistogram.TotalCount()
 	setupWriteCount := l.setupWriteHistogram.TotalCount()
-	totalWriteCount := writeCount + setupWriteCount
 	readCount := l.readHistogram.TotalCount()
 	readCursorCount := l.readCursorHistogram.TotalCount()
-	totalReadCount := readCount + readCursorCount
 	updateCount := l.updateHistogram.TotalCount()
 	deleteCount := l.deleteHistogram.TotalCount()
 
-	totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+	// TotalOps/overallOpsRate come from an exact atomic counter (one increment per
+	// recorded command), immune to HDR histogram tail-rejection (latency above the
+	// trackable cap) and concurrent RecordValue drops.
+	totalOps := int64(atomic.LoadUint64(&l.totalOps))
 	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
 
@@ -515,6 +522,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 				atomic.AddUint64(&l.totalTimeouts, 1)
 			}
 
+			atomic.AddUint64(&l.totalOps, 1)
 			_ = l.totalHistogram.RecordValue(int64(cmdStat.Latency()))
 			_ = l.inst_totalHistogram.RecordValue(int64(cmdStat.Latency()))
 
@@ -588,14 +596,15 @@ func (l *BenchmarkRunner) summary() {
 	took := l.end.Sub(l.start)
 	writeCount := l.writeHistogram.TotalCount()
 	setupWriteCount := l.setupWriteHistogram.TotalCount()
-	totalWriteCount := writeCount + setupWriteCount
 	readCount := l.readHistogram.TotalCount()
 	readCursorCount := l.readCursorHistogram.TotalCount()
-	totalReadCount := readCount + readCursorCount
 	updateCount := l.updateHistogram.TotalCount()
 	deleteCount := l.deleteHistogram.TotalCount()
 
-	totalOps := totalWriteCount + totalReadCount + updateCount + deleteCount
+	// TotalOps/overallOpsRate come from an exact atomic counter (one increment per
+	// recorded command), immune to HDR histogram tail-rejection (latency above the
+	// trackable cap) and concurrent RecordValue drops.
+	totalOps := int64(atomic.LoadUint64(&l.totalOps))
 	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
 	totalErrors := atomic.LoadUint64(&l.totalErrors)

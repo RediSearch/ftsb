@@ -152,6 +152,55 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 	}
 }
 
+// Regression guard for #113/#115: with a pipeline that does not divide the input
+// row count, the trailing partial window must still be flushed (no silent data
+// loss) and every command must be counted. minimal.csv has exactly 100 rows and
+// 100 % 3 != 0, so the pre-fix code dropped the tail (TotalOps=99, and one HSET
+// never reached Redis).
+func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
+	t.Log("Starting Redis container...")
+	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
+	containerIDRaw, err := dockerRun.Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+
+	jsonPath := "../testdata/results.pipeline_tail.json"
+	cmd := exec.Command("../bin/ftsb_redisearch",
+		"--input", "../testdata/minimal.csv",
+		"--pipeline", "3",
+		"--json-out-file", jsonPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Benchmark failed: %v\nOutput: %s", err, string(output))
+	}
+
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read json output file: %v", err)
+	}
+	var parsed struct {
+		Totals struct {
+			TotalOps int `json:"TotalOps"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v", err)
+	}
+	if parsed.Totals.TotalOps != 100 {
+		t.Errorf("TotalOps = %d, want 100 (pipeline=3 must flush and count the trailing window of a 100-row input)", parsed.Totals.TotalOps)
+	}
+}
+
 func TestFTSBErrorAndTimeoutTracking(t *testing.T) {
 	t.Log("Starting Redis container...")
 	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")

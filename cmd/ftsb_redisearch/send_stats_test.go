@@ -182,11 +182,11 @@ func TestPipelineRecordsPerCommandTxAndDoesNotPanic(t *testing.T) {
 	if c1.Tx() != 100 || c2.Tx() != 200 {
 		t.Fatalf("per-command Tx wrong: got [%d %d], want [100 200] (old code recorded [200 200])", c1.Tx(), c2.Tx())
 	}
-	// Latency is measured from the batch send time and clamped to >=1us, so no
-	// command is ever dropped by the HDR histogram (min 1us); a whole pipeline
-	// shares one round-trip, so the per-command latencies are equal.
+	// A whole pipeline shares one send->reply round-trip, so per-command latencies
+	// are equal; the >=1us floor means a sub-microsecond timer reading never
+	// records a physically-impossible 0us network latency.
 	if c1.Latency() < 1 || c2.Latency() < 1 {
-		t.Fatalf("latency must be clamped to >=1us (else the op is dropped from TotalOps): got [%d %d]", c1.Latency(), c2.Latency())
+		t.Fatalf("latency must be floored to >=1us: got [%d %d]", c1.Latency(), c2.Latency())
 	}
 	if c1.Latency() != c2.Latency() {
 		t.Fatalf("pipelined commands share one round-trip; latencies should be equal: %d != %d", c1.Latency(), c2.Latency())
