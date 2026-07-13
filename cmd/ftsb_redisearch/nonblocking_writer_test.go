@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,11 +13,11 @@ type blockingWriter struct{ release chan struct{} }
 
 func (b *blockingWriter) Write(p []byte) (int, error) { <-b.release; return len(p), nil }
 
-// The whole point of #121: Write must never block the caller even when the
-// underlying consumer is wedged.
-func TestNonBlockingWriterNeverBlocks(t *testing.T) {
+// The whole point of #121: Write must never block the caller for longer than the
+// write timeout, even when the underlying consumer is wedged.
+func TestNonBlockingWriterDoesNotBlockOnStall(t *testing.T) {
 	bw := &blockingWriter{release: make(chan struct{})}
-	nb := newNonBlockingWriter(bw, 4)
+	nb := newNonBlockingWriter(bw, 4, 50*time.Millisecond)
 
 	done := make(chan struct{})
 	go func() {
@@ -34,70 +36,55 @@ func TestNonBlockingWriterNeverBlocks(t *testing.T) {
 	close(bw.release) // let the drain goroutine exit
 }
 
-type countingWriter struct{ n int64 }
+// countingWriter records how many lines were delivered and their bytes.
+type countingWriter struct {
+	mu  sync.Mutex
+	n   int64
+	buf bytes.Buffer
+}
 
-func (c *countingWriter) Write(p []byte) (int, error) { atomic.AddInt64(&c.n, 1); return len(p), nil }
+func (c *countingWriter) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	atomic.AddInt64(&c.n, 1)
+	c.buf.Write(p)
+	return len(p), nil
+}
+func (c *countingWriter) contains(s string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return bytes.Contains(c.buf.Bytes(), []byte(s))
+}
 
-// When the consumer keeps up, no lines are dropped and order/content is intact.
-func TestNonBlockingWriterDeliversWhenDrained(t *testing.T) {
+// The regression this replaces (#122 CI failure): a message must be on the
+// underlying writer by the time Write RETURNS on a healthy consumer, so a line
+// logged immediately before os.Exit (log.Fatal, the final summary) is delivered
+// even though os.Exit bypasses any deferred flush. Synchronous delivery makes
+// this deterministic -- no polling.
+func TestNonBlockingWriterDeliversBeforeReturnOnHealthy(t *testing.T) {
 	cw := &countingWriter{}
-	nb := newNonBlockingWriter(cw, 1024)
+	nb := newNonBlockingWriter(cw, 16, 2*time.Second)
+
+	_, _ = nb.Write([]byte("Fatal error with X\n"))
+
+	if got := atomic.LoadInt64(&cw.n); got != 1 {
+		t.Fatalf("delivered %d lines by the time Write returned, want 1", got)
+	}
+	if !cw.contains("Fatal error with X") {
+		t.Fatal("healthy-consumer line was not delivered before Write returned")
+	}
+}
+
+// When the consumer keeps up, nothing is dropped and every line is delivered by
+// the time the write loop finishes -- again deterministic, no polling.
+func TestNonBlockingWriterDeliversAllWhenDrained(t *testing.T) {
+	cw := &countingWriter{}
+	nb := newNonBlockingWriter(cw, 1024, 2*time.Second)
 	const lines = 500
 	for i := 0; i < lines; i++ {
 		_, _ = nb.Write([]byte("x"))
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if atomic.LoadInt64(&cw.n) == lines {
-			return // all delivered
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("delivered %d lines, want %d (nothing should drop when the consumer drains)", atomic.LoadInt64(&cw.n), lines)
-}
-
-// Close must flush buffered lines to a healthy consumer before returning -- this
-// is what guarantees the final summary line reaches stderr before the process
-// exits (the #122 CI regression: "Issued ..." was queued but never flushed).
-func TestNonBlockingWriterCloseFlushesBufferedLines(t *testing.T) {
-	cw := &countingWriter{}
-	nb := newNonBlockingWriter(cw, 1024)
-	const lines = 200
-	for i := 0; i < lines; i++ {
-		_, _ = nb.Write([]byte("x"))
-	}
-	nb.Close(2 * time.Second)
 	if got := atomic.LoadInt64(&cw.n); got != lines {
-		t.Fatalf("after Close delivered %d lines, want %d (Close must flush the tail)", got, lines)
+		t.Fatalf("delivered %d lines, want %d (nothing should drop when the consumer keeps up)", got, lines)
 	}
-}
-
-// Close must return within its timeout even if the consumer is wedged, so
-// shutdown can never hang on a stalled output stream.
-func TestNonBlockingWriterCloseReturnsDespiteStall(t *testing.T) {
-	bw := &blockingWriter{release: make(chan struct{})}
-	nb := newNonBlockingWriter(bw, 4)
-	for i := 0; i < 100; i++ { // fill + overflow the buffer
-		_, _ = nb.Write([]byte("x"))
-	}
-	done := make(chan struct{})
-	go func() { nb.Close(200 * time.Millisecond); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		close(bw.release)
-		t.Fatal("Close blocked while the underlying writer was stalled")
-	}
-	close(bw.release) // let the drain goroutine exit
-}
-
-// Writes after Close are dropped, not panicking on a send to a closed channel.
-func TestNonBlockingWriterWriteAfterCloseIsSafe(t *testing.T) {
-	cw := &countingWriter{}
-	nb := newNonBlockingWriter(cw, 16)
-	nb.Close(time.Second)
-	if _, err := nb.Write([]byte("late")); err != nil {
-		t.Fatalf("Write after Close returned error: %v", err)
-	}
-	nb.Close(time.Second) // idempotent
 }

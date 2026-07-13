@@ -111,11 +111,11 @@ func main() {
 	// can never wedge the benchmark and prevent the result from being written
 	// (issue #121). The log file, if any, is written directly -- a regular file
 	// does not stall, and keeping it off the drop path leaves it complete.
-	console := newNonBlockingWriter(os.Stderr, 1024)
-	// Flush buffered console lines (notably the final summary) before exit. On a
-	// healthy consumer this delivers everything; on a stalled one it returns
-	// after the timeout so shutdown still can't hang.
-	defer console.Close(2 * time.Second)
+	// On a healthy consumer each Write is delivered synchronously (so the summary
+	// and any pre-os.Exit fatal message reach stderr); on a stalled consumer a
+	// Write waits at most writeTimeout and then drops, so the run still completes
+	// and writes its result (issue #121).
+	console := newNonBlockingWriter(os.Stderr, 1024, 2*time.Second)
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
