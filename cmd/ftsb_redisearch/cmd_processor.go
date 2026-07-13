@@ -147,22 +147,18 @@ func (p *processor) Init(workerNumber int, _ bool, totalWorkers int) {
 }
 
 func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter bool) {
-	cmdSlots := make([][]radix.CmdAction, 0, 0)
-	timesSlots := make([][]time.Time, 0, 0)
-	replies := make([]interface{}, 0, 0)
+	pendingSlots := make([][]pendingCmd, 0, 0)
 	clusterSlots := make([][2]uint16, 0, 0)
 	clusterAddr := make([]string, 0, 0)
 	clusterAddrLen := 0
 	slotP := 0
 	if !clusterMode {
-		cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
-		timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+		pendingSlots = append(pendingSlots, make([]pendingCmd, 0, 0))
 	} else {
 		for _, ClusterNode := range p.clusterTopo {
 			for _, slot := range ClusterNode.Slots {
 				clusterSlots = append(clusterSlots, slot)
-				cmdSlots = append(cmdSlots, make([]radix.CmdAction, 0, 0))
-				timesSlots = append(timesSlots, make([]time.Time, 0, 0))
+				pendingSlots = append(pendingSlots, make([]pendingCmd, 0, 0))
 				clusterAddr = append(clusterAddr, ClusterNode.Addr)
 			}
 		}
@@ -209,7 +205,7 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 		}
 		if !clusterMode {
 			var hadError bool
-			cmdSlots[slotP], timesSlots[slotP], hadError = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, cmdSlots[slotP], replies, timesSlots[slotP])
+			pendingSlots[slotP], hadError = sendFlatCmd(p, p.vanillaClient, cmdType, cmdQueryId, cmd, docFields, bytelen, pendingSlots[slotP])
 			if hadError && continueOnErr {
 				// Reconnect to get a fresh connection after an error.
 				// This prevents hanging on a broken/half-closed connection
@@ -218,101 +214,135 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			}
 		} else {
 			client, _ := p.vanillaCluster.Client(clusterAddr[slotP])
-			cmdSlots[slotP], timesSlots[slotP], _ = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, cmdSlots[slotP], replies, timesSlots[slotP])
+			pendingSlots[slotP], _ = sendFlatCmd(p, client, cmdType, cmdQueryId, cmd, docFields, bytelen, pendingSlots[slotP])
 		}
 	}
 	p.wg.Done()
 }
 
+// getRxLen approximates the reply bytes received for a command by sizing the
+// value radix unmarshalled into the receiver: bulk strings (string/[]byte),
+// arrays ([]interface{} / []string, summed recursively), and integers (decimal
+// digit count). A *interface{} receiver is dereferenced; nil/unknown → 0.
 func getRxLen(v interface{}) (res uint64) {
-	res = 0
 	switch x := v.(type) {
+	case *interface{}:
+		if x != nil {
+			res = getRxLen(*x)
+		}
+	case string:
+		res = uint64(len(x))
+	case []byte:
+		res = uint64(len(x))
 	case []string:
 		for _, i := range x {
 			res += uint64(len(i))
 		}
-	case string:
-		res += uint64(len(x))
-	default:
-		res = 0
+	case []interface{}:
+		for _, e := range x {
+			res += getRxLen(e)
+		}
+	case int64:
+		res = uint64(len(strconv.FormatInt(x, 10)))
 	}
 	return
 }
 
-func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, cmds []radix.CmdAction, replies []interface{}, times []time.Time) ([]radix.CmdAction, []time.Time, bool) {
-	var err error = nil
-	var rcv interface{}
-	rxBytesCount := uint64(0)
-	var radixFlatCmd = radix.Cmd(rcv, cmd, docfields...)
-	cmds = append(cmds, radixFlatCmd)
-	replies = append(replies, rcv)
-	start := time.Now()
-	times = append(times, start)
+// pendingCmd is a single command buffered for the current pipeline window,
+// carrying everything needed to record its own stat at flush time. Buffering
+// per command (instead of threading parallel scalar values through the flush)
+// is what makes pipelined accounting correct: every command keeps its own send
+// time, sent-byte count, reply receiver, and labels, rather than inheriting the
+// flushing command's values.
+type pendingCmd struct {
+	action     radix.CmdAction
+	reply      *interface{}
+	cmdType    string
+	cmdQueryId string
+	redisCmd   string
+	redisKey   string
+	txBytes    uint64
+	start      time.Time
+}
+
+func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, pending []pendingCmd) ([]pendingCmd, bool) {
+	reply := new(interface{})
 	key := ""
 	if len(docfields) > 0 {
 		key = docfields[0]
 	}
-	cmds, times, hadError := sendIfRequired(p, client, cmdType, cmdQueryId, cmd, key, cmds, err, times, rxBytesCount, replies, txBytesCount)
-	return cmds, times, hadError
+	pending = append(pending, pendingCmd{
+		action:     radix.Cmd(reply, cmd, docfields...),
+		reply:      reply,
+		cmdType:    cmdType,
+		cmdQueryId: cmdQueryId,
+		redisCmd:   cmd,
+		redisKey:   key,
+		txBytes:    txBytesCount,
+		start:      time.Now(),
+	})
+	return sendIfRequired(p, client, pending)
 }
 
-func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryId string, redisCmd string, redisKey string, cmds []radix.CmdAction, err error, times []time.Time, rxBytesCount uint64, replies []interface{}, txBytesCount uint64) ([]radix.CmdAction, []time.Time, bool) {
-	cmdLen := len(cmds)
+// sendIfRequired flushes the buffered pipeline window once it reaches `pipeline`
+// commands, records one stat per command (each with its own latency, sent/received
+// bytes, and labels), and returns the emptied buffer. Returning `pending[:0]`
+// reuses the backing array across windows to avoid churn on the hot path.
+func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
 	hadError := false
-	if cmdLen >= pipeline {
-		if cmdLen == 1 {
-			// if pipeline is 1 no need to pipeline
-			err = client.Do(cmds[0])
-		} else {
-			err = client.Do(radix.Pipeline(cmds...))
-		}
-		endT := time.Now()
-		isTimeout := false
-		if err != nil {
-			hadError = true
-
-			// Always log the error
-			// For read commands, log full command details; for writes, log only a summary to avoid huge log lines
-			if cmdType == "READ" || cmdType == "READ_CURSOR" {
-				if continueOnErr {
-					log.Println(fmt.Sprintf("Received an error with the following command(s): %v, error: %v", cmds, err))
-				} else {
-					log.Fatal(fmt.Sprintf("Fatal error with the following command(s): %v, error: %v", cmds, err))
-				}
-			} else {
-				if continueOnErr {
-					log.Println(fmt.Sprintf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", cmdType, redisCmd, redisKey, len(cmds), err))
-				} else {
-					log.Fatal(fmt.Sprintf("Fatal error with %s command: %s %s (%d command(s) in pipeline), error: %v", cmdType, redisCmd, redisKey, len(cmds), err))
-				}
-			}
-
-			// Log additional timeout-specific message if it's a timeout
-			if strings.Contains(err.Error(), "i/o timeout") {
-				isTimeout = true
-				if cmdType == "READ" || cmdType == "READ_CURSOR" {
-					log.Println(fmt.Sprintf("Timeout occurred with the following command(s): %v, continuing execution...", cmds))
-				} else {
-					log.Println(fmt.Sprintf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", cmdType, redisCmd, redisKey, len(cmds)))
-				}
-			}
-		}
-		for pos, t := range times {
-			duration := endT.Sub(t)
-			took := uint64(duration.Microseconds())
-			rcv := replies[pos]
-			rxBytesCount += getRxLen(rcv)
-			// AddEntry takes (..., rx, tx): received bytes first, then sent.
-			// txBytesCount is what we send to Redis, rxBytesCount is the reply.
-			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hadError, isTimeout, rxBytesCount, txBytesCount)
-			p.cmdChan <- *stat
-		}
-		cmds = nil
-		cmds = make([]radix.CmdAction, 0, 0)
-		times = nil
-		times = make([]time.Time, 0, 0)
+	if len(pending) < pipeline {
+		return pending, hadError
 	}
-	return cmds, times, hadError
+
+	var err error
+	if len(pending) == 1 {
+		// if pipeline is 1 no need to pipeline
+		err = client.Do(pending[0].action)
+	} else {
+		actions := make([]radix.CmdAction, len(pending))
+		for i := range pending {
+			actions[i] = pending[i].action
+		}
+		err = client.Do(radix.Pipeline(actions...))
+	}
+	endT := time.Now()
+	isTimeout := false
+	if err != nil {
+		hadError = true
+		// A flush may mix command types; use the first as the summary label.
+		rep := pending[0]
+		if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
+			if continueOnErr {
+				log.Printf("Received an error with %d command(s) in pipeline, error: %v", len(pending), err)
+			} else {
+				log.Fatalf("Fatal error with %d command(s) in pipeline, error: %v", len(pending), err)
+			}
+		} else {
+			if continueOnErr {
+				log.Printf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
+			} else {
+				log.Fatalf("Fatal error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
+			}
+		}
+
+		// Log additional timeout-specific message if it's a timeout
+		if strings.Contains(err.Error(), "i/o timeout") {
+			isTimeout = true
+			log.Printf("Timeout occurred (%d command(s) in pipeline), continuing execution...", len(pending))
+		}
+	}
+
+	for i := range pending {
+		pc := &pending[i]
+		took := uint64(endT.Sub(pc.start).Microseconds())
+		// AddEntry takes (..., rx, tx): received bytes, then sent bytes. Each
+		// command records its OWN counts, times, and labels.
+		rxBytesCount := getRxLen(pc.reply)
+		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(pc.start.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
+		p.cmdChan <- *stat
+	}
+
+	return pending[:0], hadError
 }
 
 // ProcessBatch reads eventsBatches which contain rows of databuild for FT.ADD redis command string
