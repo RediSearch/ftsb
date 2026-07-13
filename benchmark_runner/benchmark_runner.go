@@ -419,9 +419,26 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 	// Stop the periodic reporter before the final read-out so it no longer
 	// touches the histograms or the *Ts slices concurrently with GetTimeSeriesMap
 	// / summary / GetOverallQuantiles below.
+	//
+	// The reporter's only unbounded blocking point is its progress log write (a
+	// bounded histogram critical section, then log I/O OUTSIDE the lock). If the
+	// output consumer is wedged the reporter can stall in that write and never
+	// observe stopReport, so bound the wait rather than hanging the whole run on
+	// it. On timeout, acquire+release histogramsMutex once as a barrier: this
+	// serializes against a reporter that was (improbably) descheduled mid-critical
+	// section, and establishes happens-before for the unlocked reads below. A
+	// reporter stalled in its log write holds no lock and performs no further
+	// shared-state access once it unblocks (it returns on the next stopReport
+	// check), so proceeding is race-free.
 	if l.reportingPeriod.Nanoseconds() > 0 {
 		close(l.stopReport)
-		<-l.reportDone
+		select {
+		case <-l.reportDone:
+		case <-time.After(2 * time.Second):
+			l.histogramsMutex.Lock()
+			_ = l.totalHistogram.TotalCount()
+			l.histogramsMutex.Unlock()
+		}
 	}
 
 	l.end = time.Now()
