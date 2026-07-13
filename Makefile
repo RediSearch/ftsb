@@ -43,6 +43,11 @@ get:
 integration-test: get ftsb_redisearch
 	$(GOTEST) -v $(shell go list ./... | grep -v '/cmd/')
 
+# unit-test runs the pure-Go tests for the cmd packages, which integration-test
+# excludes. These need no Redis, so they run standalone with the race detector.
+unit-test: get
+	$(GOTEST) -v -race ./cmd/...
+
 release:
 	@mkdir -p ${DISTDIR}
 	@for pair in $(OS_ARCHs); do \

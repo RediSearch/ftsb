@@ -14,14 +14,14 @@ import (
 
 // Program option vars:
 var (
-	host          string
-	password      string
-	debug         int
-	loader        *benchmark_runner.BenchmarkRunner
-	pipeline      int
-	clusterMode   bool
-	continueOnErr bool
-	timeout       time.Duration
+	host           string
+	password       string
+	debug          int
+	loader         *benchmark_runner.BenchmarkRunner
+	pipeline       int
+	clusterMode    bool
+	continueOnErr  bool
+	timeout        time.Duration
 	versionFlag    bool
 	logFile        string
 	timeoutSeconds int
