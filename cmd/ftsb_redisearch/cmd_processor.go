@@ -302,7 +302,9 @@ func sendIfRequired(p *processor, client radix.Client, cmdType string, cmdQueryI
 			took := uint64(duration.Microseconds())
 			rcv := replies[pos]
 			rxBytesCount += getRxLen(rcv)
-			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hadError, isTimeout, txBytesCount, rxBytesCount)
+			// AddEntry takes (..., rx, tx): received bytes first, then sent.
+			// txBytesCount is what we send to Redis, rxBytesCount is the reply.
+			stat := benchmark_runner.NewStat().AddEntry([]byte(cmdType), []byte(cmdQueryId), uint64(t.Unix()), took, hadError, isTimeout, rxBytesCount, txBytesCount)
 			p.cmdChan <- *stat
 		}
 		cmds = nil
@@ -386,8 +388,13 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		if initialPos >= 0 {
 			clusterSlot = int(radix.ClusterSlot([]byte(key)))
 		}
-		// Subtract the base64 shrink so byte accounting reflects the decoded
-		// bytes actually sent to Redis, not the larger base64 text in the row.
+		// bytelen approximates the sent (TX) payload: the row minus the leading
+		// cmdType label, minus the base64 shrink (so it reflects decoded bytes,
+		// not the larger base64 text). It is an application-payload proxy, not
+		// exact RESP wire bytes — it still counts CSV separators / the queryId
+		// and pos columns and omits RESP framing (*N\r\n, per-arg $len\r\n). The
+		// error is negligible for large payloads (e.g. vector blobs) but can be
+		// sizable for many-tiny-arg commands.
 		bytelen = uint64(len(row)) - uint64(len(cmdType)) - shrink
 	} else {
 		err = fmt.Errorf("input string does not have the minimum required size of 2: %s", row)
