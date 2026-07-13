@@ -320,6 +320,33 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 // shared batch send->reply latency -- and returns the emptied buffer (reusing the
 // backing array to avoid churn on the hot path). Callers must guard against an
 // empty buffer.
+// logFlushError logs a pipeline-flush failure, honoring -continue-on-error
+// (log-and-continue vs. fatal), and returns whether it was an i/o timeout. A
+// flush may mix command types, so the first buffered command is used as the
+// summary label. Split out of flushPending to keep that function simple.
+func logFlushError(pending []pendingCmd, err error) bool {
+	rep := pending[0]
+	isRead := rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR"
+	logf := log.Printf
+	if !continueOnErr {
+		logf = log.Fatalf
+	}
+	if isRead {
+		logf("Received an error with %d command(s) in pipeline, error: %v", len(pending), err)
+	} else {
+		logf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
+	}
+	if !strings.Contains(err.Error(), "i/o timeout") {
+		return false
+	}
+	if isRead {
+		log.Printf("Timeout occurred with %d command(s) in pipeline, continuing execution...", len(pending))
+	} else {
+		log.Printf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending))
+	}
+	return true
+}
+
 func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pendingCmd, bool) {
 	hadError := false
 
@@ -342,31 +369,7 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 	isTimeout := false
 	if err != nil {
 		hadError = true
-		// A flush may mix command types; use the first as the summary label.
-		rep := pending[0]
-		if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
-			if continueOnErr {
-				log.Printf("Received an error with %d command(s) in pipeline, error: %v", len(pending), err)
-			} else {
-				log.Fatalf("Fatal error with %d command(s) in pipeline, error: %v", len(pending), err)
-			}
-		} else {
-			if continueOnErr {
-				log.Printf("Received an error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
-			} else {
-				log.Fatalf("Fatal error with %s command: %s %s (%d command(s) in pipeline), error: %v", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending), err)
-			}
-		}
-
-		// Log additional timeout-specific message if it's a timeout
-		if strings.Contains(err.Error(), "i/o timeout") {
-			isTimeout = true
-			if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
-				log.Printf("Timeout occurred with %d command(s) in pipeline, continuing execution...", len(pending))
-			} else {
-				log.Printf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending))
-			}
-		}
+		isTimeout = logFlushError(pending, err)
 	}
 
 	// A pipeline is one client round-trip for the whole batch, so attribute the

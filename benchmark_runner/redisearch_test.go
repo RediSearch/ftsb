@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+// startRedisContainer starts a throwaway redis:8.4 on :6379, registers cleanup,
+// and waits for it to be ready. Shared by the integration tests so the docker
+// boilerplate lives in one place.
+func startRedisContainer(t *testing.T) {
+	t.Helper()
+	t.Log("Starting Redis container...")
+	containerIDRaw, err := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4").Output()
+	if err != nil {
+		t.Fatalf("Failed to start Redis container: %v", err)
+	}
+	containerID := strings.TrimSpace(string(containerIDRaw))
+	t.Cleanup(func() {
+		t.Log("Stopping Redis container...")
+		exec.Command("docker", "stop", containerID).Run()
+	})
+	t.Log("Waiting for Redis to be ready...")
+	time.Sleep(2 * time.Second)
+}
+
 func TestFTSBWithDuration(t *testing.T) {
 	entries, err := os.ReadDir("../bin")
 	if err != nil {
@@ -58,20 +77,7 @@ func TestFTSBWithDuration(t *testing.T) {
 }
 
 func TestFTSBWithRequests(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --requests=50000")
 	jsonPath := "../testdata/results.requests.json"
@@ -102,20 +108,7 @@ func TestFTSBWithRequests(t *testing.T) {
 }
 
 func TestFTSBWithNoLimitNoDuration(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with no --requests or --duration")
 	jsonPath := "../testdata/results.nolimit.json"
@@ -158,20 +151,7 @@ func TestFTSBWithNoLimitNoDuration(t *testing.T) {
 // 100 % 3 != 0, so the pre-fix code dropped the tail (TotalOps=99, and one HSET
 // never reached Redis).
 func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	jsonPath := "../testdata/results.pipeline_tail.json"
 	cmd := exec.Command("../bin/ftsb_redisearch",
@@ -202,20 +182,7 @@ func TestFTSBPipelineTailIsFlushedAndCounted(t *testing.T) {
 }
 
 func TestFTSBErrorAndTimeoutTracking(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with normal operation (should have 0 errors)")
 	jsonPath := "../testdata/results.errors.json"
@@ -442,20 +409,7 @@ func TestFTSBWithTimeout(t *testing.T) {
 }
 
 func TestFTSBWithLogFile(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --log-file")
 	logPath := "../testdata/benchmark.log"
