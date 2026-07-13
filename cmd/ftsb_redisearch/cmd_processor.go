@@ -328,7 +328,11 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 		// Log additional timeout-specific message if it's a timeout
 		if strings.Contains(err.Error(), "i/o timeout") {
 			isTimeout = true
-			log.Printf("Timeout occurred (%d command(s) in pipeline), continuing execution...", len(pending))
+			if rep.cmdType == "READ" || rep.cmdType == "READ_CURSOR" {
+				log.Printf("Timeout occurred with %d command(s) in pipeline, continuing execution...", len(pending))
+			} else {
+				log.Printf("Timeout occurred with %s command: %s %s (%d command(s) in pipeline), continuing execution...", rep.cmdType, rep.redisCmd, rep.redisKey, len(pending))
+			}
 		}
 	}
 
