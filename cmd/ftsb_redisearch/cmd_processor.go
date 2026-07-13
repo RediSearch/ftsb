@@ -262,7 +262,6 @@ type pendingCmd struct {
 	redisCmd   string
 	redisKey   string
 	txBytes    uint64
-	start      time.Time
 }
 
 func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd string, docfields []string, txBytesCount uint64, pending []pendingCmd) ([]pendingCmd, bool) {
@@ -279,7 +278,6 @@ func sendFlatCmd(p *processor, client radix.Client, cmdType, cmdQueryId, cmd str
 		redisCmd:   cmd,
 		redisKey:   key,
 		txBytes:    txBytesCount,
-		start:      time.Now(),
 	})
 	return sendIfRequired(p, client, pending)
 }
@@ -295,6 +293,7 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 	}
 
 	var err error
+	sendT := time.Now()
 	if len(pending) == 1 {
 		// if pipeline is 1 no need to pipeline
 		err = client.Do(pending[0].action)
@@ -336,13 +335,23 @@ func sendIfRequired(p *processor, client radix.Client, pending []pendingCmd) ([]
 		}
 	}
 
+	// A pipeline is one client round-trip for the whole batch, so attribute the
+	// same send->reply latency to every command in it. Measuring from each
+	// command's buffer time instead would fold in client-side queueing and leave
+	// the last-buffered command at ~0us, which the HDR histogram (min 1us)
+	// silently drops -- undercounting ops. Clamp to >=1us so no command is ever
+	// dropped. For pipeline=1 sendT equals the command's buffer time, so latency
+	// is unchanged.
+	took := uint64(endT.Sub(sendT).Microseconds())
+	if took == 0 {
+		took = 1
+	}
 	for i := range pending {
 		pc := &pending[i]
-		took := uint64(endT.Sub(pc.start).Microseconds())
 		// AddEntry takes (..., rx, tx): received bytes, then sent bytes. Each
-		// command records its OWN counts, times, and labels.
+		// command records its OWN counts and labels.
 		rxBytesCount := getRxLen(pc.reply)
-		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(pc.start.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
+		stat := benchmark_runner.NewStat().AddEntry([]byte(pc.cmdType), []byte(pc.cmdQueryId), uint64(sendT.Unix()), took, hadError, isTimeout, rxBytesCount, pc.txBytes)
 		p.cmdChan <- *stat
 	}
 
