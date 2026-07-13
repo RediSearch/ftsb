@@ -167,8 +167,11 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			}
 		}
 		clusterAddrLen = len(clusterSlots)
-		// start at a random slot between 0 and clusterAddrLen
-		slotP = rand.Intn(clusterAddrLen)
+		// start at a random slot between 0 and clusterAddrLen.
+		// NOSONAR: math/rand is intentional here — this only spreads the
+		// benchmark's starting slot for load distribution; it is not security
+		// sensitive and needs no crypto-grade randomness.
+		slotP = rand.Intn(clusterAddrLen) // NOSONAR
 	}
 
 	for row := range p.rows {
