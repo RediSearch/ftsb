@@ -559,7 +559,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 				_ = l.inst_readHistogram.RecordValue(int64(cmdStat.Latency()))
 
 				break
-			case "CURSOR_READ":
+			case "READ_CURSOR":
 				_ = l.readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
 				_ = l.inst_readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
 
