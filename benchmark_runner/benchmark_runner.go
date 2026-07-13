@@ -73,7 +73,18 @@ type BenchmarkRunner struct {
 	// histogram-allocation time.
 	maxLatencySeconds int64
 
-	br                         *bufio.Reader
+	br *bufio.Reader
+
+	// histogramsMutex guards the plain per-label/total/inst histograms, which are
+	// recorded from every worker goroutine and read by the periodic reporter.
+	// hdrhistogram is not safe for concurrent access, so without this the
+	// percentiles were computed from racily-mutated state and increments were
+	// lost. stopReport/reportDone give the reporter a clean shutdown so it stops
+	// touching the histograms and the *Ts slices before the final read-out.
+	histogramsMutex sync.Mutex
+	stopReport      chan struct{}
+	reportDone      chan struct{}
+
 	detailedMapHistogramsMutex sync.RWMutex
 	detailedMapHistograms      map[string]*hdrhistogram.Histogram
 	setupWriteHistogram        *hdrhistogram.Histogram
@@ -404,6 +415,32 @@ func (l *BenchmarkRunner) RunBenchmark(b Benchmark, workQueues uint) {
 
 	// Wait for all workers to finish
 	wg.Wait()
+
+	// Stop the periodic reporter before the final read-out so it no longer
+	// touches the histograms or the *Ts slices concurrently with GetTimeSeriesMap
+	// / summary / GetOverallQuantiles below.
+	//
+	// The reporter's only unbounded blocking point is its progress log write (a
+	// bounded histogram critical section, then log I/O OUTSIDE the lock). If the
+	// output consumer is wedged the reporter can stall in that write and never
+	// observe stopReport, so bound the wait rather than hanging the whole run on
+	// it. On timeout, acquire+release histogramsMutex once as a barrier: this
+	// serializes against a reporter that was (improbably) descheduled mid-critical
+	// section, and establishes happens-before for the unlocked reads below. A
+	// reporter stalled in its log write holds no lock and performs no further
+	// shared-state access once it unblocks (it returns on the next stopReport
+	// check), so proceeding is race-free.
+	if l.reportingPeriod.Nanoseconds() > 0 {
+		close(l.stopReport)
+		select {
+		case <-l.reportDone:
+		case <-time.After(2 * time.Second):
+			l.histogramsMutex.Lock()
+			_ = l.totalHistogram.TotalCount()
+			l.histogramsMutex.Unlock()
+		}
+	}
+
 	l.end = time.Now()
 	l.testResult.DBSpecificConfigs = b.GetConfigurationParametersMap()
 	l.testResult.Totals = l.GetTotalsMap()
@@ -499,6 +536,8 @@ func (l *BenchmarkRunner) createChannels(workQueues uint) []*duplexChannel {
 // to distribute to workers
 func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start time.Time) uint64 {
 	if l.reportingPeriod.Nanoseconds() > 0 {
+		l.stopReport = make(chan struct{})
+		l.reportDone = make(chan struct{})
 		go l.report(l.reportingPeriod, start)
 	}
 	ctx := context.Background()
@@ -510,6 +549,67 @@ func (l *BenchmarkRunner) scan(b Benchmark, channels []*duplexChannel, start tim
 
 	resetFn := l.GetResetReaderFunc(b)
 	return scanWithTimeout(ctx, channels, l.batchSize, l.limit, l.Duration, l.br, b.GetCmdDecoder(l.br, l.maxTokenSizeMB), b.GetBatchFactory(), b.GetCommandIndexer(uint(len(channels))), resetFn)
+}
+
+// recordCmdStat folds one command's measurement into the aggregate counters and
+// histograms. Safe to call concurrently from every worker goroutine and against
+// the periodic reporter: the plain per-label/total/inst histograms are guarded
+// by histogramsMutex (hdrhistogram is not concurrency-safe) and the two
+// histogram maps by their own mutexes; the byte/op/error counters are atomic.
+func (l *BenchmarkRunner) recordCmdStat(cmdStat CmdStat) {
+	if cmdStat.Error() {
+		atomic.AddUint64(&l.totalErrors, 1)
+	}
+	if cmdStat.TimedOut() {
+		atomic.AddUint64(&l.totalTimeouts, 1)
+	}
+	atomic.AddUint64(&l.totalOps, 1)
+	atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
+	atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
+
+	labelStr := string(cmdStat.Label())
+	groupAndQuery := labelStr + "-" + string(cmdStat.CmdQueryId())
+	latency := int64(cmdStat.Latency())
+
+	l.detailedMapHistogramsMutex.Lock()
+	if _, exist := l.detailedMapHistograms[groupAndQuery]; !exist {
+		l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
+	}
+	l.detailedMapHistograms[groupAndQuery].RecordValue(latency)
+	l.detailedMapHistogramsMutex.Unlock()
+
+	ts := cmdStat.StartTs()
+	l.perSecondHistogramsMutex.Lock()
+	if _, exist := l.perSecondHistograms[ts]; !exist {
+		l.perSecondHistograms[ts] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
+	}
+	l.perSecondHistograms[ts].RecordValue(latency)
+	l.perSecondHistogramsMutex.Unlock()
+
+	l.histogramsMutex.Lock()
+	defer l.histogramsMutex.Unlock()
+	_ = l.totalHistogram.RecordValue(latency)
+	_ = l.inst_totalHistogram.RecordValue(latency)
+	switch labelStr {
+	case "SETUP_WRITE":
+		_ = l.setupWriteHistogram.RecordValue(latency)
+		_ = l.inst_setupWriteHistogram.RecordValue(latency)
+	case "WRITE":
+		_ = l.writeHistogram.RecordValue(latency)
+		_ = l.inst_writeHistogram.RecordValue(latency)
+	case "UPDATE":
+		_ = l.updateHistogram.RecordValue(latency)
+		_ = l.inst_updateHistogram.RecordValue(latency)
+	case "READ":
+		_ = l.readHistogram.RecordValue(latency)
+		_ = l.inst_readHistogram.RecordValue(latency)
+	case "READ_CURSOR":
+		_ = l.readCursorHistogram.RecordValue(latency)
+		_ = l.inst_readCursorHistogram.RecordValue(latency)
+	case "DELETE":
+		_ = l.deleteHistogram.RecordValue(latency)
+		_ = l.inst_deleteHistogram.RecordValue(latency)
+	}
 }
 
 // work is the processing function for each worker in the loader
@@ -525,72 +625,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 		stats := proc.ProcessBatch(b, l.doLoad, rateLimiter, useRateLimiter)
 		cmdStats := stats.CmdStats()
 		for pos := 0; pos < len(cmdStats); pos++ {
-			cmdStat := cmdStats[pos]
-
-			// Track errors and timeouts
-			if cmdStat.Error() {
-				atomic.AddUint64(&l.totalErrors, 1)
-			}
-			if cmdStat.TimedOut() {
-				atomic.AddUint64(&l.totalTimeouts, 1)
-			}
-
-			atomic.AddUint64(&l.totalOps, 1)
-			_ = l.totalHistogram.RecordValue(int64(cmdStat.Latency()))
-			_ = l.inst_totalHistogram.RecordValue(int64(cmdStat.Latency()))
-
-			atomic.AddUint64(&l.txTotalBytes, cmdStat.Tx())
-			atomic.AddUint64(&l.rxTotalBytes, cmdStat.Rx())
-			labelStr := string(cmdStat.Label())
-			querystr := string(cmdStat.CmdQueryId())
-			groupAndQuery := labelStr + "-" + querystr
-			l.detailedMapHistogramsMutex.Lock()
-			if _, exist := l.detailedMapHistograms[groupAndQuery]; !exist {
-				l.detailedMapHistograms[groupAndQuery] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
-			}
-			l.detailedMapHistograms[groupAndQuery].RecordValue(int64(cmdStat.Latency()))
-			l.detailedMapHistogramsMutex.Unlock()
-
-			ts := cmdStat.StartTs()
-			l.perSecondHistogramsMutex.Lock()
-			if _, exist := l.perSecondHistograms[ts]; !exist {
-				l.perSecondHistograms[ts] = hdrhistogram.New(1, l.maxLatencyMicros(), 3)
-			}
-			l.perSecondHistograms[ts].RecordValue(int64(cmdStat.Latency()))
-			l.perSecondHistogramsMutex.Unlock()
-
-			switch labelStr {
-			case "SETUP_WRITE":
-				_ = l.setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_setupWriteHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			case "WRITE":
-				_ = l.writeHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_writeHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			case "UPDATE":
-				_ = l.updateHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_updateHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			case "READ":
-				_ = l.readHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_readHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			case "READ_CURSOR":
-				_ = l.readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_readCursorHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			case "DELETE":
-				_ = l.deleteHistogram.RecordValue(int64(cmdStat.Latency()))
-				_ = l.inst_deleteHistogram.RecordValue(int64(cmdStat.Latency()))
-
-				break
-			}
+			l.recordCmdStat(cmdStats[pos])
 		}
 		c.sendToScanner()
 	}
@@ -706,14 +741,49 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time) {
 	prevRxTotalBytes := uint64(0)
 
 	log.Printf("setup writes/sec\twrites/sec\tupdates/sec\treads/sec\tcursor reads/sec\tdeletes/sec\tcurrent ops/sec\ttotal ops\tTX BW/s\tRX BW/s\n")
-	for now := range time.NewTicker(period).C {
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
+	defer close(l.reportDone)
+	for {
+		var now time.Time
+		select {
+		case <-l.stopReport:
+			return
+		case now = <-ticker.C:
+		}
 		took := now.Sub(prevTime)
+
+		// All histogram access (per-label reads, quantiles, the inst_*
+		// timeseries snapshots and their Reset) is serialized against the
+		// worker record path; snapshot into locals so the log I/O below stays
+		// out of the critical section.
+		l.histogramsMutex.Lock()
 		writeCount := l.writeHistogram.TotalCount()
 		setupWriteCount := l.setupWriteHistogram.TotalCount()
 		readCount := l.readHistogram.TotalCount()
 		readCursorCount := l.readCursorHistogram.TotalCount()
 		updateCount := l.updateHistogram.TotalCount()
 		deleteCount := l.deleteHistogram.TotalCount()
+		setupWriteMedian := float64(l.setupWriteHistogram.ValueAtQuantile(50.0)) / 10e2
+		writeMedian := float64(l.writeHistogram.ValueAtQuantile(50.0)) / 10e2
+		updateMedian := float64(l.updateHistogram.ValueAtQuantile(50.0)) / 10e2
+		readMedian := float64(l.readHistogram.ValueAtQuantile(50.0)) / 10e2
+		readCursorMedian := float64(l.readCursorHistogram.ValueAtQuantile(50.0)) / 10e2
+		deleteMedian := float64(l.deleteHistogram.ValueAtQuantile(50.0)) / 10e2
+		totalMedian := float64(l.totalHistogram.ValueAtQuantile(50.0)) / 10e2
+		l.setupWriteTs = l.addRateMetricsDatapoints(l.setupWriteTs, now, took, l.inst_setupWriteHistogram)
+		l.writeTs = l.addRateMetricsDatapoints(l.writeTs, now, took, l.inst_writeHistogram)
+		l.readTs = l.addRateMetricsDatapoints(l.readTs, now, took, l.inst_readHistogram)
+		l.readCursorTs = l.addRateMetricsDatapoints(l.readCursorTs, now, took, l.inst_readCursorHistogram)
+		l.updateTs = l.addRateMetricsDatapoints(l.updateTs, now, took, l.inst_updateHistogram)
+		l.deleteTs = l.addRateMetricsDatapoints(l.deleteTs, now, took, l.inst_deleteHistogram)
+		l.inst_setupWriteHistogram.Reset()
+		l.inst_writeHistogram.Reset()
+		l.inst_readHistogram.Reset()
+		l.inst_readCursorHistogram.Reset()
+		l.inst_updateHistogram.Reset()
+		l.inst_deleteHistogram.Reset()
+		l.histogramsMutex.Unlock()
 
 		// Live total from the exact atomic counter so the progress line
 		// reconciles with the final TotalOps/overallOpsRate (per-label histogram
@@ -733,34 +803,14 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time) {
 		txByteRateStr := bytefmt.ByteSize(uint64(overallTxByteRate))
 		rxByteRateStr := bytefmt.ByteSize(uint64(overallRxByteRate))
 
-		l.setupWriteTs = l.addRateMetricsDatapoints(l.setupWriteTs, now, took, l.inst_setupWriteHistogram)
-		l.writeTs = l.addRateMetricsDatapoints(l.writeTs, now, took, l.inst_writeHistogram)
-		l.readTs = l.addRateMetricsDatapoints(l.readTs, now, took, l.inst_readHistogram)
-		l.readCursorTs = l.addRateMetricsDatapoints(l.readCursorTs, now, took, l.inst_readCursorHistogram)
-		l.updateTs = l.addRateMetricsDatapoints(l.updateTs, now, took, l.inst_updateHistogram)
-		l.deleteTs = l.addRateMetricsDatapoints(l.deleteTs, now, took, l.inst_deleteHistogram)
-
 		log.Printf("%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t%.0f (%.3f) \t %.0f (%.3f) \t%d \t %sB/s \t %sB/s\n",
-			setupWriteRate,
-			float64(l.setupWriteHistogram.ValueAtQuantile(50.0))/10e2,
-
-			writeRate,
-			float64(l.writeHistogram.ValueAtQuantile(50.0))/10e2,
-
-			updateRate,
-			float64(l.updateHistogram.ValueAtQuantile(50.0))/10e2,
-
-			readRate,
-			float64(l.readHistogram.ValueAtQuantile(50.0))/10e2,
-
-			readCursorRate,
-			float64(l.readCursorHistogram.ValueAtQuantile(50.0))/10e2,
-
-			deleteRate,
-			float64(l.deleteHistogram.ValueAtQuantile(50.0))/10e2,
-
-			CurrentOpsRate,
-			float64(l.totalHistogram.ValueAtQuantile(50.0))/10e2,
+			setupWriteRate, setupWriteMedian,
+			writeRate, writeMedian,
+			updateRate, updateMedian,
+			readRate, readMedian,
+			readCursorRate, readCursorMedian,
+			deleteRate, deleteMedian,
+			CurrentOpsRate, totalMedian,
 			totalOps, txByteRateStr, rxByteRateStr)
 		prevSetupWriteCount = setupWriteCount
 		prevWriteCount = writeCount
@@ -772,14 +822,6 @@ func (l *BenchmarkRunner) report(period time.Duration, start time.Time) {
 		prevRxTotalBytes = rxTotalBytes
 		prevTotalOps = totalOps
 		prevTime = now
-
-		l.inst_setupWriteHistogram.Reset()
-		l.inst_writeHistogram.Reset()
-		l.inst_readHistogram.Reset()
-		l.inst_readCursorHistogram.Reset()
-		l.inst_updateHistogram.Reset()
-		l.inst_deleteHistogram.Reset()
-
 	}
 }
 
