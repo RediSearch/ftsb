@@ -55,21 +55,7 @@ func TestFTSBWithDuration(t *testing.T) {
 	for _, entry := range entries {
 		t.Logf(" - %s", entry.Name())
 	}
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --duration=5s")
 	start := time.Now()
@@ -531,21 +517,7 @@ func TestFTSBWithLogFileAndTimeout(t *testing.T) {
 }
 
 func TestFTSBWithBatchSize(t *testing.T) {
-	t.Log("Starting Redis container...")
-	dockerRun := exec.Command("docker", "run", "--rm", "-d", "-p", "6379:6379", "redis:8.4")
-	containerIDRaw, err := dockerRun.Output()
-	if err != nil {
-		t.Fatalf("Failed to start Redis container: %v", err)
-	}
-	containerID := strings.TrimSpace(string(containerIDRaw))
-
-	t.Cleanup(func() {
-		t.Log("Stopping Redis container...")
-		exec.Command("docker", "stop", containerID).Run()
-	})
-
-	t.Log("Waiting for Redis to be ready...")
-	time.Sleep(2 * time.Second)
+	startRedisContainer(t)
 
 	t.Log("Running ftsb_redisearch with --batch-size=50 --duration=3s")
 	cmd := exec.Command("../bin/ftsb_redisearch",

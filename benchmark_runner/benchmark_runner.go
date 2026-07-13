@@ -180,6 +180,21 @@ func (b *BenchmarkRunner) GetMeasuredRatiosMap() map[string]interface{} {
 	return configs
 }
 
+// overallCounts returns the per-label recorded command counts (from the
+// histograms) and the exact total op count (from the atomic counter, which is
+// immune to HDR histogram tail-rejection and concurrent RecordValue drops).
+// Shared by GetOverallRatesMap and summary.
+func (l *BenchmarkRunner) overallCounts() (writeCount, setupWriteCount, readCount, readCursorCount, updateCount, deleteCount, totalOps int64) {
+	writeCount = l.writeHistogram.TotalCount()
+	setupWriteCount = l.setupWriteHistogram.TotalCount()
+	readCount = l.readHistogram.TotalCount()
+	readCursorCount = l.readCursorHistogram.TotalCount()
+	updateCount = l.updateHistogram.TotalCount()
+	deleteCount = l.deleteHistogram.TotalCount()
+	totalOps = int64(atomic.LoadUint64(&l.totalOps))
+	return
+}
+
 func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
 	/////////
 	// Overall Rates
@@ -187,17 +202,7 @@ func (l *BenchmarkRunner) GetOverallRatesMap() map[string]interface{} {
 	configs := map[string]interface{}{}
 
 	took := l.end.Sub(l.start)
-	writeCount := l.writeHistogram.TotalCount()
-	setupWriteCount := l.setupWriteHistogram.TotalCount()
-	readCount := l.readHistogram.TotalCount()
-	readCursorCount := l.readCursorHistogram.TotalCount()
-	updateCount := l.updateHistogram.TotalCount()
-	deleteCount := l.deleteHistogram.TotalCount()
-
-	// TotalOps/overallOpsRate come from an exact atomic counter (one increment per
-	// recorded command), immune to HDR histogram tail-rejection (latency above the
-	// trackable cap) and concurrent RecordValue drops.
-	totalOps := int64(atomic.LoadUint64(&l.totalOps))
+	writeCount, setupWriteCount, readCount, readCursorCount, updateCount, deleteCount, totalOps := l.overallCounts()
 	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
 
@@ -594,17 +599,7 @@ func (l *BenchmarkRunner) work(b Benchmark, wg *sync.WaitGroup, c *duplexChannel
 // summary prints the summary of statistics from loading
 func (l *BenchmarkRunner) summary() {
 	took := l.end.Sub(l.start)
-	writeCount := l.writeHistogram.TotalCount()
-	setupWriteCount := l.setupWriteHistogram.TotalCount()
-	readCount := l.readHistogram.TotalCount()
-	readCursorCount := l.readCursorHistogram.TotalCount()
-	updateCount := l.updateHistogram.TotalCount()
-	deleteCount := l.deleteHistogram.TotalCount()
-
-	// TotalOps/overallOpsRate come from an exact atomic counter (one increment per
-	// recorded command), immune to HDR histogram tail-rejection (latency above the
-	// trackable cap) and concurrent RecordValue drops.
-	totalOps := int64(atomic.LoadUint64(&l.totalOps))
+	writeCount, setupWriteCount, readCount, readCursorCount, updateCount, deleteCount, totalOps := l.overallCounts()
 	txTotalBytes := atomic.LoadUint64(&l.txTotalBytes)
 	rxTotalBytes := atomic.LoadUint64(&l.rxTotalBytes)
 	totalErrors := atomic.LoadUint64(&l.totalErrors)
