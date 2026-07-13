@@ -1,0 +1,117 @@
+name: Nightly Sanitizers & Fuzzing
+
+# Continuous safety net beyond the per-PR integration tests:
+#  - the Go race detector run against a LIVE benchmark binary at high worker /
+#    pipeline concurrency (the only way to catch races in the exec'd binary --
+#    `go test -race` does NOT instrument a separately-built binary), and
+#  - native Go fuzzing of the untrusted CSV-input parsers.
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: 'Fuzz duration per target (e.g. 5m, 30m, 1h)'
+        required: false
+        default: '15m'
+
+permissions:
+  contents: read
+
+jobs:
+  race:
+    name: Race detector (unit + live binary)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:8.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      # Race-instrument the pure-Go packages. The cmd package + the
+      # benchmark_runner concurrency guards run under -race here; the Docker-based
+      # benchmark_runner integration tests are covered separately by
+      # integration-tests.yml (also under -race) and would collide with the redis
+      # service on port 6379, so they are excluded here.
+      - name: go test -race (unit + concurrency)
+        run: |
+          go test -race -count=2 ./cmd/...
+          go test -race -count=2 -run 'TestRecordCmdStatConcurrentIsRaceFree|TestReportStopsCleanly|TestAddEntry|TestNewCmdStat|TestGetTotalsMap|TestTotalOps|TestGetMeasuredRatios' ./benchmark_runner/
+
+      - name: Build race-instrumented binary
+        run: go build -race -o /tmp/ftsb_race ./cmd/ftsb_redisearch
+
+      - name: Generate mixed-label input (exercises every histogram switch branch)
+        run: |
+          python3 - <<'PY'
+          labels = ["WRITE", "UPDATE", "SETUP_WRITE", "READ", "READ_CURSOR", "DELETE"]
+          with open("/tmp/in.csv", "w") as f:
+              for i in range(20000):
+                  lbl = labels[i % len(labels)]
+                  f.write(f"{lbl},q{i},1,HSET,doc:{i},field,{'x' * 40}\n")
+          PY
+
+      - name: Run race binary across worker x pipeline matrix
+        run: |
+          set -uo pipefail
+          fail=0
+          run() { # workers pipeline extra-args...
+            local w="$1" p="$2"; shift 2
+            local log="/tmp/race_${w}_${p}.log"
+            GORACE="halt_on_error=0" /tmp/ftsb_race \
+              --host localhost:6379 --input /tmp/in.csv \
+              --workers "$w" --pipeline "$p" --reporting-period 50ms \
+              --json-out-file /tmp/out.json "$@" >/dev/null 2>"$log" || true
+            local n; n=$(grep -c 'DATA RACE' "$log" || true)
+            echo "workers=$w pipeline=$p args='$*' -> DATA RACE=$n"
+            if [ "$n" != "0" ]; then fail=1; echo "::error::data race at workers=$w pipeline=$p"; sed -n '1,80p' "$log"; fi
+          }
+          for w in 1 4 8 16; do
+            for p in 1 4; do
+              run "$w" "$p"
+            done
+          done
+          # duration-mode run (exercises the reporter shutdown under load)
+          run 16 4 --duration 5s
+          if [ "$fail" != "0" ]; then
+            echo "Data races detected in the live binary."
+            exit 1
+          fi
+          echo "No data races across the matrix."
+
+  fuzz:
+    name: Go fuzzing (input parsers)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - FuzzPreProcessCmd
+          - FuzzDecodeBinaryArgs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Fuzz ${{ matrix.target }}
+        run: |
+          go test -run '^$' -fuzz '^${{ matrix.target }}$' \
+            -fuzztime '${{ github.event.inputs.fuzztime || '15m' }}' \
+            ./cmd/ftsb_redisearch/
+      - name: Upload discovered crashers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashers-${{ matrix.target }}
+          path: cmd/ftsb_redisearch/testdata/fuzz/
+          if-no-files-found: ignore

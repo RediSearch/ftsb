@@ -454,8 +454,10 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		return
 	}
 
-	// we need at least the cmdType and command
-	if len(argsStr) >= 3 {
+	// We access argsStr[0..3] below (cmdType, queryId, pos, cmd), so at least 4
+	// fields are required. A 3-field row previously passed the `>= 3` guard and
+	// then panicked on argsStr[3] (found by FuzzPreProcessCmd).
+	if len(argsStr) >= 4 {
 		cmdType = argsStr[0]
 		cmdQueryId = argsStr[1]
 		initialPos, _ := strconv.Atoi(argsStr[2])
@@ -490,7 +492,7 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		// sizable for many-tiny-arg commands.
 		bytelen = uint64(len(row)) - uint64(len(cmdType)) - shrink
 	} else {
-		err = fmt.Errorf("input string does not have the minimum required size of 2: %s", row)
+		err = fmt.Errorf("input row has %d fields, need at least 4 (cmdType,queryId,pos,cmd): %s", len(argsStr), row)
 	}
 
 	return
