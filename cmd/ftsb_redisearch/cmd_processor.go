@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -14,6 +15,50 @@ import (
 	radix "github.com/mediocregopher/radix/v3"
 	"golang.org/x/time/rate"
 )
+
+// binaryArgMarker prefixes a command argument whose value is base64-encoded
+// binary data (e.g. a raw little-endian float32 vector blob for a VECTOR
+// field). Raw binary can't travel inside the line-oriented CSV input format
+// (embedded newlines break the scanner), so generators emit
+// `__b64__<base64>` and the argument is decoded back to raw bytes here,
+// right before the command is sent to Redis.
+//
+// Contract: the payload after the marker MUST be RFC 4648 *standard* base64
+// (the `+`/`/` alphabet, padded with `=`). URL-safe or unpadded (raw)
+// encodings are rejected. Any value whose literal prefix is `__b64__` is
+// treated as a marker, so this token is reserved: a genuine field value that
+// begins with it cannot be represented and will be decoded (or rejected).
+const binaryArgMarker = "__b64__"
+
+// decodeBinaryArgs base64-decodes every `__b64__`-marked argument in place and
+// returns `shrink`, the total number of input bytes removed by decoding (base64
+// expands the payload ~4/3 and the 7-byte marker is stripped). The caller
+// subtracts `shrink` from its raw-row byte count so the reported wire-byte
+// throughput reflects the decoded bytes actually sent to Redis, not the larger
+// base64 text.
+//
+// A marked argument that fails to decode — or that decodes to zero bytes —
+// means the input file is corrupt: silently passing it through would ingest
+// garbage into Redis. The error is *returned* (not fatal) so the caller can
+// honor -continue-on-error, consistent with every other error path here.
+func decodeBinaryArgs(args []string) (shrink uint64, err error) {
+	for i, arg := range args {
+		if strings.HasPrefix(arg, binaryArgMarker) {
+			decoded, decErr := base64.StdEncoding.DecodeString(arg[len(binaryArgMarker):])
+			if decErr != nil {
+				// i indexes into args (argsStr[4:]); +4 gives the CSV column.
+				return 0, fmt.Errorf("failed to base64-decode binary argument at CSV field %d: %w", i+4, decErr)
+			}
+			if len(decoded) == 0 {
+				return 0, fmt.Errorf("empty base64 binary argument at CSV field %d: %q", i+4, arg)
+			}
+			shrink += uint64(len(arg) - len(decoded))
+			// Go strings carry arbitrary bytes; radix sends them verbatim.
+			args[i] = string(decoded)
+		}
+	}
+	return shrink, nil
+}
 
 type processor struct {
 	rows           chan string
@@ -122,12 +167,24 @@ func connectionProcessor(p *processor, rateLimiter *rate.Limiter, useRateLimiter
 			}
 		}
 		clusterAddrLen = len(clusterSlots)
-		// start at a random slot between 0 and clusterAddrLen
-		slotP = rand.Intn(clusterAddrLen)
+		// start at a random slot between 0 and clusterAddrLen.
+		// NOSONAR: math/rand is intentional here — this only spreads the
+		// benchmark's starting slot for load distribution; it is not security
+		// sensitive and needs no crypto-grade randomness.
+		slotP = rand.Intn(clusterAddrLen) // NOSONAR
 	}
 
 	for row := range p.rows {
-		cmdType, cmdQueryId, keyPos, cmd, key, clusterSlot, docFields, bytelen, _ := preProcessCmd(row)
+		cmdType, cmdQueryId, keyPos, cmd, key, clusterSlot, docFields, bytelen, err := preProcessCmd(row)
+		if err != nil {
+			// Honor -continue-on-error like every other error path: skip the
+			// bad row rather than nuking an entire (EC2-billed) benchmark run.
+			if continueOnErr {
+				log.Printf("skipping malformed row: %v", err)
+				continue
+			}
+			log.Fatalf("fatal error preprocessing row: %v", err)
+		}
 
 		if clusterSlot > -1 {
 			for i, sArr := range clusterSlots {
@@ -311,14 +368,27 @@ func preProcessCmd(row string) (cmdType string, cmdQueryId string, keyPos int, c
 		keyPos = initialPos + 3
 		cmd = argsStr[3]
 		clusterSlot = -1
+		var shrink uint64
 		if len(argsStr) > 4 {
 			args = argsStr[4:]
+			shrink, err = decodeBinaryArgs(args)
+			if err != nil {
+				return
+			}
+			// Guard the key index: a malformed row (keyPos derived from the
+			// untrusted pos field) must not panic the whole worker goroutine.
+			if keyPos < 0 || keyPos >= len(argsStr) {
+				err = fmt.Errorf("key position %d out of range for row with %d fields: %s", keyPos, len(argsStr), row)
+				return
+			}
 			key = argsStr[keyPos]
 		}
 		if initialPos >= 0 {
 			clusterSlot = int(radix.ClusterSlot([]byte(key)))
 		}
-		bytelen = uint64(len(row)) - uint64(len(cmdType))
+		// Subtract the base64 shrink so byte accounting reflects the decoded
+		// bytes actually sent to Redis, not the larger base64 text in the row.
+		bytelen = uint64(len(row)) - uint64(len(cmdType)) - shrink
 	} else {
 		err = fmt.Errorf("input string does not have the minimum required size of 2: %s", row)
 	}

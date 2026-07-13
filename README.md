@@ -110,6 +110,34 @@ which will translate to the following command being issued:
 ```
 FT.ADD idx doc1 1.0 FIELDS title "hello world"
 ```
+
+#### Binary / vector arguments (`__b64__` marker)
+
+Raw binary values (e.g. a little-endian `float32` blob for a `VECTOR` field)
+cannot travel inside this line-oriented CSV format, because a blob may contain
+`0x0A` (newline) bytes that break the line scanner, and storing base64 verbatim
+is rejected by RediSearch on ingest (blob-size mismatch).
+
+To carry binary data, prefix the affected argument value with `__b64__` and
+base64-encode the raw bytes using **RFC 4648 standard encoding** (the `+`/`/`
+alphabet, padded with `=` — *not* URL-safe, *not* raw/unpadded). The runner
+decodes any `__b64__`-marked argument back to its exact raw bytes right before
+the command is sent to Redis. Both ingest and query rows are decoded, so KNN
+query `BLOB` params can use the same marker.
+
+```
+SETUP,setup-doc-1,1,HSET,doc:1,vec,__b64__zczMPc3MTD6amZk+zczMPg==
+```
+executes `HSET doc:1 vec <16 raw bytes>`.
+
+Notes:
+- Unmarked arguments are untouched — existing input files are unaffected.
+- The `__b64__` prefix is **reserved**: a genuine field value that literally
+  begins with `__b64__` will be treated as a marker (there is no escape).
+- A marked argument that is not valid standard base64, or that decodes to zero
+  bytes, is treated as a corrupt row. Under `-continue-on-error` (default) the
+  row is logged and skipped; otherwise the run aborts.
+
 The following links deep dive on:
 
 - Generating inputs from pre-baked benchmark suites (ecommerce-inventory , enwiki-abstract , enwiki-pages) 

@@ -1,7 +1,10 @@
 # FTSB outputs #
 ################
-ftsb_redisearch
-cmd/ftsb_redisearch/ftsb_redisearch
+# Root-anchored so these match the built BINARIES only, not the
+# cmd/ftsb_redisearch/ source directory (an unanchored `ftsb_redisearch`
+# silently ignored new source files under cmd/ftsb_redisearch/).
+/ftsb_redisearch
+/cmd/ftsb_redisearch/ftsb_redisearch
 
 ###################
 # Data generators #
