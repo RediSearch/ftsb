@@ -2,6 +2,7 @@ package benchmark_runner
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -669,5 +670,58 @@ func TestFTSBLatencyCapHighOptIn(t *testing.T) {
 	)
 	if q100 < 1500 {
 		t.Errorf("Expected q100 >= 1500 ms with --max-latency-seconds=60 (DEBUG SLEEP 2 should record ~2000 ms), got %.2f ms", q100)
+	}
+}
+
+// #118: a single failing command in a pipeline window must count as exactly ONE
+// error, not `pipeline` errors. Pre-fix, ftsb attributed the pipeline's single
+// aggregate error to every command in the window, so one WRONGTYPE reply in a
+// window of 10 inflated Errors to 10.
+//
+// The input is self-contained and deterministic under --workers 1: window 0
+// (rows 0-9) does `SET strkey ...` plus 9 good HSETs (all succeed), and window 1
+// (rows 10-19) has exactly one `HSET strkey ...` (WRONGTYPE, strkey is a string)
+// among 9 good HSETs. Correct accounting -> Errors == 1; pre-fix -> Errors == 10.
+func TestFTSBPipelineErrorCountedPerCommandNotPerWindow(t *testing.T) {
+	startRedisContainer(t)
+
+	var b strings.Builder
+	// Window 0: seed strkey as a STRING, then 9 good hashes -> all succeed.
+	b.WriteString("WRITE,q,1,SET,strkey,x\n")
+	for i := 0; i < 9; i++ {
+		fmt.Fprintf(&b, "WRITE,q,1,HSET,good:%d,f,v\n", i)
+	}
+	// Window 1: 5 good, 1 WRONGTYPE (HSET on the string key), 4 good.
+	for i := 9; i < 14; i++ {
+		fmt.Fprintf(&b, "WRITE,q,1,HSET,good:%d,f,v\n", i)
+	}
+	b.WriteString("WRITE,q,1,HSET,strkey,f,v\n") // WRONGTYPE: strkey is a string
+	for i := 14; i < 18; i++ {
+		fmt.Fprintf(&b, "WRITE,q,1,HSET,good:%d,f,v\n", i)
+	}
+
+	csvPath := "../testdata/pipeline_error_input.csv"
+	if err := os.WriteFile(csvPath, []byte(b.String()), 0644); err != nil {
+		t.Fatalf("write input csv: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(csvPath) })
+
+	data := runFTSBReadJSON(t, "../testdata/results.pipeline_error.json",
+		"--input", csvPath, "--workers", "1", "--pipeline", "10")
+
+	var parsed struct {
+		Totals struct {
+			TotalOps int     `json:"TotalOps"`
+			Errors   float64 `json:"Errors"`
+		} `json:"Totals"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("parse json: %v", err)
+	}
+	if parsed.Totals.TotalOps != 20 {
+		t.Errorf("TotalOps = %d, want 20", parsed.Totals.TotalOps)
+	}
+	if parsed.Totals.Errors != 1 {
+		t.Errorf("Errors = %v, want 1 (one WRONGTYPE in a pipeline of 10 must not inflate to 10)", parsed.Totals.Errors)
 	}
 }
