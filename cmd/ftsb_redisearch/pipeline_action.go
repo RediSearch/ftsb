@@ -24,6 +24,7 @@ import (
 type pipelineErrs struct {
 	cmds []radix.CmdAction
 	errs []error // len(cmds); errs[i] != nil iff command i failed.
+	ran  bool    // set once Run starts; distinguishes "executed, errs is authoritative" from "client.Do failed before Run (e.g. connection acquisition), whole batch failed".
 }
 
 // multiMarshal marshals a batch of CmdActions into one RESP write so the whole
@@ -50,6 +51,7 @@ func (p *pipelineErrs) Keys() []string {
 }
 
 func (p *pipelineErrs) Run(c radix.Conn) error {
+	p.ran = true
 	// One buffered write of the whole batch.
 	if err := c.Encode(multiMarshal(p.cmds)); err != nil {
 		// A write failure breaks the connection, so no reply is coming for any

@@ -402,10 +402,18 @@ func flushPending(p *processor, client radix.Client, pending []pendingCmd) ([]pe
 		logFlushError(pending, err)
 	}
 
-	// cmdErr returns command i's own error: for a batch that's pe.errs[i] (only
-	// the commands that actually failed), for a single command it's the Do error.
+	// cmdErr returns command i's own error. For a batch, pe.errs[i] is
+	// authoritative ONCE pe.Run executed (only the commands that actually failed
+	// are non-nil). But client.Do can fail BEFORE pe.Run -- e.g. the pool can't
+	// hand out a connection during a server outage -- in which case pe.errs stays
+	// all-nil even though the whole batch failed; fall back to the Do error so
+	// those commands aren't miscounted as successful. For a single command it's
+	// just the Do error.
 	cmdErr := func(i int) error {
 		if pe != nil {
+			if !pe.ran {
+				return err // batch never executed: whole window failed
+			}
 			return pe.errs[i]
 		}
 		return err
